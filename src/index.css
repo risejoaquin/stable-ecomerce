@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: 'Georgia', serif;
+
+  --color-natural-bg: #F7F6F2;
+  --color-natural-text: #333333;
+  --color-natural-primary: #6B705C;
+  --color-natural-secondary: #A5A58D;
+  --color-natural-border: #E5E5E1;
+  --color-natural-border-light: #F0EFE9;
+  --color-natural-card: #FFFFFF;
+  
+  --color-status-pending-bg: #FFF9E6;
+  --color-status-pending-text: #B08C00;
+  --color-status-shipped-bg: #E6F5ED;
+  --color-status-shipped-text: #2D6A4F;
+}
+
+body {
+  background-color: var(--color-natural-bg);
+  color: var(--color-natural-text);
+  font-family: var(--font-sans);
+}
