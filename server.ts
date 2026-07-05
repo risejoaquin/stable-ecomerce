@@ -8,6 +8,10 @@ import { clerkMiddleware, requireAuth } from '@clerk/express';
 import multer from 'multer';
 
 // --- CONFIG ---
+if (!process.env.CLERK_PUBLISHABLE_KEY && process.env.VITE_CLERK_PUBLISHABLE_KEY) {
+  process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+}
+
 const PORT = process.env.PORT || 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -76,8 +80,8 @@ async function startServer() {
   // Regular JSON middleware for other routes
   app.use(express.json());
 
-  // Clerk middleware (optional auth on all routes, use requireAuth() on specific routes to enforce)
-  app.use(clerkMiddleware());
+  // Clerk middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
+  app.use('/api', clerkMiddleware());
 
   // API Routes
   app.get('/api/health', async (req, res) => {
@@ -394,6 +398,25 @@ async function startServer() {
       res.json(data);
     } catch (e: any) {
       res.status(404).json({ error: 'Store not found' });
+    }
+  });
+
+
+  // Products route for Tanstack Query hook (GET /api/products?store_slug=...)
+  app.get('/api/products', async (req, res) => {
+    if (!supabase) return res.json([]);
+    try {
+      const storeSlug = req.query.store_slug;
+      if (!storeSlug) return res.json([]);
+      
+      const { data: store, error: storeError } = await supabase.from('stores').select('id').eq('slug', storeSlug).single();
+      if (storeError || !store) return res.status(404).json({ error: 'Store not found' });
+      
+      const { data: products, error } = await supabase.from('products').select('*').eq('store_id', store.id);
+      if (error) throw error;
+      res.json(products || []);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
   });
 

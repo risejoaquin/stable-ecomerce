@@ -6,9 +6,10 @@
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, UserButton, useUser, useAuth } from '@clerk/clerk-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { apiClient, setAuthTokenGetter } from './api/client';
+import { ProductsPage } from './pages/admin/ProductsPage';
+import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
 
 const queryClient = new QueryClient({
@@ -21,17 +22,6 @@ const queryClient = new QueryClient({
   })
 });
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-
-function AuthInjector({ children }: { children: React.ReactNode }) {
-  const { getToken } = useAuth();
-  useEffect(() => {
-    setAuthTokenGetter(async () => {
-      return await getToken();
-    });
-  }, [getToken]);
-  return <>{children}</>;
-}
-
 type CartItem = {
   id: string;
   name: string;
@@ -98,6 +88,7 @@ function useCart() {
 }
 
 function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
+  const apiClient = useApiClient();
   const [name, setName] = useState('');
   const createStore = useMutation({
     mutationFn: (storeName: string) => apiClient.post('/stores', { name: storeName }),
@@ -135,6 +126,7 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
 }
 
 function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const apiClient = useApiClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-store'],
     queryFn: () => apiClient.get('/admin/store'),
@@ -313,7 +305,8 @@ function HomePage() {
   );
 }
 
-function AdminDashboard() { 
+function AdminDashboard() {
+  const apiClient = useApiClient(); 
   const { data: storeData } = useQuery({
     queryKey: ['admin-store'],
     queryFn: () => apiClient.get('/admin/store')
@@ -434,165 +427,8 @@ function AdminDashboard() {
   );
 }
 
-function AdminProductsPage() {
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-
-  const { data: products, isLoading } = useQuery({
-    queryKey: ['admin-products'],
-    queryFn: () => apiClient.get('/admin/products')
-  });
-
-  const deleteProduct = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/admin/products/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] })
-  });
-
-  return (
-    <div className="p-10 flex flex-col gap-6 h-full relative">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-2xl text-[#333]">Products</h2>
-        <button 
-          onClick={() => { setEditingProduct(null); setIsFormOpen(true); }}
-          className="bg-[#6B705C] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors"
-        >
-          Add Product
-        </button>
-      </div>
-      <div className="bg-white rounded-[24px] border border-[#E5E5E1] flex-1 p-6 overflow-auto">
-        {isLoading ? <p>Loading...</p> : (
-          <table className="w-full text-left">
-            <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
-              <tr className="h-10">
-                <th className="font-medium">Image</th>
-                <th className="font-medium">Product Name</th>
-                <th className="font-medium">Price</th>
-                <th className="font-medium">Stock</th>
-                <th className="font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {(products || []).map((p: any) => (
-                <tr key={p.id} className="h-14 border-b border-[#F0EFE9] last:border-0">
-                  <td className="w-12 py-2">
-                    {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-10 h-10 object-cover rounded-md" /> : <div className="w-10 h-10 bg-gray-100 rounded-md"></div>}
-                  </td>
-                  <td className="font-medium">{p.name}</td>
-                  <td className="text-gray-600">${(p.price || 0).toFixed(2)}</td>
-                  <td className="text-gray-600">{p.stock}</td>
-                  <td className="text-right">
-                    <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} className="text-[#6B705C] font-bold text-xs mr-3 hover:underline">Edit</button>
-                    <button onClick={() => { if(confirm('Delete product?')) deleteProduct.mutate(p.id); }} className="text-red-500 font-bold text-xs hover:underline">Delete</button>
-                  </td>
-                </tr>
-              ))}
-              {products?.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-[#A5A58D] text-sm">No products found. Add your first product!</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {isFormOpen && (
-        <ProductFormModal 
-          product={editingProduct} 
-          onClose={() => setIsFormOpen(false)} 
-        />
-      )}
-    </div>
-  );
-}
-
-function ProductFormModal({ product, onClose }: { product: any, onClose: () => void }) {
-  const [name, setName] = useState(product?.name || '');
-  const [price, setPrice] = useState(product?.price || 0);
-  const [stock, setStock] = useState(product?.stock || 0);
-  const [images, setImages] = useState<string[]>(product?.images || []);
-  const [uploading, setUploading] = useState(false);
-
-  const saveProduct = useMutation({
-    mutationFn: (data: any) => product ? apiClient.put(`/admin/products/${product.id}`, data) : apiClient.post('/admin/products', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      onClose();
-    }
-  });
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${await (window as any).getAuthToken?.() || ''}`
-        },
-        body: formData
-      });
-      const data = await res.json();
-      if (data.url) {
-        setImages([...images, data.url]);
-      } else if (data.error) {
-        alert(data.error);
-      }
-    } catch(err) {
-      alert('Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div className="absolute inset-0 bg-black/20 flex justify-center items-center p-6 z-50">
-      <div className="bg-white rounded-[24px] shadow-xl w-full max-w-md p-6 max-h-full overflow-auto">
-        <h3 className="font-serif text-xl mb-4">{product ? 'Edit Product' : 'Add Product'}</h3>
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:border-[#6B705C]" />
-          </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1">Price ($)</label>
-              <input type="number" step="0.01" value={price} onChange={e => setPrice(parseFloat(e.target.value) || 0)} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:border-[#6B705C]" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1">Stock</label>
-              <input type="number" value={stock} onChange={e => setStock(parseInt(e.target.value) || 0)} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:border-[#6B705C]" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Images</label>
-            <div className="flex gap-2 mb-2 flex-wrap">
-              {images.map((img, i) => (
-                <div key={i} className="relative">
-                  <img src={img} alt="preview" className="w-16 h-16 object-cover rounded-md border border-gray-200" />
-                  <button onClick={() => setImages(images.filter((_, idx) => idx !== i))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">&times;</button>
-                </div>
-              ))}
-            </div>
-            <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} className="text-xs" />
-            {uploading && <span className="text-xs text-gray-500 ml-2">Uploading...</span>}
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-8">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-          <button onClick={() => saveProduct.mutate({ name, price, stock, images })} disabled={saveProduct.isPending} className="bg-[#6B705C] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors disabled:opacity-50">
-            {saveProduct.isPending ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AdminSettingsPage() {
+  const apiClient = useApiClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-store'],
     queryFn: () => apiClient.get('/admin/store'),
@@ -605,11 +441,7 @@ function AdminSettingsPage() {
 
   const [themeColor, setThemeColor] = useState('#6B705C');
 
-  useEffect(() => {
-    if (data?.store?.config?.themeColor) {
-      setThemeColor(data.store.config.themeColor);
-    }
-  }, [data]);
+  useEffect(() => { if (data?.store?.config?.themeColor) setThemeColor(data.store.config.themeColor); }, [data]);
 
   if (isLoading) return <div className="p-10">Loading settings...</div>;
 
@@ -643,6 +475,7 @@ function AdminSettingsPage() {
 }
 
 function AdminOrdersPage() {
+  const apiClient = useApiClient();
   const { data: orders, isLoading } = useQuery({
     queryKey: ['admin-orders'],
     queryFn: () => apiClient.get('/admin/orders'),
@@ -753,7 +586,7 @@ function AdminLayout() {
 
 function CheckoutSuccessPage() {
   const { clearCart } = useCart();
-  
+
   useEffect(() => {
     clearCart();
   }, [clearCart]);
@@ -771,6 +604,7 @@ function CheckoutSuccessPage() {
     </div>
   );
 }
+
 
 export default function App() {
   const routerContent = (
@@ -797,7 +631,7 @@ export default function App() {
             )
           }>
             <Route index element={<AdminDashboard />} />
-            <Route path="products" element={<AdminProductsPage />} />
+            <Route path="products" element={<ProductsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
@@ -810,9 +644,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       {clerkPubKey ? (
         <ClerkProvider publishableKey={clerkPubKey}>
-          <AuthInjector>
+          
             {routerContent}
-          </AuthInjector>
+          
         </ClerkProvider>
       ) : (
         routerContent
