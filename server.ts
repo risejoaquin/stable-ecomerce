@@ -98,7 +98,7 @@ async function startServer() {
     res.json({ status: 'ok', database: dbStatus });
   });
 
-  app.post('/api/orders', async (req, res) => {
+  app.post('/api/orders', clerkMiddleware(), async (req: any, res) => {
     const { items, storeId } = req.body;
     if (!supabase) return res.json({ id: 'dummy_order_' + Date.now(), total: 100 });
 
@@ -127,6 +127,7 @@ async function startServer() {
       // @ts-ignore
       const { data: order, error: orderError } = await supabase.from('orders').insert([{
         store_id: storeId,
+        customer_user_id: req.auth?.userId || null,
         status: 'pending',
         total
       }] as any[]).select().single();

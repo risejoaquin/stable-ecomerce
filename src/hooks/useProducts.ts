@@ -5,7 +5,7 @@ export function useProducts(storeSlug?: string) {
   const apiClient = useApiClient();
   return useQuery({
     queryKey: ["products", storeSlug],
-    queryFn: () => apiClient.get(`/api/products?store_slug=${storeSlug}`),
+    queryFn: () => apiClient.get(`/products?store_slug=${storeSlug}`),
     enabled: !!storeSlug,
   });
 }
@@ -23,7 +23,7 @@ export function useCreateProduct() {
   const apiClient = useApiClient();
   return useMutation({
     mutationFn: (newProduct: any) =>
-      apiClient.post("/api/admin/products", newProduct),
+      apiClient.post("/admin/products", newProduct),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
     },

@@ -9,6 +9,8 @@ import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, UserButton, useUs
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { ProductsPage } from './pages/admin/ProductsPage';
+import { HomePage } from './pages/store/HomePage';
+import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
 
@@ -81,7 +83,7 @@ function CartProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function useCart() {
+export function useCart() {
   const ctx = React.useContext(CartContext);
   if (!ctx) throw new Error('useCart must be inside CartProvider');
   return ctx;
@@ -144,36 +146,10 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // --- Placeholders for Pages ---
 
-function CartDrawer({ storeId, themeColor }: { storeId?: string, themeColor: string }) {
+export function CartDrawer({ storeId, themeColor }: { storeId?: string, themeColor: string }) {
   const { items, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen } = useCart();
   
-  const checkout = useMutation({
-    mutationFn: async () => {
-      const orderRes = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storeId,
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity }))
-        })
-      }).then(r => r.json());
-      
-      if (orderRes.error) throw new Error(orderRes.error);
-
-      const checkoutRes = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: orderRes.id })
-      }).then(r => r.json());
-
-      if (checkoutRes.url) {
-        window.location.href = checkoutRes.url;
-      } else {
-        throw new Error(checkoutRes.error || 'Checkout failed');
-      }
-    },
-    onError: (err: any) => alert(err.message)
-  });
+  const checkout = useCheckout(storeId);
 
   if (!isCartOpen) return null;
 
@@ -227,80 +203,6 @@ function CartDrawer({ storeId, themeColor }: { storeId?: string, themeColor: str
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function HomePage() { 
-  const { data, isLoading } = useQuery({
-    queryKey: ['public-store'],
-    queryFn: () => fetch('/api/public/store').then(r => r.json())
-  });
-  
-  const { items, setIsCartOpen, addItem } = useCart();
-
-  if (isLoading) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Loading...</div>;
-
-  const store = data?.store || { name: 'Terra & Tide', config: { themeColor: '#6B705C' } };
-  const products = data?.products || [];
-  const themeColor = store.config?.themeColor || '#6B705C';
-  const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-
-  return (
-    <div className="min-h-screen bg-[#FDFCFB] font-sans text-[#333]" style={{ '--theme-color': themeColor } as React.CSSProperties}>
-      <header className="h-20 px-8 max-w-7xl mx-auto flex items-center justify-between border-b border-[#F0EFE9]">
-        <span className="font-serif italic text-2xl font-bold" style={{ color: themeColor }}>{store.name}</span>
-        <div className="flex gap-4">
-          <div 
-            onClick={() => setIsCartOpen(true)}
-            className="w-10 h-10 rounded-full border border-[#E5E5E1] flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors relative"
-          >
-            <span className="material-symbols-outlined text-sm" style={{ color: themeColor }}>shopping_bag</span>
-            {cartItemCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: themeColor }}>
-                {cartItemCount}
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-      <div className="p-8 max-w-7xl mx-auto">
-        <h1 className="font-serif text-4xl mb-2 text-[#333]">New Arrivals</h1>
-        <p className="text-[#A5A58D] text-sm">Explore our latest handcrafted collection.</p>
-        
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-          {products.map((p: any) => (
-            <div key={p.id} className="bg-white border border-[#F0EFE9] rounded-3xl p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col">
-              <div className="bg-gray-100 aspect-[3/4] rounded-2xl mb-4 overflow-hidden relative">
-                {p.images?.[0] ? (
-                   <img src={p.images[0]} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />
-                ) : (
-                   <div className="absolute inset-0 bg-[#B7B7A4]"></div>
-                )}
-              </div>
-              <div className="px-2 pb-2 flex-1 flex flex-col">
-                <h3 className="font-bold text-sm text-[#333]">{p.name}</h3>
-                <p className="text-[#A5A58D] text-xs mt-1 mb-4">${(p.price || 0).toFixed(2)}</p>
-                <div className="mt-auto">
-                  <button 
-                    onClick={() => addItem(p)}
-                    style={{ color: themeColor }}
-                    className="w-full bg-[#F7F6F2] font-bold text-xs py-2.5 rounded-xl hover:bg-[#E5E5E1] transition-colors border border-[#E5E5E1]"
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-          {products.length === 0 && (
-            <div className="col-span-full py-20 text-center text-[#A5A58D]">
-              <p>No products available yet.</p>
-            </div>
-          )}
-        </div>
-      </div>
-      <CartDrawer storeId={store?.id} themeColor={themeColor} />
     </div>
   );
 }
