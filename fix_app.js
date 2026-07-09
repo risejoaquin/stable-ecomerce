@@ -1,11 +1,10 @@
 import fs from 'fs';
+
 let code = fs.readFileSync('src/App.tsx', 'utf-8');
 
-// Replace the implementations
-code = code.replace(/function AdminProductsPage\(\) \{[\s\S]*?(function ProductFormModal)/, '$1');
-code = code.replace(/function ProductFormModal\(\{ product, onClose \}: \{ product: any, onClose: \(\) => void \}\) \{[\s\S]*?(function AdminSettingsPage)/, '$1');
-
-// Replace the components mapping
-code = code.replace(/<AdminProductsPage \/>/g, '<ProductsPage />');
+code = code.replace(
+  "import { HomePage }\nimport { TrackOrderPage } from './pages/store/TrackOrderPage';\nimport { MyOrdersPage } from './pages/store/MyOrdersPage'; from './pages/store/HomePage';",
+  "import { HomePage } from './pages/store/HomePage';\nimport { TrackOrderPage } from './pages/store/TrackOrderPage';\nimport { MyOrdersPage } from './pages/store/MyOrdersPage';"
+);
 
 fs.writeFileSync('src/App.tsx', code);

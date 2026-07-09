@@ -3,13 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, UserButton, useUser, useAuth } from '@clerk/clerk-react';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { ProductsPage } from './pages/admin/ProductsPage';
+import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
+import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { HomePage } from './pages/store/HomePage';
+import { TrackOrderPage } from './pages/store/TrackOrderPage';
+import { MyOrdersPage } from './pages/store/MyOrdersPage';
+import { CheckoutSuccessPage } from './pages/store/CheckoutSuccessPage';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
@@ -329,103 +335,6 @@ function AdminDashboard() {
   );
 }
 
-function AdminSettingsPage() {
-  const apiClient = useApiClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-store'],
-    queryFn: () => apiClient.get('/admin/store'),
-  });
-
-  const updateConfig = useMutation({
-    mutationFn: (config: StoreConfig) => apiClient.put('/admin/store/config', config),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-store'] })
-  });
-
-  const [themeColor, setThemeColor] = useState('#6B705C');
-
-  useEffect(() => { if (data?.store?.config?.themeColor) setThemeColor(data.store.config.themeColor); }, [data]);
-
-  if (isLoading) return <div className="p-10">Loading settings...</div>;
-
-  return (
-    <div className="p-10 flex flex-col gap-6 h-full max-w-3xl">
-      <h2 className="font-serif text-2xl text-[#333]">Store Settings</h2>
-      <div className="bg-white rounded-[24px] border border-[#E5E5E1] p-8">
-        <h3 className="font-medium mb-6">Appearance</h3>
-        <div className="mb-6">
-          <label className="block text-sm font-bold text-[#6B705C] mb-2">Theme Color</label>
-          <div className="flex gap-4 items-center">
-            <input 
-              type="color" 
-              value={themeColor} 
-              onChange={(e) => setThemeColor(e.target.value)}
-              className="w-12 h-12 rounded cursor-pointer border border-[#E5E5E1] p-1" 
-            />
-            <span className="text-sm text-gray-500 font-mono">{themeColor}</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => updateConfig.mutate({ themeColor, fontFamily: data?.store?.config?.fontFamily || 'sans-serif' })}
-          disabled={updateConfig.isPending}
-          className="bg-[#6B705C] text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors disabled:opacity-50"
-        >
-          {updateConfig.isPending ? 'Saving...' : 'Save Settings'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AdminOrdersPage() {
-  const apiClient = useApiClient();
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['admin-orders'],
-    queryFn: () => apiClient.get('/admin/orders'),
-    refetchInterval: 5000
-  });
-
-  return (
-    <div className="p-10 flex flex-col gap-6 h-full">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-2xl text-[#333]">Orders</h2>
-      </div>
-      <div className="bg-white rounded-[24px] border border-[#E5E5E1] flex-1 p-6 overflow-auto">
-        {isLoading ? <p>Loading...</p> : (
-          <table className="w-full text-left">
-            <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
-              <tr className="h-10">
-                <th className="font-medium">Order ID</th>
-                <th className="font-medium">Date</th>
-                <th className="font-medium">Amount</th>
-                <th className="font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {(orders || []).map((o: any) => (
-                <tr key={o.id} className="h-14 border-b border-[#F0EFE9] last:border-0">
-                  <td className="font-mono text-xs text-gray-500">#{o.id.split('-')[0]}</td>
-                  <td className="text-gray-600">{new Date(o.created_at).toLocaleDateString()}</td>
-                  <td className="text-gray-600">${(o.total || 0).toFixed(2)}</td>
-                  <td>
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${o.status === 'paid' ? 'bg-[#E6F5ED] text-[#2D6A4F]' : 'bg-[#FFF9E6] text-[#B08C00]'}`}>
-                      {o.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {orders?.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-[#A5A58D] text-sm">No orders found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function AdminLayout() { 
   const { user } = useUser();
   const location = useLocation();
@@ -486,27 +395,6 @@ function AdminLayout() {
   );
 }
 
-function CheckoutSuccessPage() {
-  const { clearCart } = useCart();
-
-  useEffect(() => {
-    clearCart();
-  }, [clearCart]);
-
-  return (
-    <div className="min-h-screen bg-[#FDFCFB] flex flex-col items-center justify-center font-sans text-[#333]">
-      <div className="w-16 h-16 bg-[#E6F5ED] text-[#2D6A4F] rounded-full flex items-center justify-center mb-6">
-        <span className="material-symbols-outlined text-3xl">check</span>
-      </div>
-      <h1 className="font-serif text-3xl mb-2">Thank you for your order!</h1>
-      <p className="text-[#A5A58D] mb-8">We've received your payment and will begin processing your order.</p>
-      <Link to="/" className="bg-[#6B705C] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#5a5e4d] transition-colors">
-        Continue Shopping
-      </Link>
-    </div>
-  );
-}
-
 
 export default function App() {
   const routerContent = (
@@ -516,6 +404,8 @@ export default function App() {
           {/* Public Storefront */}
           <Route path="/" element={<HomePage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/track" element={<TrackOrderPage />} />
+          <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
           
           {/* Admin Panel */}
           <Route path="/admin" element={
@@ -543,7 +433,8 @@ export default function App() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
       {clerkPubKey ? (
         <ClerkProvider publishableKey={clerkPubKey}>
           
@@ -555,5 +446,6 @@ export default function App() {
       )}
       <Toaster position="bottom-right" />
     </QueryClientProvider>
+    </HelmetProvider>
   );
 }

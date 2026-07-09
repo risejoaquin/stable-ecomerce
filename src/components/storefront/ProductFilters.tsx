@@ -1,0 +1,45 @@
+import React from 'react';
+
+export function ProductFilters({ filters, setFilters }: { filters: any, setFilters: any }) {
+  
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-gray-100 flex flex-col gap-6">
+      <div>
+        <h3 className="font-bold text-sm mb-3">Sort By</h3>
+        <select 
+          value={`${filters.sortBy}-${filters.order}`}
+          onChange={(e) => {
+            const [sortBy, order] = e.target.value.split('-');
+            setFilters((prev: any) => ({ ...prev, sortBy, order }));
+          }}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+        >
+          <option value="created_at-desc">Newest First</option>
+          <option value="price-asc">Price: Low to High</option>
+          <option value="price-desc">Price: High to Low</option>
+        </select>
+      </div>
+
+      <div>
+        <h3 className="font-bold text-sm mb-3">Price Range</h3>
+        <div className="flex gap-2 items-center">
+          <input 
+            type="number" 
+            placeholder="Min" 
+            value={filters.minPrice || ''}
+            onChange={(e) => setFilters((prev: any) => ({ ...prev, minPrice: e.target.value }))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+          />
+          <span className="text-gray-400">-</span>
+          <input 
+            type="number" 
+            placeholder="Max" 
+            value={filters.maxPrice || ''}
+            onChange={(e) => setFilters((prev: any) => ({ ...prev, maxPrice: e.target.value }))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

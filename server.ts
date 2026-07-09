@@ -4,6 +4,8 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { Resend } from 'resend';
+
 import { clerkMiddleware, requireAuth } from '@clerk/express';
 import multer from 'multer';
 
@@ -12,7 +14,26 @@ if (!process.env.CLERK_PUBLISHABLE_KEY && process.env.VITE_CLERK_PUBLISHABLE_KEY
   process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Store <onboarding@resend.dev>';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
+
+async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
+  if (!resend) {
+    console.log(`[Email Mock] To: ${to} | Subject: ${subject}`);
+    return;
+  }
+  try {
+    await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
+    console.log(`Email sent to ${to}`);
+  } catch (error) {
+    console.error('Failed to send email:', error);
+  }
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -57,10 +78,10 @@ async function startServer() {
       const orderId = session.metadata?.order_id;
       if (orderId && supabase) {
         // Update order status to paid
-        await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
+        const { data: order, error } = await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId).select().single();
         
         // Decrement stock
-        const { data: orderItems } = await supabase.from('order_items').select('*').eq('order_id', orderId);
+        const { data: orderItems } = await supabase.from('order_items').select('*, products(*)').eq('order_id', orderId);
         if (orderItems && orderItems.length > 0) {
           for (const item of orderItems) {
             // Fetch current product to safely decrement stock
@@ -70,6 +91,28 @@ async function startServer() {
               await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
             }
           }
+        }
+
+        // Send Email Notifications
+        if (order && !error) {
+           const customerEmail = session.customer_details?.email || order.customer_email;
+           
+           // Admin Notification
+           await sendEmail({
+             to: ADMIN_EMAIL,
+             subject: `New Order Received: #${order.id.split('-')[0]}`,
+             html: `<p>A new order has been placed for ${order.total}.</p><p>Order ID: ${order.id}</p>`
+           });
+
+           // Customer Confirmation
+           if (customerEmail) {
+             const itemsHtml = orderItems ? orderItems.map(item => `<li>${item.quantity}x ${item.products?.name} - ${item.unit_price}</li>`).join('') : '';
+             await sendEmail({
+               to: customerEmail,
+               subject: `Order Confirmation: #${order.id.split('-')[0]}`,
+               html: `<h1>Thank you for your order!</h1><p>We have received your order and it is now being processed.</p><ul>${itemsHtml}</ul><p>Total: ${order.total}</p>`
+             });
+           }
         }
       }
     }
@@ -83,7 +126,37 @@ async function startServer() {
   // Clerk middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
   app.use('/api', clerkMiddleware());
 
-  // API Routes
+  
+  app.get('/api/orders/my', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json([]);
+    try {
+      const { data, error } = await supabase.from('orders').select('*, order_items(*, products(*))').eq('customer_user_id', req.auth.userId).order('created_at', { ascending: false });
+      if (error) throw error;
+      res.json(data || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+
+  app.get('/api/orders/track', async (req, res) => {
+    if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+    try {
+      const email = req.query.email as string;
+      const orderId = req.query.order_id as string;
+      if (!email || !orderId) return res.status(400).json({ error: 'Email and order_id required' });
+
+      const { data, error } = await supabase.from('orders').select('*, order_items(*, products(name, images))').eq('id', orderId).ilike('customer_email', email).single();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ error: 'Order not found' });
+      
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+// API Routes
   app.get('/api/health', async (req, res) => {
     // Check Supabase connection if configured
     let dbStatus = 'unconfigured';
@@ -192,6 +265,7 @@ async function startServer() {
         payment_method_types: ['card'],
         line_items: lineItems,
         mode: 'payment',
+        shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'AU', 'MX'] },
         success_url: `${req.protocol}://${req.get('host')}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: cancelUrl,
         metadata: {
@@ -260,18 +334,154 @@ async function startServer() {
   });
 
   // Admin orders
+  
   app.get('/api/admin/orders', requireAuth(), async (req: any, res) => {
-    if (!supabase) return res.json([]);
+    if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
     try {
       const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
-      if (!store) return res.json([]);
-      const { data, error } = await supabase.from('orders').select('*').eq('store_id', store.id).order('created_at', { ascending: false });
+      if (!store) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
+
+      const status = req.query.status as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.page_size as string) || 20;
+
+      let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('store_id', store.id);
+      
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+      
+      query = query.order('created_at', { ascending: false });
+      
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+      
       if (error) throw error;
-      res.json(data || []);
+      res.json({ data: data || [], total: count || 0, page, pageSize });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
+
+  app.get('/api/admin/orders/:id', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
+    try {
+      const { id } = req.params;
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+
+      const { data: order, error } = await supabase.from('orders').select('*, order_items(*, products(*))').eq('id', id).eq('store_id', store.id).single();
+      if (error) throw error;
+      let customerDetails = null;
+      let shippingDetails = null;
+
+      if (stripe && order.stripe_session_id) {
+        try {
+           const session: any = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
+           customerDetails = session.customer_details;
+           shippingDetails = session.shipping_details;
+        } catch(e) {
+           console.error("Failed to fetch stripe session", e);
+        }
+      }
+
+      res.json({ ...order, customerDetails, shippingDetails });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/admin/orders/:id/status', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+      
+      const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).eq('store_id', store.id).select().single();
+      if (error) throw error;
+      
+      // Send Email Notification on Status Update
+      if (['shipped', 'cancelled'].includes(status)) {
+         let customerEmail = data.customer_email;
+         if (stripe && data.stripe_session_id && !customerEmail) {
+            try {
+              const session: any = await stripe.checkout.sessions.retrieve(data.stripe_session_id);
+              customerEmail = session.customer_details?.email;
+            } catch(e) {}
+         }
+         
+         if (customerEmail) {
+           const statusText = status === 'shipped' ? 'has been shipped' : 'has been cancelled';
+           await sendEmail({
+             to: customerEmail,
+             subject: `Order Update: #${data.id.split('-')[0]} ${statusText}`,
+             html: `<p>Your order #${data.id.split('-')[0]} ${statusText}.</p>${status === 'shipped' && data.tracking_number ? `<p>Tracking Number: <strong>${data.tracking_number}</strong></p>` : ''}`
+           });
+         }
+      }
+      
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  
+  app.put('/api/admin/orders/:id/tracking', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
+    try {
+      const { id } = req.params;
+      const { tracking_number, notes } = req.body;
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+      
+      const { data, error } = await supabase.from('orders').update({ tracking_number, notes }).eq('id', id).eq('store_id', store.id).select().single();
+      if (error) throw error;
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) => {
+    if (!supabase || !stripe) return res.status(500).json({ error: 'Not configured' });
+    try {
+      const { id } = req.params;
+      const { amount } = req.body; // optional amount
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+      
+      const { data: order, error } = await supabase.from('orders').select('*').eq('id', id).eq('store_id', store.id).single();
+      if (error) throw error;
+      if (!order || !order.stripe_session_id) return res.status(400).json({ error: 'Cannot refund this order' });
+
+      const session: any = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
+      if (!session.payment_intent) return res.status(400).json({ error: 'No payment intent found' });
+      
+      const refundParams: any = {
+        payment_intent: session.payment_intent as string,
+      };
+      if (amount) {
+         refundParams.amount = Math.round(amount * 100);
+      }
+
+      const refund = await stripe.refunds.create(refundParams);
+      
+      // Update status to refunded
+      const newStatus = amount && amount < order.total ? 'partially_refunded' : 'refunded';
+      const { data: updatedOrder } = await supabase.from('orders').update({ status: newStatus }).eq('id', id).select().single();
+
+      res.json(updatedOrder);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
 
   // Product CRUD
   app.get('/api/admin/products', requireAuth(), async (req: any, res) => {
@@ -405,18 +615,41 @@ async function startServer() {
 
   // Products route for Tanstack Query hook (GET /api/products?store_slug=...)
   app.get('/api/products', async (req, res) => {
-    if (!supabase) return res.json([]);
+    if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
     try {
       const storeSlug = req.query.store_slug;
-      if (!storeSlug) return res.json([]);
+      if (!storeSlug) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
       
       const { data: store, error: storeError } = await supabase.from('stores').select('id').eq('slug', storeSlug).single();
       if (storeError || !store) return res.status(404).json({ error: 'Store not found' });
       
-      const { data: products, error } = await supabase.from('products').select('*').eq('store_id', store.id);
+      const search = req.query.search as string;
+      const minPrice = req.query.min_price;
+      const maxPrice = req.query.max_price;
+      const sortBy = (req.query.sort_by as string) || 'created_at';
+      const order = (req.query.order as string) || 'desc';
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.page_size as string) || 20;
+
+      let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', store.id);
+      
+      if (search) {
+        query = query.ilike('name', `%${search}%`);
+      }
+      if (minPrice) query = query.gte('price', minPrice);
+      if (maxPrice) query = query.lte('price', maxPrice);
+      
+      query = query.order(sortBy, { ascending: order === 'asc' });
+      
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data: products, error, count } = await query;
+      
       if (error) throw error;
-      res.json(products || []);
-    } catch (e) {
+      res.json({ data: products || [], total: count || 0, page, pageSize });
+    } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
@@ -457,3 +690,4 @@ async function startServer() {
 }
 
 startServer();
+
