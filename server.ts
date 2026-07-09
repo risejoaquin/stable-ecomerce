@@ -1,3 +1,5 @@
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -50,12 +52,34 @@ if (STRIPE_SECRET_KEY) {
   stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any });
 }
 
-const upload = multer({ storage: multer.memoryStorage() });
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG and WebP are allowed.'));
+    }
+  }
+});
+
 
 async function startServer() {
   const app = express();
 
   app.use(cors());
+
+  app.use(helmet({
+    contentSecurityPolicy: false, // Too restrictive for preview envs, but basic protections apply
+  }));
+
+  const orderLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: 'Too many orders created, please try again later.' });
+  const checkoutLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: 'Too many checkout attempts, please try again later.' });
+  const contactLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, message: 'Too many contact messages, please try again later.' });
+
 
   // Stripe webhook needs raw body
   app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), async (req, res) => {
@@ -157,6 +181,31 @@ async function startServer() {
   });
 
 // API Routes
+  
+  app.post('/api/contact', contactLimiter, async (req, res) => {
+    try {
+      const { name, email, message } = req.body;
+      if (!name || !email || !message) return res.status(400).json({ error: 'Missing fields' });
+      
+      const html = `
+        <h2>New Contact Message</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Message:</strong><br/>${message}</p>
+      `;
+      
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `Contact from ${name}`,
+        html
+      });
+      
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get('/api/health', async (req, res) => {
     // Check Supabase connection if configured
     let dbStatus = 'unconfigured';
@@ -171,7 +220,7 @@ async function startServer() {
     res.json({ status: 'ok', database: dbStatus });
   });
 
-  app.post('/api/orders', clerkMiddleware(), async (req: any, res) => {
+  app.post('/api/orders', clerkMiddleware(), orderLimiter, async (req: any, res) => {
     const { items, storeId } = req.body;
     if (!supabase) return res.json({ id: 'dummy_order_' + Date.now(), total: 100 });
 
@@ -246,7 +295,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/checkout', async (req, res) => {
+  app.post('/api/checkout', checkoutLimiter, async (req, res) => {
     const { orderId } = req.body;
     if (!stripe) {
       return res.status(500).json({ error: 'Stripe not configured' });
@@ -366,7 +415,7 @@ async function startServer() {
 
       const status = req.query.status as string;
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = parseInt(req.query.page_size as string) || 20;
+      const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
 
       let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('store_id', store.id);
       
@@ -639,6 +688,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   // Products route for Tanstack Query hook (GET /api/products?store_slug=...)
   
   app.get('/api/products/:id', async (req: any, res) => {
+    res.set('Cache-Control', 'public, max-age=60');
     if (!supabase) return res.json(null);
     try {
       const { id } = req.params;
@@ -651,6 +701,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   });
 
   app.get('/api/products', async (req, res) => {
+    res.set('Cache-Control', 'public, max-age=60');
     if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
     try {
       const storeSlug = req.query.store_slug;
@@ -665,7 +716,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       const sortBy = (req.query.sort_by as string) || 'created_at';
       const order = (req.query.order as string) || 'desc';
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = parseInt(req.query.page_size as string) || 20;
+      const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
 
       let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', store.id);
       
@@ -697,7 +748,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     try {
       const { productId } = req.params;
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = parseInt(req.query.page_size as string) || 20;
+      const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
@@ -966,6 +1017,162 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   });
 
   // Vite middleware for development
+  
+  // --- WISHLIST ENDPOINTS ---
+  app.get('/api/wishlist', requireAuth(), async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const { data, error } = await supabase
+        .from('wishlist_items')
+        .select('product_id, products(*)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      res.json(data.map((d: any) => d.products));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/wishlist', requireAuth(), async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const { product_id } = req.body;
+      const { data, error } = await supabase
+        .from('wishlist_items')
+        .insert([{ user_id: userId, product_id }])
+        .select();
+      if (error) throw error;
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/wishlist/:productId', requireAuth(), async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const { productId } = req.params;
+      const { error } = await supabase
+        .from('wishlist_items')
+        .delete()
+        .match({ user_id: userId, product_id: productId });
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- ABANDONED CART ENDPOINTS ---
+  app.post('/api/cart/sync', async (req: any, res) => {
+    try {
+      // allow unauthenticated if email provided (for guest checkout step)
+      let userId = null;
+      try {
+        if (req.auth?.userId) userId = req.auth.userId;
+      } catch (e) {}
+      
+      const { email, items } = req.body;
+      
+      if (!userId && !email) {
+        return res.json({ success: false, message: 'No user info' });
+      }
+
+      // Check if cart exists
+      let query = supabase.from('abandoned_carts').select('id');
+      if (userId) query = query.eq('user_id', userId);
+      else query = query.eq('email', email);
+      
+      const { data: existing } = await query.single();
+      
+      if (existing) {
+        await supabase
+          .from('abandoned_carts')
+          .update({ items, updated_at: new Date().toISOString(), reminder_sent: false })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('abandoned_carts')
+          .insert([{ user_id: userId, email, items }]);
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/cart/recover', async (req, res) => {
+    try {
+      const { token } = req.query; // cart id
+      if (!token) return res.status(400).json({ error: 'Missing token' });
+      
+      const { data, error } = await supabase
+        .from('abandoned_carts')
+        .select('*')
+        .eq('id', token)
+        .single();
+        
+      if (error || !data) throw new Error('Cart not found');
+      res.json({ items: data.items });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- CRON JOB ABANDONED CART ---
+  setInterval(async () => {
+    try {
+      if (!supabase || !resend) return;
+      
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const { data: carts, error } = await supabase
+        .from('abandoned_carts')
+        .select('*')
+        .eq('reminder_sent', false)
+        .not('email', 'is', null)
+        .lt('updated_at', twoHoursAgo);
+        
+      if (error) {
+        console.error('Error fetching abandoned carts:', error);
+        return;
+      }
+      
+      for (const cart of carts || []) {
+        if (!cart.items || cart.items.length === 0) continue;
+        
+        // Ensure email is valid
+        if (!cart.email || !cart.email.includes('@')) continue;
+
+        const recoverUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/recover?token=${cart.id}`;
+        
+        const html = `
+          <h2>Did you forget something?</h2>
+          <p>We saved your cart for you.</p>
+          <ul>
+            ${cart.items.map((i: any) => `<li>${i.name} - ${i.price} (x${i.quantity})</li>`).join('')}
+          </ul>
+          <a href="${recoverUrl}" style="padding: 10px 20px; background: #6B705C; color: white; text-decoration: none; border-radius: 5px;">Recover Cart</a>
+        `;
+        
+        await sendEmail({
+          to: cart.email,
+          subject: 'Complete your purchase',
+          html
+        });
+        
+        await supabase
+          .from('abandoned_carts')
+          .update({ reminder_sent: true })
+          .eq('id', cart.id);
+      }
+    } catch (e) {
+      console.error('Cron job error:', e);
+    }
+  }, 60 * 60 * 1000); // run every hour
+
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

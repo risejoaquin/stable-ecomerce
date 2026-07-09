@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
 import { useApiClient } from '../../api/useApiClient';
 
 export function ProductFormModal({ product, onClose }: { product: any, onClose: () => void }) {

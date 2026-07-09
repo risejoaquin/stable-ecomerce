@@ -1,3 +1,14 @@
+
+import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
+import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
+import { ReturnPolicyPage } from './pages/legal/ReturnPolicyPage';
+import { ContactPage } from './pages/legal/ContactPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { CookieConsent } from './components/CookieConsent';
+import { useAuthSafe as useAuth } from './hooks/useAuthSafe';
+import { RecoverCartPage } from './pages/store/RecoverCartPage';
+import { WishlistPage } from './pages/store/WishlistPage';
+import { ThemeProvider } from './components/ThemeProvider';
 import { useValidateCoupon } from './hooks/useCoupon';
 import { CouponsPage } from './pages/admin/CouponsPage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -10,7 +21,9 @@ import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
-import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, UserButton, useUser, useAuth } from '@clerk/clerk-react';
+import { ClerkProvider } from '@clerk/clerk-react';
+import { SafeSignedIn as SignedIn, SafeSignedOut as SignedOut, SafeRedirectToSignIn as RedirectToSignIn, SafeUserButton as UserButton } from './components/ClerkMock';
+import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { ProductsPage } from './pages/admin/ProductsPage';
@@ -156,8 +169,9 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // --- Placeholders for Pages ---
 
-export function CartDrawer({ storeId, themeColor }: { storeId?: string, themeColor: string }) {
+export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: string, themeColor: string, buttonColor?: string }) {
   const { items, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen } = useCart();
+  const { isSignedIn } = useAuth();
   
   const checkout = useCheckout(storeId);
 
@@ -177,7 +191,7 @@ export function CartDrawer({ storeId, themeColor }: { storeId?: string, themeCol
           ) : items.map(item => (
             <div key={item.id} className="flex gap-4 items-center">
               {item.image ? (
-                <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
+                <img src={item.image} alt={item.name}  className="w-16 h-16 object-cover rounded-lg" loading="lazy" />
               ) : (
                 <div className="w-16 h-16 bg-gray-100 rounded-lg"></div>
               )}
@@ -203,9 +217,24 @@ export function CartDrawer({ storeId, themeColor }: { storeId?: string, themeCol
               <span>${total.toFixed(2)}</span>
             </div>
             <button 
-              onClick={() => checkout.mutate()}
+              
+              onClick={() => {
+                if (!isSignedIn && !localStorage.getItem('guest_email')) {
+                  const email = prompt('Please enter your email to continue checkout:');
+                  if (email) {
+                    localStorage.setItem('guest_email', email);
+                    fetch('/api/cart/sync', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, items })
+                    }).then(() => checkout.mutate());
+                  }
+                } else {
+                  checkout.mutate();
+                }
+              }}
               disabled={checkout.isPending}
-              style={{ backgroundColor: themeColor }}
+              style={{ backgroundColor: buttonColor || themeColor }}
               className="w-full text-white py-4 rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {checkout.isPending ? 'Processing...' : 'Checkout'}
@@ -286,10 +315,18 @@ export default function App() {
         <Routes>
           {/* Public Storefront */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/recover" element={<RecoverCartPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsAndConditionsPage />} />
+          <Route path="/returns" element={<ReturnPolicyPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+  
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
           <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
+          <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
           
           {/* Admin Panel */}
           <Route path="/admin" element={
@@ -314,12 +351,14 @@ export default function App() {
           </Route>
         </Routes>
       </CartProvider>
+      <CookieConsent />
     </BrowserRouter>
   );
 
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
       {clerkPubKey ? (
         <ClerkProvider publishableKey={clerkPubKey}>
           
@@ -330,7 +369,8 @@ export default function App() {
         routerContent
       )}
       <Toaster position="bottom-right" />
-    </QueryClientProvider>
+    </ThemeProvider>
+      </QueryClientProvider>
     </HelmetProvider>
   );
 }

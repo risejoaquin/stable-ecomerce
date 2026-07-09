@@ -1,4 +1,5 @@
-import { useAuth } from "@clerk/clerk-react";
+import { useAuthSafe as useAuth } from '../hooks/useAuthSafe';
+;
 import { useCallback } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";

@@ -1,3 +1,4 @@
+import { WishlistButton } from '../../components/storefront/WishlistButton';
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import { ReviewList } from '../../components/reviews/ReviewList';
 import { ReviewForm } from '../../components/reviews/ReviewForm';
 import { StarRating } from '../../components/reviews/StarRating';
 import { useProductRating } from '../../hooks/useReviews';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
 import { SEO } from '../../components/SEO';
 import { ShoppingBag, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -36,6 +37,7 @@ export function ProductDetailPage() {
   const secondaryColor = config.secondaryColor || '#A5A58D';
   const backgroundColor = config.backgroundColor || '#FDFCFB';
   const textColor = config.textColor || '#333333';
+  const buttonColor = config.buttonColor || themeColor;
   const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' : 
                      config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' : 
                      '"Inter", sans-serif';
@@ -61,7 +63,7 @@ export function ProductDetailPage() {
             >
               <ShoppingBag size={20} style={{ color: themeColor }} />
               {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm" style={{ backgroundColor: themeColor }}>
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm" style={{ backgroundColor: buttonColor }}>
                   {cartItemCount}
                 </span>
               )}
@@ -74,7 +76,7 @@ export function ProductDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div className="bg-gray-50 aspect-square rounded-2xl overflow-hidden flex items-center justify-center">
                {product.images && product.images[0] ? (
-                 <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                 <img src={product.images[0]} alt={product.name}  className="w-full h-full object-cover" loading="lazy" />
                ) : (
                  <div className="text-gray-400">No Image</div>
                )}
@@ -98,7 +100,7 @@ export function ProductDetailPage() {
                   toast.success('Added to cart');
                 }}
                 className="px-8 py-4 text-white text-lg font-medium rounded-xl transition-opacity hover:opacity-90 active:scale-95"
-                style={{ backgroundColor: themeColor }}
+                style={{ backgroundColor: buttonColor }}
               >
                 Add to Cart
               </button>
@@ -110,11 +112,11 @@ export function ProductDetailPage() {
             <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Customer Reviews</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               <div className="lg:col-span-2">
-                <ReviewList productId={product.id} themeColor={themeColor} />
+                <ReviewList productId={product.id} themeColor={buttonColor} />
               </div>
               <div>
                 {isSignedIn ? (
-                  <ReviewForm productId={product.id} themeColor={themeColor} />
+                  <ReviewForm productId={product.id} themeColor={buttonColor} />
                 ) : (
                   <div className="p-8 rounded-2xl border bg-gray-50 text-center">
                     <p className="text-gray-600 mb-4">Please sign in to write a review.</p>

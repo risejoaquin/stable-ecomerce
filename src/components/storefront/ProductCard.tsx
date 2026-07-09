@@ -11,7 +11,7 @@ export const ProductCard: React.FC<{ product: any }> = ({ product }) => {
     <div className="bg-white border border-[#F0EFE9] rounded-3xl p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col">
       <div className="bg-gray-100 aspect-[3/4] rounded-2xl mb-4 overflow-hidden relative">
         {product.images?.[0] ? (
-            <img src={product.images[0]} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+            <img src={product.images[0]} alt={product.name}  className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         ) : (
             <div className="absolute inset-0 bg-[#B7B7A4]"></div>
         )}
