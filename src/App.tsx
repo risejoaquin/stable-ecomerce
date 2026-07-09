@@ -1,3 +1,7 @@
+import { useValidateCoupon } from './hooks/useCoupon';
+import { CouponsPage } from './pages/admin/CouponsPage';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ProductDetailPage } from './pages/store/ProductDetailPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -213,128 +217,6 @@ export function CartDrawer({ storeId, themeColor }: { storeId?: string, themeCol
   );
 }
 
-function AdminDashboard() {
-  const apiClient = useApiClient(); 
-  const { data: storeData } = useQuery({
-    queryKey: ['admin-store'],
-    queryFn: () => apiClient.get('/admin/store')
-  });
-
-  const { data: products } = useQuery({
-    queryKey: ['admin-products'],
-    queryFn: () => apiClient.get('/admin/products')
-  });
-
-  const { data: orders } = useQuery({
-    queryKey: ['admin-orders'],
-    queryFn: () => apiClient.get('/admin/orders'),
-    refetchInterval: 5000
-  });
-
-  const themeColor = storeData?.store?.config?.themeColor || '#6B705C';
-  const previewProducts = products?.slice(0, 2) || [];
-  const recentOrders = orders?.slice(0, 5) || [];
-
-  return (
-    <div className="p-10 flex gap-8 flex-col lg:flex-row h-full">
-      <div className="flex-1 flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-[24px] border border-[#E5E5E1]">
-            <p className="text-[10px] uppercase tracking-wider font-bold text-[#A5A58D] mb-1">Net Revenue</p>
-            <p className="text-2xl font-bold">$12,480.00</p>
-            <p className="text-[11px] text-green-600 mt-2 font-medium">+14% from last month</p>
-          </div>
-          <div className="bg-white p-6 rounded-[24px] border border-[#E5E5E1]">
-            <p className="text-[10px] uppercase tracking-wider font-bold text-[#A5A58D] mb-1">Pending Orders</p>
-            <p className="text-2xl font-bold">14</p>
-            <p className="text-[11px] text-orange-400 mt-2 font-medium">2 urgent shipments</p>
-          </div>
-          <div className="bg-white p-6 rounded-[24px] border border-[#E5E5E1]">
-            <p className="text-[10px] uppercase tracking-wider font-bold text-[#A5A58D] mb-1">Avg. Order Value</p>
-            <p className="text-2xl font-bold">$89.50</p>
-            <p className="text-[11px] text-green-600 mt-2 font-medium">+4.2% since launch</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-[24px] border border-[#E5E5E1] flex-1">
-          <h3 className="font-serif text-lg mb-6">Recent Orders</h3>
-          <table className="w-full text-left">
-            <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
-              <tr className="h-10">
-                <th className="font-medium">Order ID</th>
-                <th className="font-medium">Amount</th>
-                <th className="font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {recentOrders.map((o: any) => (
-                <tr key={o.id} className="h-14 border-b border-[#F0EFE9] last:border-0">
-                  <td className="font-mono text-xs text-gray-500">#{o.id.split('-')[0]}</td>
-                  <td className="text-gray-600">${(o.total || 0).toFixed(2)}</td>
-                  <td>
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${o.status === 'paid' ? 'bg-[#E6F5ED] text-[#2D6A4F]' : 'bg-[#FFF9E6] text-[#B08C00]'}`}>
-                      {o.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {recentOrders.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="text-center py-8 text-[#A5A58D] text-sm">No orders yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      {/* Store Preview Frame */}
-      <div className="flex flex-col items-center gap-6 shrink-0 lg:w-[320px]">
-        <p className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D]">Storefront Preview</p>
-        <div className="w-[320px] rounded-[48px] border-[8px] border-[#3F4238] h-[600px] shadow-[0_40px_80px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col" style={{ backgroundColor: themeColor }}>
-          <div className="bg-[#FDFCFB] h-full w-full rounded-[36px] overflow-hidden flex flex-col">
-            <header className="p-6 flex justify-between items-center shrink-0">
-              <span className="font-serif italic text-lg font-bold">{storeData?.store?.name?.[0] || 'T'}&{storeData?.store?.name?.[1] || 'T'}</span>
-              <div className="flex gap-2">
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: themeColor }}></div>
-                <div className="w-4 h-4 border rounded-full" style={{ borderColor: themeColor }}></div>
-              </div>
-            </header>
-            <div className="px-6 flex-1 overflow-y-auto pb-6">
-              <h4 className="font-serif text-2xl mb-4 text-[#333]">New Arrivals</h4>
-              <div className="grid grid-cols-2 gap-3">
-                {previewProducts.length > 0 ? previewProducts.map((p: any) => (
-                  <div key={p.id} className="bg-white border border-[#F0EFE9] rounded-2xl p-2 shadow-sm">
-                    <div className="aspect-[3/4] bg-gray-100 rounded-xl mb-2 overflow-hidden relative">
-                      {p.images?.[0] ? (
-                        <img src={p.images[0]} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />
-                      ) : (
-                        <div className="absolute inset-0 bg-[#B7B7A4]"></div>
-                      )}
-                    </div>
-                    <p className="text-[10px] font-bold text-[#333] truncate">{p.name}</p>
-                    <p className="text-[9px] opacity-60 mt-0.5">${(p.price || 0).toFixed(2)}</p>
-                  </div>
-                )) : (
-                  <div className="col-span-2 text-center py-10 text-[#A5A58D] text-xs">No products yet.</div>
-                )}
-              </div>
-              <div className="mt-6 p-4 rounded-2xl border" style={{ backgroundColor: `${themeColor}1A`, borderColor: `${themeColor}33` }}>
-                <p className="font-serif italic text-xs mb-1" style={{ color: themeColor }}>"Craftsmanship is visible in every grain."</p>
-                <p className="text-[8px] uppercase tracking-wider opacity-60" style={{ color: themeColor }}>Collection Spring '24</p>
-              </div>
-            </div>
-            <footer className="h-16 bg-white border-t border-[#F0EFE9] px-8 flex items-center justify-between shrink-0">
-              <div className="w-6 h-6 rounded-md" style={{ backgroundColor: themeColor }}></div>
-              <div className="w-6 h-6 border border-[#E5E5E1] rounded-md"></div>
-              <div className="w-6 h-6 border border-[#E5E5E1] rounded-md"></div>
-            </footer>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AdminLayout() { 
   const { user } = useUser();
   const location = useLocation();
@@ -354,6 +236,7 @@ function AdminLayout() {
         <nav className="flex-1 flex flex-col">
           <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
           <Link to="/admin/products" className={navItemClass('/admin/products')}>Products</Link>
+          <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Coupons</Link>
           <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Orders</Link>
           <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Store Settings</Link>
         </nav>
@@ -403,6 +286,7 @@ export default function App() {
         <Routes>
           {/* Public Storefront */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
           <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
@@ -424,6 +308,7 @@ export default function App() {
           }>
             <Route index element={<AdminDashboard />} />
             <Route path="products" element={<ProductsPage />} />
+            <Route path="coupons" element={<CouponsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>

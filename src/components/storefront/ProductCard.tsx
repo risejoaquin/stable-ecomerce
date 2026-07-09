@@ -1,3 +1,5 @@
+import { useProductRating } from '../../hooks/useReviews';
+import { StarRating } from '../reviews/StarRating';
 import React from 'react';
 import { useCart } from '../../App'; // Wait, let's see where useCart is
 
@@ -27,6 +29,17 @@ export const ProductCard: React.FC<{ product: any }> = ({ product }) => {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+const ProductRating = ({ productId, themeColor }: { productId: string, themeColor: string }) => {
+  const { data } = useProductRating(productId);
+  if (!data || data.count === 0) return null;
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <StarRating rating={data.average} color={themeColor} size={14} />
+      <span className="text-xs text-gray-500">({data.count})</span>
     </div>
   );
 }

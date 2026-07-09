@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom';
+import { useProductRating } from '../../hooks/useReviews';
+import { StarRating } from '../../components/reviews/StarRating';
 import React, { useEffect, useState } from 'react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
@@ -176,15 +179,15 @@ const StyledProductCard: React.FC<{ product: any, config: any, themeColor: strin
       borderRadius: 'var(--border-radius-base)',
       boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)',
     }}>
-      <div className="aspect-square bg-gray-50 overflow-hidden relative">
+      <Link to={`/product/${product.id}`} className="aspect-square bg-gray-50 overflow-hidden relative block">
         {product.images && product.images[0] ? (
           <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">No Image</div>
         )}
-      </div>
+      </Link>
       <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-bold text-lg mb-1 line-clamp-1" style={{ color: textColor }}>{product.name}</h3>
+        <Link to={`/product/${product.id}`}><h3 className="font-bold text-lg mb-1 line-clamp-1 hover:underline cursor-pointer" style={{ color: textColor }}>{product.name}</h3></Link>
         <p className="opacity-70 text-sm line-clamp-2 mb-4 flex-1" style={{ color: config.secondaryColor || '#666' }}>{product.description}</p>
         <div className="flex items-center justify-between mt-auto pt-4 border-t" style={{ borderColor: (config.secondaryColor || '#ccc') + '30' }}>
           <p className="font-semibold text-lg" style={{ color: themeColor }}>${Number(product.price).toFixed(2)}</p>
