@@ -1,3 +1,4 @@
+import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -50,26 +51,7 @@ export function ProductDetailPage() {
       <div className="min-h-screen flex flex-col" style={{ backgroundColor, color: textColor, fontFamily }}>
         
         {/* Header */}
-        <header className="h-20 px-8 max-w-7xl mx-auto w-full flex items-center justify-between border-b" style={{ borderColor: secondaryColor + '30' }}>
-          <Link to="/" className="flex items-center gap-2" style={{ color: themeColor }}>
-            <ArrowLeft size={20} />
-            <span className="font-medium">Back to Store</span>
-          </Link>
-          <div className="flex gap-4">
-            <button 
-              onClick={() => setIsCartOpen(true)}
-              className="w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-colors relative"
-              style={{ borderColor: secondaryColor + '40', backgroundColor: backgroundColor }}
-            >
-              <ShoppingBag size={20} style={{ color: themeColor }} />
-              {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm" style={{ backgroundColor: buttonColor }}>
-                  {cartItemCount}
-                </span>
-              )}
-            </button>
-          </div>
-        </header>
+        <StoreHeader backButton />
 
         {/* Main Content */}
         <main className="flex-1 p-8 max-w-7xl mx-auto w-full py-12">

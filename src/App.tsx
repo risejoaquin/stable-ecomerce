@@ -1,3 +1,4 @@
+import { SafeSignIn, SafeSignUp } from './components/ClerkMock';
 
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
@@ -320,6 +321,8 @@ export default function App() {
           <Route path="/terms" element={<TermsAndConditionsPage />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/sign-in/*" element={<SafeSignIn />} />
+          <Route path="/sign-up/*" element={<SafeSignUp />} />
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />

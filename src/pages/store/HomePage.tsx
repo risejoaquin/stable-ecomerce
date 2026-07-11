@@ -1,3 +1,4 @@
+import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { Heart } from 'lucide-react';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
 import { HeroBanner } from '../../components/store/HeroBanner';
@@ -77,34 +78,7 @@ export function HomePage() {
     } as React.CSSProperties}>
       
       {/* Header */}
-      <header className="h-20 px-8 max-w-7xl mx-auto w-full flex items-center justify-between border-b" style={{ borderColor: secondaryColor + '30' }}>
-        <a href="/" className="flex items-center">
-          {config.logoUrl ? (
-            <img src={config.logoUrl} alt={currentStore.name}  className="h-10 object-contain" loading="lazy" />
-          ) : (
-            <span className="text-2xl font-bold tracking-tight" style={{ color: themeColor }}>{currentStore.name}</span>
-          )}
-        </a>
-        <div className="flex gap-4">
-                    <Link to="/wishlist" className="w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-colors relative" style={{ borderColor: secondaryColor + '40', backgroundColor: backgroundColor }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = secondaryColor + '10'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = backgroundColor}>
-            <Heart size={20} style={{ color: themeColor }} />
-          </Link>
-          <button 
-            onClick={() => setIsCartOpen(true)}
-            className="w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-colors relative"
-            style={{ borderColor: secondaryColor + '40', backgroundColor: backgroundColor }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = secondaryColor + '10'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = backgroundColor}
-          >
-            <ShoppingBag size={20} style={{ color: themeColor }} />
-            {cartItemCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm" style={{ backgroundColor: themeColor }}>
-                {cartItemCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </header>
+      <StoreHeader />
 
       {/* Hero Banner */}
       {(layout === 'hero' || config.heroBanner?.image) && (

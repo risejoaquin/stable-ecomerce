@@ -1,3 +1,4 @@
+import { StoreHeader } from '../../components/storefront/StoreHeader';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useApiClient } from '../../api/useApiClient';
@@ -38,11 +39,7 @@ export function TrackOrderPage() {
   return (
     <div className="min-h-screen bg-[#FDFCFB] flex flex-col font-sans">
       <SEO title="Track Order" />
-      <header className="h-20 px-8 max-w-7xl mx-auto w-full flex items-center border-b border-[#F0EFE9]">
-        <a href="/" className="text-xl font-bold tracking-tight" style={{ color: themeColor }}>
-          {store?.name || 'Store'}
-        </a>
-      </header>
+      <StoreHeader />
       
       <div className="flex-1 max-w-3xl mx-auto w-full p-8 flex flex-col">
         <h1 className="font-serif text-3xl mb-8 text-[#333]">Track Your Order</h1>
