@@ -6,12 +6,12 @@ import { Upload } from 'lucide-react';
 
 export const StoreSettingsForm = ({ activeTab, config, handleUpload, updateConfigField, updateHeroField }: any) => {
   return (
-    <div className="flex-1 overflow-y-auto p-10">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-10">
       {activeTab === 'theme' && (
         <div className="max-w-2xl space-y-10">
           <section>
             <h3 className="font-medium text-lg mb-6 border-b pb-2">Colors</h3>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <ColorPicker label="Primary Brand Color" value={config.themeColor} onChange={(val) => updateConfigField('themeColor', val)} />
               <ColorPicker label="Secondary Accent Color" value={config.secondaryColor} onChange={(val) => updateConfigField('secondaryColor', val)} />
               <ColorPicker label="Store Background" value={config.backgroundColor} onChange={(val) => updateConfigField('backgroundColor', val)} />

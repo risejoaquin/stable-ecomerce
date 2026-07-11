@@ -20,12 +20,12 @@ export function AdminDashboard() {
   const { data: topProducts, isLoading: isProductsLoading } = useTopProducts();
   const { data: recentOrders, isLoading: isOrdersLoading } = useRecentOrders();
 
-  if (isSalesLoading || isProductsLoading || isOrdersLoading) return <div className="p-10">Loading analytics...</div>;
+  if (isSalesLoading || isProductsLoading || isOrdersLoading) return <div className="p-4 sm:p-10">Loading analytics...</div>;
 
   const formatCurrency = (val: number) => `\$\${(val || 0).toFixed(2)}`;
 
   return (
-    <div className="p-10 flex flex-col gap-8 h-full overflow-y-auto">
+    <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto">
       <div>
         <h2 className="font-serif text-2xl text-[#333] mb-6">Dashboard Overview</h2>
         

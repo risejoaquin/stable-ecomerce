@@ -92,7 +92,7 @@ export function AdminOrdersPage() {
 
       <div className="bg-white rounded-[24px] border border-[#E5E5E1] flex-1 p-6 overflow-auto">
         {isLoading ? <p>Loading orders...</p> : (
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
             <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
               <tr className="h-10">
                 <th className="font-medium pb-2">Order ID</th>
@@ -134,7 +134,7 @@ export function AdminOrdersPage() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -204,7 +204,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Items</h3>
                   <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                    <table className="w-full text-left">
+                    <div className="overflow-x-auto"><table className="w-full text-left">
                       <tbody className="divide-y divide-gray-100">
                         {order.order_items?.map((item: any) => (
                           <tr key={item.id}>
@@ -231,7 +231,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                           <td className="py-3 px-4 text-right text-base font-bold text-gray-900">${Number(order.total).toFixed(2)}</td>
                         </tr>
                       </tfoot>
-                    </table>
+                    </table></div>
                   </div>
                 </div>
 

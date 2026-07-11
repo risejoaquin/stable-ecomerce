@@ -41,7 +41,7 @@ export function TrackOrderPage() {
       <SEO title="Track Order" />
       <StoreHeader />
       
-      <div className="flex-1 max-w-3xl mx-auto w-full p-8 flex flex-col">
+      <div className="flex-1 max-w-3xl mx-auto w-full p-4 sm:p-8 flex flex-col">
         <h1 className="font-serif text-3xl mb-8 text-[#333]">Track Your Order</h1>
         
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-[#E5E5E1] flex flex-col gap-4 mb-8">
@@ -81,7 +81,7 @@ export function TrackOrderPage() {
         
         {order && (
           <div className="bg-white p-6 rounded-2xl border border-[#E5E5E1]">
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
               <div>
                 <h2 className="text-lg font-bold">Order #{order.id.split('-')[0]}</h2>
                 <p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString()}</p>

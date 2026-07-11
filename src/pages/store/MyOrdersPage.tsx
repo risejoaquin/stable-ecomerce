@@ -33,7 +33,7 @@ export function MyOrdersPage() {
       <SEO title="My Orders" />
       <StoreHeader />
       
-      <div className="flex-1 max-w-5xl mx-auto w-full p-8 flex flex-col">
+      <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 flex flex-col">
         <h1 className="font-serif text-3xl mb-8 text-[#333]">My Orders</h1>
         
         {isLoading ? <p className="text-gray-500">Loading your orders...</p> : (
@@ -47,7 +47,7 @@ export function MyOrdersPage() {
             <div className="grid gap-6">
               {orders?.map((order: any) => (
                 <div key={order.id} className="bg-white p-6 rounded-2xl border border-[#E5E5E1]">
-                  <div className="flex justify-between items-start mb-6 pb-4 border-b border-gray-100">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 pb-4 border-b border-gray-100">
                     <div>
                       <h2 className="text-lg font-bold">Order #{order.id.split('-')[0]}</h2>
                       <p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString()}</p>

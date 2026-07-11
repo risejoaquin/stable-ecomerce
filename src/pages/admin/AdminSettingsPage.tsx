@@ -99,11 +99,11 @@ export function AdminSettingsPage() {
     }
   };
 
-  if (isLoading) return <div className="p-10">Loading settings...</div>;
+  if (isLoading) return <div className="p-4 sm:p-10">Loading settings...</div>;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#FDFCFB]">
-      <header className="px-10 py-6 border-b border-[#E5E5E1] bg-white flex justify-between items-center shrink-0">
+      <header className="px-4 sm:px-10 py-4 sm:py-6 border-b border-[#E5E5E1] bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
           <h2 className="font-serif text-2xl text-[#333]">Store Customization</h2>
           <p className="text-sm text-gray-500 mt-1">Design your storefront exactly how you want it.</p>

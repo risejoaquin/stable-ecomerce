@@ -21,7 +21,7 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
 
   return (
-    <header className="h-20 px-8 max-w-7xl mx-auto w-full flex items-center justify-between border-b" style={{ borderColor: secondaryColor + '30' }}>
+    <header className="min-h-20 py-4 px-4 sm:px-8 max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-4 border-b" style={{ borderColor: secondaryColor + '30' }}>
       {backButton ? (
         <Link to="/" className="flex items-center gap-2" style={{ color: themeColor }}>
           <ArrowLeft size={20} />

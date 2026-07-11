@@ -5,7 +5,7 @@ export function PrivacyPolicyPage() {
   return (
     <>
       <SEO title="Privacy Policy" />
-      <div className="max-w-3xl mx-auto px-8 py-16 prose prose-slate">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-slate">
         <h1 className="text-3xl font-serif font-bold mb-8">Privacy Policy</h1>
         <p className="mb-4 text-gray-600">Last updated: {new Date().toLocaleDateString()}</p>
         <section className="mb-8">

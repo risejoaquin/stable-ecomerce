@@ -6,7 +6,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
   }
 
   return (
-    <table className="w-full text-left">
+    <div className="overflow-x-auto"><table className="w-full text-left">
       <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
         <tr className="h-10">
           <th className="font-medium">Image</th>
@@ -32,6 +32,6 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }

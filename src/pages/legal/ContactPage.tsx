@@ -31,11 +31,11 @@ export function ContactPage() {
   return (
     <>
       <SEO title="Contact Us" />
-      <div className="max-w-2xl mx-auto px-8 py-16">
+      <div className="max-w-2xl mx-auto px-4 sm:px-8 py-8 sm:py-16">
         <h1 className="text-3xl font-serif font-bold mb-4 text-center">Contact Us</h1>
         <p className="text-gray-500 text-center mb-12">Have a question or feedback? We'd love to hear from you.</p>
         
-        <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+        <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Name</label>
             <input 

@@ -94,7 +94,7 @@ export function CouponsPage() {
         <div className="text-gray-500">Loading coupons...</div>
       ) : (
         <div className="bg-white border border-[#E5E5E1] rounded-2xl overflow-hidden">
-          <table className="w-full text-left">
+          <div className="overflow-x-auto"><table className="w-full text-left">
             <thead className="bg-[#FDFCFB] border-b border-[#E5E5E1] text-[11px] uppercase tracking-wider text-gray-500 font-bold">
               <tr>
                 <th className="px-6 py-4">Code</th>
@@ -145,7 +145,7 @@ export function CouponsPage() {
                 </tr>
               ) : null}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

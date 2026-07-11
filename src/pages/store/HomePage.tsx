@@ -82,7 +82,7 @@ export function HomePage() {
 
       {/* Hero Banner */}
       {(layout === 'hero' || config.heroBanner?.image) && (
-        <div className="relative w-full h-[50vh] min-h-[400px] flex items-center justify-center text-center p-8 bg-gray-100 overflow-hidden"
+        <div className="relative w-full h-[40vh] sm:h-[50vh] min-h-[300px] sm:min-h-[400px] flex items-center justify-center text-center p-4 sm:p-8 bg-gray-100 overflow-hidden"
              style={{
                backgroundImage: config.heroBanner?.image ? `url(${config.heroBanner.image})` : 'none',
                backgroundSize: 'cover',
@@ -90,14 +90,14 @@ export function HomePage() {
              }}>
           <div className="absolute inset-0 bg-black/40"></div>
           <div className="relative z-10 text-white max-w-3xl mx-auto">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">{config.heroBanner?.title || 'Welcome'}</h1>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 tracking-tight">{config.heroBanner?.title || 'Welcome'}</h1>
             <p className="text-xl md:text-2xl opacity-90 font-light">{config.heroBanner?.subtitle || 'Discover our collection'}</p>
           </div>
         </div>
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
         {(!config.heroBanner?.image && layout !== 'hero') && (
           <div className="mb-12">
             <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight" style={{ color: textColor }}>{config.heroBanner?.title || 'New Arrivals'}</h1>
@@ -105,7 +105,7 @@ export function HomePage() {
           </div>
         )}
         
-        <div className="flex flex-col md:flex-row gap-8 items-start">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
           <div className="w-full md:w-64 flex-shrink-0 flex flex-col gap-6">
             <SearchBar onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} />
             <ProductFilters filters={filters} setFilters={(f: any) => { 
@@ -143,7 +143,7 @@ export function HomePage() {
       
       {/* Footer */}
       <footer className="mt-auto py-10 border-t text-sm" style={{ borderColor: secondaryColor + '30', color: secondaryColor }}>
-        <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
           <div>{config.footerText || `© ${new Date().getFullYear()} ${currentStore.name}`}</div>
           <div className="flex flex-wrap justify-center gap-6">
             <Link to="/contact" className="hover:underline">Contact</Link>

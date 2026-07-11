@@ -5,7 +5,7 @@ export function ReturnPolicyPage() {
   return (
     <>
       <SEO title="Return Policy" />
-      <div className="max-w-3xl mx-auto px-8 py-16 prose prose-slate">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-slate">
         <h1 className="text-3xl font-serif font-bold mb-8">Return Policy</h1>
         <section className="mb-8">
           <h2 className="text-xl font-bold mb-4">Returns</h2>

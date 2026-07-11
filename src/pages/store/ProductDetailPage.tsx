@@ -54,8 +54,8 @@ export function ProductDetailPage() {
         <StoreHeader backButton />
 
         {/* Main Content */}
-        <main className="flex-1 p-8 max-w-7xl mx-auto w-full py-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full py-8 sm:py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
             <div className="bg-gray-50 aspect-square rounded-2xl overflow-hidden flex items-center justify-center">
                {product.images && product.images[0] ? (
                  <img src={product.images[0]} alt={product.name}  className="w-full h-full object-cover" loading="lazy" />
