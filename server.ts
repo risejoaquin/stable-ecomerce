@@ -8,13 +8,47 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 
-import { clerkMiddleware, requireAuth } from '@clerk/express';
+import jwt from 'jsonwebtoken';
+
+const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'super-secret-jwt-token-with-at-least-32-characters-long';
+
+const requireAuth = () => {
+  return (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid token' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded: any = jwt.verify(token, SUPABASE_JWT_SECRET);
+      req.auth = { userId: decoded.sub, email: decoded.email };
+      next();
+    } catch (err) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  };
+};
+
+const optionalAuth = () => {
+  return (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded: any = jwt.verify(token, SUPABASE_JWT_SECRET);
+        req.auth = { userId: decoded.sub, email: decoded.email };
+      } catch (err) {
+        // Ignore
+      }
+    }
+    next();
+  };
+};
+
 import multer from 'multer';
 
 // --- CONFIG ---
-if (!process.env.CLERK_PUBLISHABLE_KEY && process.env.VITE_CLERK_PUBLISHABLE_KEY) {
-  process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
-}
+
 
 const PORT = 3000;
 
@@ -148,7 +182,7 @@ async function startServer() {
   app.use(express.json());
 
   // Clerk middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
-  app.use('/api', clerkMiddleware());
+  app.use('/api', optionalAuth());
 
   
   app.get('/api/orders/my', requireAuth(), async (req: any, res) => {
@@ -220,7 +254,7 @@ async function startServer() {
     res.json({ status: 'ok', database: dbStatus });
   });
 
-  app.post('/api/orders', clerkMiddleware(), orderLimiter, async (req: any, res) => {
+  app.post('/api/orders', optionalAuth(), orderLimiter, async (req: any, res) => {
     const { items, storeId } = req.body;
     if (!supabase) return res.json({ id: 'dummy_order_' + Date.now(), total: 100 });
 
@@ -408,7 +442,7 @@ async function startServer() {
   // Admin orders
   
   app.get('/api/admin/orders', requireAuth(), async (req: any, res) => {
-    if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
+    if (!supabase) return res.json({ data: mockProducts, total: mockProducts.length, page: 1, pageSize: 20 });
     try {
       const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
       if (!store) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
@@ -687,9 +721,46 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
 
   // Products route for Tanstack Query hook (GET /api/products?store_slug=...)
   
+  const mockProducts = [
+  {
+    id: "prod_1",
+    store_id: "store_mock",
+    name: "Jordan 1 Triple White",
+    slug: "jordan-1-triple-white",
+    description: "Classic Jordan 1s in an all-white colorway. Timeless and versatile.",
+    price: 150,
+    stock: 50,
+    status: 'active',
+    images: ["https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80"]
+  },
+  {
+    id: "prod_2",
+    store_id: "store_mock",
+    name: "Muha Meds Habibi Wax Pen",
+    slug: "muha-meds-habibi",
+    description: "Premium wax pen with an exclusive Habibi flavor blend.",
+    price: 45,
+    stock: 100,
+    status: 'active',
+    images: ["https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?auto=format&fit=crop&w=800&q=80"]
+  },
+  {
+    id: "prod_3",
+    store_id: "store_mock",
+    name: "Purple Label Denim Pants",
+    slug: "purple-label-denim",
+    description: "High-quality denim pants from Purple Label, featuring a modern fit and premium wash.",
+    price: 250,
+    stock: 30,
+    status: 'active',
+    images: ["https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=800&q=80"]
+  }
+];
+
   app.get('/api/products/:id', async (req: any, res) => {
     res.set('Cache-Control', 'public, max-age=60');
-    if (!supabase) return res.json(null);
+    const prod = mockProducts.find(p => p.id === req.params.id);
+    if (prod) return res.json(prod);
     try {
       const { id } = req.params;
       const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
@@ -702,7 +773,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
 
   app.get('/api/products', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=60');
-    if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
+    return res.json({ data: mockProducts, total: mockProducts.length, page: 1, pageSize: 20 });
     try {
       const storeSlug = req.query.store_slug;
       if (!storeSlug) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
@@ -788,7 +859,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     }
   });
 
-  app.post('/api/products/:productId/reviews', clerkMiddleware(), async (req: any, res) => {
+  app.post('/api/products/:productId/reviews', optionalAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
       if (!req.auth || !req.auth.userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -1003,11 +1074,11 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   });
 
   app.get('/api/public/store', async (req, res) => {
-    if (!supabase) return res.json({ store: { name: 'Terra & Tide', config: { themeColor: '#6B705C' } }, products: [] });
+    if (!supabase) return res.json({ store: { name: 'Terra & Tide', slug: 'terra-and-tide', config: { themeColor: '#6B705C' } }, products: mockProducts });
     try {
       // Just grab the first store for demo purposes, or based on host
       const { data: store, error } = await supabase.from('stores').select('*').limit(1).single();
-      if (error || !store) return res.json({ store: { name: 'Terra & Tide', config: { themeColor: '#6B705C' } }, products: [] });
+      if (error || !store) return res.json({ store: { name: 'Terra & Tide', slug: 'terra-and-tide', config: { themeColor: '#6B705C' } }, products: mockProducts });
 
       const { data: products } = await supabase.from('products').select('*').eq('store_id', store.id);
       res.json({ store, products: products || [] });

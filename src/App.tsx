@@ -1,4 +1,6 @@
-import { SafeSignIn, SafeSignUp } from './components/ClerkMock';
+import { AuthProvider } from './contexts/AuthContext';
+import { LoginPage } from './pages/LoginPage';
+import { SignUpPage } from './pages/SignUpPage';
 
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
@@ -22,8 +24,8 @@ import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
-import { ClerkProvider } from '@clerk/clerk-react';
-import { SafeSignedIn as SignedIn, SafeSignedOut as SignedOut, SafeRedirectToSignIn as RedirectToSignIn, SafeUserButton as UserButton } from './components/ClerkMock';
+
+import { SafeSignedIn, SafeSignedOut, SafeRedirectToSignIn, SafeUserButton as UserButton } from './components/ClerkMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
@@ -47,7 +49,7 @@ const queryClient = new QueryClient({
     onError: (error: any) => toast.error(error.message || 'Failed to fetch data')
   })
 });
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+
 type CartItem = {
   id: string;
   name: string;
@@ -272,7 +274,7 @@ function AdminLayout() {
         </nav>
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
           <div className="flex items-center gap-3">
-            {clerkPubKey ? (
+            {true ? (
               <div className="flex items-center gap-3">
                 <UserButton />
                 <div>
@@ -321,30 +323,26 @@ export default function App() {
           <Route path="/terms" element={<TermsAndConditionsPage />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/sign-in/*" element={<SafeSignIn />} />
-          <Route path="/sign-up/*" element={<SafeSignUp />} />
+          <Route path="/sign-in" element={<LoginPage />} />
+          <Route path="/sign-up" element={<SignUpPage />} />
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
-          <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
-          <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
+          <Route path="/my-orders" element={<SafeSignedIn><MyOrdersPage /></SafeSignedIn>} />
+          <Route path="/wishlist" element={<SafeSignedIn><WishlistPage /></SafeSignedIn>} />
           
-          {/* Admin Panel */}
+                    {/* Admin Panel */}
           <Route path="/admin" element={
-            clerkPubKey ? (
               <>
-                <SignedIn>
+                <SafeSignedIn>
                   <AdminProtectedRoute>
                     <AdminLayout />
                   </AdminProtectedRoute>
-                </SignedIn>
-                <SignedOut><RedirectToSignIn /></SignedOut>
+                </SafeSignedIn>
+                <SafeSignedOut><SafeRedirectToSignIn /></SafeSignedOut>
               </>
-            ) : (
-              <AdminLayout />
-            )
           }>
             <Route index element={<AdminDashboard />} />
             <Route path="products" element={<ProductsPage />} />
@@ -360,20 +358,14 @@ export default function App() {
 
   return (
     <HelmetProvider>
+      <AuthProvider>
       <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-      {clerkPubKey ? (
-        <ClerkProvider publishableKey={clerkPubKey}>
-          
-            {routerContent}
-          
-        </ClerkProvider>
-      ) : (
-        routerContent
-      )}
+      {routerContent}
       <Toaster position="bottom-right" />
     </ThemeProvider>
       </QueryClientProvider>
+    </AuthProvider>
     </HelmetProvider>
   );
 }

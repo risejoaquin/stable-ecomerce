@@ -1,18 +1,24 @@
-import { useUser as useClerkUser } from "@clerk/clerk-react";
+import { useSupabaseAuth } from '../contexts/AuthContext';
 
 export function useUserSafe() {
-  try {
-    return useClerkUser();
-  } catch (e) {
+  const { user, isLoading } = useSupabaseAuth();
+  
+  if (!user) {
     return {
-      user: {
-        id: 'user_mock',
-        primaryEmailAddress: { emailAddress: 'admin@example.com' },
-        fullName: 'Local Admin',
-        imageUrl: ''
-      },
-      isLoaded: true,
-      isSignedIn: true
+      user: null,
+      isLoaded: !isLoading,
+      isSignedIn: false
     };
   }
+
+  return {
+    user: {
+      id: user.id,
+      primaryEmailAddress: { emailAddress: user.email },
+      fullName: user.user_metadata?.full_name || user.email?.split('@')[0],
+      imageUrl: user.user_metadata?.avatar_url || ''
+    },
+    isLoaded: !isLoading,
+    isSignedIn: true
+  };
 }

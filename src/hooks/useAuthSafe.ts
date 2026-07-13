@@ -1,15 +1,17 @@
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useSupabaseAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabaseClient';
 
 export function useAuthSafe() {
-  try {
-    return useClerkAuth();
-  } catch (e) {
-    return { 
-      getToken: async () => null, 
-      isSignedIn: false, 
-      userId: null, 
-      sessionId: null, 
-      isLoaded: true 
-    };
-  }
+  const { user, session, isLoading } = useSupabaseAuth();
+  
+  return {
+    getToken: async () => {
+      const { data } = await supabase.auth.getSession();
+      return data.session?.access_token || null;
+    },
+    isSignedIn: !!user,
+    userId: user?.id || null,
+    sessionId: session?.access_token || null,
+    isLoaded: !isLoading
+  };
 }
