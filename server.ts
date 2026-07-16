@@ -13,7 +13,7 @@ import { Resend } from 'resend';
 
 import jwt from 'jsonwebtoken';
 
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'super-secret-jwt-token-with-at-least-32-characters-long';
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const requireAuth = () => {
   return (req, res, next) => {
@@ -23,7 +23,7 @@ const requireAuth = () => {
     }
     const token = authHeader.split(' ')[1];
     try {
-      const decoded: any = jwt.verify(token, SUPABASE_JWT_SECRET);
+      const decoded: any = jwt.verify(token, JWT_SECRET);
       req.auth = { userId: decoded.sub, email: decoded.email };
       next();
     } catch (err) {
@@ -38,7 +38,7 @@ const optionalAuth = () => {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded: any = jwt.verify(token, SUPABASE_JWT_SECRET);
+        const decoded: any = jwt.verify(token, JWT_SECRET);
         req.auth = { userId: decoded.sub, email: decoded.email };
       } catch (err) {
         // Ignore
@@ -246,7 +246,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign(
       { sub: user.id, email: user.email },
-      SUPABASE_JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '1h' }
     );
 
