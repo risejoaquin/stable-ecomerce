@@ -27,7 +27,11 @@ export function LoginPage() {
       const data = await res.json();
       
       if (!res.ok) {
-        toast.error(data.error || 'Failed to login');
+        if (data.error === 'Email no verificado. Revisa tu correo.') {
+          toast.error(data.error);
+        } else {
+          toast.error(data.error || 'Failed to login');
+        }
       } else {
         login(data.token, data.user);
         toast.success('Logged in successfully');

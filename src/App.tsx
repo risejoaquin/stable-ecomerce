@@ -1,6 +1,7 @@
 import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { SignUpPage } from './pages/SignUpPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';

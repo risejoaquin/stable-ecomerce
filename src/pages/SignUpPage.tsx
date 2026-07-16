@@ -24,7 +24,7 @@ export function SignUpPage() {
       if (!res.ok) {
         toast.error(data.error || 'Failed to sign up');
       } else {
-        toast.success('Account created successfully! Please sign in.');
+        toast.success('Te hemos enviado un correo de verificación. Revisa tu bandeja de entrada.');
         navigate('/sign-in');
       }
     } catch (err: any) {
