@@ -26,22 +26,14 @@ async function startServer() {
   });
 
   // --- API PROXY ---
-  const BACKEND_URL = process.env.BACKEND_URL;
-  if (BACKEND_URL) {
-    app.use('/api', createProxyMiddleware({
-      target: BACKEND_URL,
-      changeOrigin: true,
-      onError: (err, req, res) => {
-        console.error('Proxy Error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Error comunicándose con el backend' }));
-      }
-    }));
-  } else {
-    app.use('/api', (req, res) => {
-      res.status(500).json({ error: 'BACKEND_URL no configurada en las variables de entorno' });
-    });
-  }
+  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+  app.use('/api', createProxyMiddleware({
+    target: BACKEND_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api': '',
+    },
+  }));
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
