@@ -1,6 +1,6 @@
 import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
+import { SignUpPage } from './pages/SignUpPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
@@ -26,7 +26,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 
-import { SignedIn, SignedOut, RedirectToSignIn, UserButton } from './components/AuthComponents';
+import { SafeSignedIn, SafeSignedOut, SafeRedirectToSignIn, SafeUserButton as UserButton } from './components/ClerkMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
@@ -324,25 +324,25 @@ export default function App() {
           <Route path="/terms" element={<TermsAndConditionsPage />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/sign-in" element={<LoginPage />} />
+          <Route path="/sign-up" element={<SignUpPage />} />
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
-          <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
-          <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
+          <Route path="/my-orders" element={<SafeSignedIn><MyOrdersPage /></SafeSignedIn>} />
+          <Route path="/wishlist" element={<SafeSignedIn><WishlistPage /></SafeSignedIn>} />
           
                     {/* Admin Panel */}
           <Route path="/admin" element={
               <>
-                <SignedIn>
+                <SafeSignedIn>
                   <AdminProtectedRoute>
                     <AdminLayout />
                   </AdminProtectedRoute>
-                </SignedIn>
-                <SignedOut><RedirectToSignIn /></SignedOut>
+                </SafeSignedIn>
+                <SafeSignedOut><SafeRedirectToSignIn /></SafeSignedOut>
               </>
           }>
             <Route index element={<AdminDashboard />} />

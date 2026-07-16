@@ -44,10 +44,10 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
       <div className="flex items-center gap-4">
         {!user ? (
           <>
-            <Link to="/login" className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
+            <Link to="/sign-in" className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
               Sign In
             </Link>
-            <Link to="/register" className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
+            <Link to="/sign-up" className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
               Sign Up
             </Link>
           </>
