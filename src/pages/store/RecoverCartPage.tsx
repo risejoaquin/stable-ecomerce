@@ -19,7 +19,7 @@ export function RecoverCartPage() {
       return;
     }
 
-    fetch(`/api/cart/recover?token=${token}`)
+    fetch((import.meta.env.VITE_API_URL || '/api') + `/cart/recover?token=${token}`)
       .then(res => res.json())
       .then(data => {
         if (data.items) {

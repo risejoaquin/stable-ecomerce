@@ -10,12 +10,17 @@ import (
 
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
 		frontendURL := os.Getenv("FRONTEND_URL")
-		if frontendURL == "" {
-			frontendURL = "https://selfcaresinners.com"
-		}
 		
-		w.Header().Set("Access-Control-Allow-Origin", frontendURL)
+		allowedOrigin := "https://selfcaresinners.com"
+		if frontendURL != "" {
+			allowedOrigin = frontendURL
+		} else if origin != "" {
+			allowedOrigin = origin
+		}
+				
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
