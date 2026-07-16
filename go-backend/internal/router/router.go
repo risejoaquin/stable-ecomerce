@@ -32,14 +32,21 @@ func CORSMiddleware(next http.Handler) http.Handler {
 func SetupRouter(authHandler *handler.AuthHandler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/auth/register", authHandler.Register)
-	mux.HandleFunc("/api/auth/login", authHandler.Login)
-	mux.HandleFunc("/api/auth/verify", authHandler.Verify)
+	mux.HandleFunc("/auth/register", authHandler.Register)
+	mux.HandleFunc("/auth/login", authHandler.Login)
+	mux.HandleFunc("/auth/verify", authHandler.Verify)
 
 	// Example protected route
-	mux.Handle("/api/auth/me", middleware.JWTAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/auth/me", middleware.JWTAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// handle me
 	})))
+
+	// Public store catalog mock
+	mux.HandleFunc("/public/store", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"items": [], "message": "Store catalog mock"}`))
+	})
 
 	return CORSMiddleware(mux)
 }
