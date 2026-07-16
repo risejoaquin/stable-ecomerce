@@ -21,7 +21,7 @@ export function VerifyEmailPage() {
 
     let isMounted = true;
     
-    get(\`/auth/verify?token=\${token}\`)
+    get(`/auth/verify?token=${token}`)
       .then((data) => {
         if (isMounted) {
           setStatus('success');
@@ -55,7 +55,7 @@ export function VerifyEmailPage() {
               <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
               <h1 className="text-xl font-bold text-gray-900 mb-2">¡Verificación Exitosa!</h1>
               <p className="text-gray-600 mb-6">{message}</p>
-              <Link to="/sign-in" className="w-full bg-[#6B705C] text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transition-opacity inline-block">
+              <Link to="/login" className="w-full bg-[#6B705C] text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transition-opacity inline-block">
                 Iniciar Sesión
               </Link>
             </div>

@@ -4,7 +4,7 @@ import { StoreHeader } from '../components/storefront/StoreHeader';
 import { SEO } from '../components/SEO';
 import { toast } from 'react-hot-toast';
 
-export function SignUpPage() {
+export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -25,7 +25,7 @@ export function SignUpPage() {
         toast.error(data.error || 'Failed to sign up');
       } else {
         toast.success('Te hemos enviado un correo de verificación. Revisa tu bandeja de entrada.');
-        navigate('/sign-in');
+        navigate('/login');
       }
     } catch (err: any) {
       toast.error('An error occurred');
@@ -58,7 +58,7 @@ export function SignUpPage() {
               {loading ? 'Creating Account...' : 'Sign Up'}
             </button>
             <p className="text-center text-sm text-gray-600 mt-4">
-              Already have an account? <Link to="/sign-in" className="text-[#6B705C] font-bold hover:underline">Sign In</Link>
+              Already have an account? <Link to="/login" className="text-[#6B705C] font-bold hover:underline">Sign In</Link>
             </p>
           </div>
         </form>

@@ -2,21 +2,21 @@ import React from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 
-export const SafeSignedIn = ({ children }: { children: React.ReactNode }) => {
+export const SignedIn = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuthContext();
   if (isLoading) return null;
   if (user) return <>{children}</>;
   return null;
 };
 
-export const SafeSignedOut = ({ children }: { children: React.ReactNode }) => {
+export const SignedOut = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuthContext();
   if (isLoading) return null;
   if (!user) return <>{children}</>;
   return null;
 };
 
-export const SafeUserButton = () => {
+export const UserButton = () => {
   const { user, logout } = useAuthContext();
   if (!user) return null;
   return (
@@ -26,14 +26,14 @@ export const SafeUserButton = () => {
   );
 };
 
-export const SafeRedirectToSignIn = () => {
-  return <Navigate to="/sign-in" replace />;
+export const RedirectToSignIn = () => {
+  return <Navigate to="/login" replace />;
 };
 
-export const SafeSignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <Link to="/sign-in">{children}</Link>;
+export const SignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
+  return <Link to="/login">{children}</Link>;
 };
 
-export const SafeSignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <Link to="/sign-up">{children}</Link>;
+export const SignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
+  return <Link to="/register">{children}</Link>;
 };

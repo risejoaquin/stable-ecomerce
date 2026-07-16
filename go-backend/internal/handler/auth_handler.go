@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"myapp/internal/service"
+	"myapp/internal/middleware"
 )
 
 type AuthHandler struct {
@@ -77,5 +78,22 @@ func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Email verificado con éxito",
+	})
+}
+
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey)
+	email := r.Context().Value(middleware.EmailKey)
+
+	if userID == nil || email == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":    userID,
+		"email": email,
+		"full_name": "", // we don't fetch full_name here to avoid DB call, or we could fetch it if needed. Let's keep it simple.
 	})
 }
