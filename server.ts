@@ -1092,6 +1092,119 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     }
   });
 
+  // --- AUTH ENDPOINTS ---
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password, name } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+
+      if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+
+      // 1. Validar que no exista
+      const { data: existing } = await supabase.from('users').select('id').eq('email', email).single();
+      if (existing) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+
+      // 2. Hashear contraseña
+      const salt = await bcrypt.genSalt(10);
+      const password_hash = await bcrypt.hash(password, salt);
+      const userId = crypto.randomUUID();
+      
+      // 3. Crear token de verificación
+      const verification_token = crypto.randomBytes(32).toString('hex');
+
+      // 4. Guardar usuario con verification_token, verified_at = NULL
+      const { error: insertError } = await supabase.from('users').insert({
+        id: userId,
+        email,
+        password_hash,
+        full_name: name || '',
+        verification_token
+      });
+
+      if (insertError) throw insertError;
+
+      // 5. Enviar correo
+      const frontendUrl = process.env.FRONTEND_URL || 'https://selfcaresinners.com';
+      const verificationLink = `${frontendUrl}/verify?token=${verification_token}`;
+      
+      await sendEmail({
+        to: email,
+        subject: 'Verifica tu correo electrónico',
+        html: `<h1>Hola ${name || email}</h1><p>Haz clic para verificar:</p><a href="${verificationLink}">Verificar</a>`
+      });
+
+      res.status(201).json({ message: 'Revisa tu correo' });
+    } catch (err: any) {
+      console.error('Register error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+      if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+
+      const { data: user, error } = await supabase.from('users').select('*').eq('email', email).single();
+      if (error || !user) return res.status(401).json({ error: 'Invalid credentials' });
+
+      const validPassword = await bcrypt.compare(password, user.password_hash);
+      if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
+
+      if (user.verified_at === null) {
+        return res.status(401).json({ error: 'Email no verificado' });
+      }
+
+      const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, email: user.email, name: user.full_name } });
+    } catch (err: any) {
+      console.error('Login error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/auth/verify', async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token) return res.status(400).json({ error: 'Token is required' });
+      if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+
+      const { data: user, error } = await supabase.from('users').select('*').eq('verification_token', token).single();
+      if (error || !user) return res.status(400).json({ error: 'Token inválido' });
+
+      const { error: updateError } = await supabase.from('users')
+        .update({ verified_at: new Date().toISOString(), verification_token: null })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      res.status(200).json({ message: 'Verificado' });
+    } catch (err: any) {
+      console.error('Verify error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/test-email', async (req, res) => {
+    try {
+      const email = req.query.email as string || 'tucorreopersonal@dominio.com';
+      await sendEmail({
+        to: email,
+        subject: 'Test Verification Email',
+        html: `<h1>Hola Test</h1><p>Haz clic para verificar:</p><a href="https://selfcaresinners.com/verify?token=abc">Verificar</a>`
+      });
+      res.send('OK');
+    } catch (err: any) {
+      res.status(500).send(err.message);
+    }
+  });
+  // --- END AUTH ENDPOINTS ---
+
   // Vite middleware for development
   
   // --- WISHLIST ENDPOINTS ---
