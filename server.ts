@@ -1361,6 +1361,20 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     }
   }, 60 * 60 * 1000); // run every hour
 
+  // --- SECURITY MIDDLEWARES ---
+  // Block common bot scanners (e.g., /wp-admin, .php, .env files)
+  app.use((req, res, next) => {
+    const url = req.url.toLowerCase();
+    if (url.startsWith('/wp-') || url.match(/\.(php|env|ini|asp|aspx|jsp)$/)) {
+      return res.status(404).send('Not Found');
+    }
+    next();
+  });
+
+  // Catch-all for unhandled /api routes (returns JSON 404 instead of HTML)
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -78,7 +78,7 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*model
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		frontendURL = "https://selfcaresinners.com"
 	}
 	verificationLink := fmt.Sprintf("%s/verify?token=%s", frontendURL, verificationToken)
 
