@@ -1,17 +1,15 @@
-import { useSupabaseAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabaseClient';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useAuthSafe() {
-  const { user, session, isLoading } = useSupabaseAuth();
+  const { user, token, isLoading } = useAuthContext();
   
   return {
     getToken: async () => {
-      const { data } = await supabase.auth.getSession();
-      return data.session?.access_token || null;
+      return token;
     },
     isSignedIn: !!user,
     userId: user?.id || null,
-    sessionId: session?.access_token || null,
+    sessionId: token,
     isLoaded: !isLoading
   };
 }
