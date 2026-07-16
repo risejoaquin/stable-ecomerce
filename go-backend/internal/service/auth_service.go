@@ -98,7 +98,12 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
 		return err
 	}
 	if user == nil {
-		return errors.New("invalid or expired token")
+		return errors.New("Token inválido")
+	}
+
+	// Comprueba si la hora actual supera el tiempo límite establecido al registrarse (ej. 24 horas)
+	if time.Since(user.CreatedAt) > 24*time.Hour {
+		return errors.New("El token de verificación ha expirado")
 	}
 
 	return s.userRepo.VerifyUser(ctx, user.ID)
