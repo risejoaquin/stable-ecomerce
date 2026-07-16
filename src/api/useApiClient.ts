@@ -17,16 +17,10 @@ export function useApiClient() {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      let res;
-      try {
-        res = await fetch(`${API_URL}${path}`, { ...options, headers });
-      } catch (err: any) {
-        throw new Error(err.message === 'Failed to fetch' ? 'Error de red o CORS. El servidor no está respondiendo adecuadamente.' : err.message);
-      }
-      
+      const res = await fetch(`${API_URL}${path}`, { ...options, headers });
       if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: `Error HTTP ${res.status}` }));
-        throw new Error(error.error || error.message || "Error en la petición");
+        const error = await res.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(error.error || "Error en la petición");
       }
       return res.json();
     },

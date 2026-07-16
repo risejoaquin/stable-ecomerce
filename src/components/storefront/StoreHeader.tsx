@@ -1,15 +1,15 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Heart, ShoppingBag, ArrowLeft, LogOut } from 'lucide-react';
-import { useAuthContext } from '../../contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import { Heart, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
+import { SafeSignInButton, SafeSignUpButton, SafeUserButton } from '../ClerkMock';
 import { useCart } from '../../App';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
 
 export function StoreHeader({ backButton }: { backButton?: boolean }) {
   const { data: store } = useStoreConfig();
-  const { user, logout } = useAuthContext();
+  const { isSignedIn } = useAuth();
   const { setIsCartOpen, items } = useCart();
-  const navigate = useNavigate();
   
   const currentStore = store || { name: 'My Store', id: '1' };
   const config = currentStore.config || {};
@@ -19,11 +19,6 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
   const secondaryColor = config.secondaryColor || '#A5A58D';
   
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
 
   return (
     <header className="min-h-20 py-4 px-4 sm:px-8 max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-4 border-b" style={{ borderColor: secondaryColor + '30' }}>
@@ -41,30 +36,30 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
           )}
         </Link>
       )}
+
       <div className="flex items-center gap-4">
-        {!user ? (
+        {!isSignedIn ? (
           <>
-            <Link to="/sign-in" className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
-              Sign In
-            </Link>
-            <Link to="/sign-up" className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
-              Sign Up
-            </Link>
+            <SafeSignInButton mode="modal">
+              <button className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
+                Sign In
+              </button>
+            </SafeSignInButton>
+            <SafeSignUpButton mode="modal">
+              <button className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
+                Sign Up
+              </button>
+            </SafeSignUpButton>
           </>
         ) : (
-          <div className="flex items-center gap-3">
-             <span className="text-sm font-medium" style={{ color: themeColor }}>{user.full_name || user.email}</span>
-             <button onClick={handleLogout} className="text-gray-500 hover:text-gray-700" title="Logout">
-               <LogOut size={18} />
-             </button>
-          </div>
+          <SafeUserButton />
         )}
         
         <Link 
           to="/wishlist" 
           className="w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-colors relative ml-2" 
-          style={{ borderColor: secondaryColor + '40', backgroundColor: backgroundColor }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = secondaryColor + '10'}
+          style={{ borderColor: secondaryColor + '40', backgroundColor: backgroundColor }} 
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = secondaryColor + '10'} 
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = backgroundColor}
         >
           <Heart size={20} style={{ color: themeColor }} />

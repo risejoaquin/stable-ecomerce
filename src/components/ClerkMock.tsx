@@ -1,39 +1,60 @@
 import React from 'react';
-import { useAuthContext } from '../contexts/AuthContext';
-import { Navigate, Link } from 'react-router-dom';
+import { SignedIn, SignedOut, UserButton, RedirectToSignIn, SignInButton, SignUpButton, SignIn, SignUp } from '@clerk/clerk-react';
+
+const isClerkAvailable = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 export const SafeSignedIn = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuthContext();
-  if (isLoading) return null;
-  if (user) return <>{children}</>;
-  return null;
+  if (isClerkAvailable) {
+    return <SignedIn>{children}</SignedIn>;
+  }
+  return <>{children}</>;
 };
 
 export const SafeSignedOut = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuthContext();
-  if (isLoading) return null;
-  if (!user) return <>{children}</>;
+  if (isClerkAvailable) {
+    return <SignedOut>{children}</SignedOut>;
+  }
   return null;
 };
 
 export const SafeUserButton = () => {
-  const { user, logout } = useAuthContext();
-  if (!user) return null;
-  return (
-    <button onClick={logout} className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600 hover:bg-gray-400" title="Sign out">
-      {user.full_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
-    </button>
-  );
+  if (isClerkAvailable) {
+    return <UserButton afterSignOutUrl="/" />;
+  }
+  return <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600">A</div>;
 };
 
 export const SafeRedirectToSignIn = () => {
-  return <Navigate to="/sign-in" replace />;
+  if (isClerkAvailable) {
+    return <RedirectToSignIn />;
+  }
+  return <div>Please sign in</div>;
 };
 
-export const SafeSignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <Link to="/sign-in">{children}</Link>;
+export const SafeSignInButton = ({ children, mode }: { children: React.ReactNode, mode?: "modal" | "redirect" }) => {
+  if (isClerkAvailable) {
+    return <SignInButton mode={mode}>{children}</SignInButton>;
+  }
+  return <div onClick={() => alert("Sign in mock")}>{children}</div>;
 };
 
-export const SafeSignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <Link to="/sign-up">{children}</Link>;
+export const SafeSignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: "modal" | "redirect" }) => {
+  if (isClerkAvailable) {
+    return <SignUpButton mode={mode}>{children}</SignUpButton>;
+  }
+  return <div onClick={() => alert("Sign up mock")}>{children}</div>;
+};
+
+export const SafeSignIn = () => {
+  if (isClerkAvailable) {
+    return <div className="flex justify-center p-8"><SignIn routing="path" path="/sign-in" /></div>;
+  }
+  return <div>Sign In Page (Mock)</div>;
+};
+
+export const SafeSignUp = () => {
+  if (isClerkAvailable) {
+    return <div className="flex justify-center p-8"><SignUp routing="path" path="/sign-up" /></div>;
+  }
+  return <div>Sign Up Page (Mock)</div>;
 };
