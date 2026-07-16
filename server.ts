@@ -4,7 +4,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { createServer as createViteServer } from 'vite';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 
 async function startServer() {
   const app = express();
@@ -24,16 +23,6 @@ async function startServer() {
     }
     next();
   });
-
-  // --- API PROXY ---
-  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
-  app.use('/api', createProxyMiddleware({
-    target: BACKEND_URL,
-    changeOrigin: true,
-    pathRewrite: {
-      '^/api': '',
-    },
-  }));
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
