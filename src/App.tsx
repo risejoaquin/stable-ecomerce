@@ -326,6 +326,7 @@ export default function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/sign-in" element={<LoginPage />} />
           <Route path="/sign-up" element={<SignUpPage />} />
+          <Route path="/verify" element={<VerifyEmailPage />} />
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />

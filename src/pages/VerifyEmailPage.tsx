@@ -21,7 +21,7 @@ export function VerifyEmailPage() {
 
     let isMounted = true;
     
-    get(\`/auth/verify?token=\${token}\`)
+    get(`/auth/verify?token=${token}`)
       .then((data) => {
         if (isMounted) {
           setStatus('success');
@@ -30,6 +30,7 @@ export function VerifyEmailPage() {
       })
       .catch((err) => {
         if (isMounted) {
+          console.error("Verification error:", err);
           setStatus('error');
           setMessage(err.message || 'Error al verificar el correo.');
         }
