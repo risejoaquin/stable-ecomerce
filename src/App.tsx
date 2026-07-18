@@ -338,8 +338,14 @@ function AdminLayout() {
         <header className="h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E5E1] bg-white/30 shrink-0">
           <h2 className="font-serif text-xl">Dashboard Overview</h2>
           <div className="flex gap-4">
-            <button className="px-4 py-2 bg-white border border-[#E5E5E1] rounded-full text-xs font-bold hover:bg-gray-50 transition-colors">Sync Catalog</button>
-            <button className="px-6 py-2 bg-[#6B705C] text-white rounded-full text-xs font-bold shadow-lg shadow-[#6B705C]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
+            <button onClick={() => {
+              toast.promise(queryClient.invalidateQueries(), {
+                loading: 'Syncing catalog...',
+                success: 'Catalog synced successfully!',
+                error: 'Failed to sync catalog'
+              });
+            }} className="px-4 py-2 bg-white border border-[#E5E5E1] rounded-full text-xs font-bold hover:bg-gray-50 transition-colors">Sync Catalog</button>
+            <button onClick={() => window.open('/', '_blank')} className="px-6 py-2 bg-[#6B705C] text-white rounded-full text-xs font-bold shadow-lg shadow-[#6B705C]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
           </div>
         </header>
         <div className="flex-1 overflow-auto">
