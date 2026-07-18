@@ -31,6 +31,7 @@ import { ProductsPage } from './pages/admin/ProductsPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { HomePage } from './pages/store/HomePage';
+import { ProfilePage } from './pages/store/ProfilePage';
 import { TrackOrderPage } from './pages/store/TrackOrderPage';
 import { MyOrdersPage } from './pages/store/MyOrdersPage';
 import { CheckoutSuccessPage } from './pages/store/CheckoutSuccessPage';
@@ -83,9 +84,9 @@ function CartProvider({ children }: { children: React.ReactNode }) {
     setItems(prev => {
       const existing = prev.find(i => i.id === product.id);
       if (existing) {
-        return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1, image: i.image || product.image || product.images?.[0] } : i);
       }
-      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] }];
+      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image || product.images?.[0] }];
     });
     setIsCartOpen(true);
   };
@@ -152,10 +153,16 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
 
 function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const apiClient = useApiClient();
+  const { role } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-store'],
     queryFn: () => apiClient.get('/admin/store'),
+    enabled: role === 'admin'
   });
+
+  if (role !== 'admin') {
+    return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Access Denied. Admins only.</div>;
+  }
 
   if (isLoading) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center">Loading admin...</div>;
   if (error) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Error loading store info.</div>;
@@ -378,6 +385,7 @@ export default function App() {
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
           <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
+          <Route path="/profile" element={<SignedIn><ProfilePage /></SignedIn>} />
           <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
           
           {/* Admin Panel */}

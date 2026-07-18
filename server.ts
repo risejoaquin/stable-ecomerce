@@ -21,7 +21,7 @@ const requireAuth = () => (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    req.auth = { userId: decoded.userId };
+    req.auth = { userId: decoded.userId, role: decoded.role };
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -455,10 +455,8 @@ async function startServer() {
         const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (!order) throw new Error('Order not found');
         
-        const { data: store } = await supabase.from('stores').select('slug').eq('id', order.store_id).single();
-        if (store && store.slug) {
-            cancelUrl = `${req.protocol}://${req.get('host')}/store/${store.slug}`;
-        }
+        // Always redirect back to root storefront on cancel since we don't have a /store/:slug route
+        cancelUrl = `${req.protocol}://${req.get('host')}/`;
 
         const { data: orderItems } = await supabase.from('order_items').select('*').eq('order_id', orderId);
         
@@ -530,13 +528,69 @@ async function startServer() {
     }
   });
 
+  app.get('/api/profile', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json({});
+    try {
+      let { data, error } = await supabase.from('users').select('email, full_name, phone, shipping_address, billing_address').eq('id', req.auth.userId).single();
+      
+      if (error) {
+        try {
+          // Fallback if columns don't exist yet
+          const fallback = await supabase.from('users').select('email, full_name').eq('id', req.auth.userId).single();
+          if (fallback.error) throw fallback.error;
+          data = fallback.data;
+        } catch (fallbackError) {
+          throw error; // throw original error if fallback fails
+        }
+      }
+      res.json(data || {});
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/profile', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const { email, fullName, phone, shippingAddress, billingAddress } = req.body;
+      
+      let updatePayload: any = {
+        email,
+        full_name: fullName,
+        phone,
+        shipping_address: shippingAddress,
+        billing_address: billingAddress
+      };
+
+      let { error } = await supabase.from('users').update(updatePayload).eq('id', req.auth.userId);
+      
+      if (error) {
+          try {
+            // Fallback update
+            updatePayload = { email, full_name: fullName };
+            const fallback = await supabase.from('users').update(updatePayload).eq('id', req.auth.userId);
+            if (fallback.error) throw fallback.error;
+          } catch (fallbackError) {
+            throw error; // throw original error if fallback fails
+          }
+      }
+      
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get('/api/admin/store', requireAuth(), async (req: any, res) => {
     const userId = req.auth.userId;
     
-    // Simulate admin role check (in real app, check req.auth.sessionClaims.metadata.role)
-    const isAdmin = true; // Assuming all authenticated users can access for now or check custom claim
+    const isAdmin = req.auth.role === 'admin';
     
-    if (!supabase) return res.json({ hasStore: false, role: isAdmin ? 'admin' : 'user' });
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Only admins can manage stores', hasStore: false });
+    }
+
+    if (!supabase) return res.json({ hasStore: false, role: 'admin' });
     
     try {
       const { data, error } = await supabase.from('stores').select('*').eq('owner_user_id', userId).single();

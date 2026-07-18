@@ -147,6 +147,7 @@ export const SignedOut = ({ children }: { children: React.ReactNode }) => {
 export const UserButton = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { role } = useAuthSafe();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -179,16 +180,26 @@ export const UserButton = () => {
           </div>
           
           <div className="py-1 border-b border-gray-100">
+            {role === 'admin' && (
+              <Link 
+                to="/admin" 
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                <Shield size={16} className="text-gray-400" />
+                <span>Admin Dashboard</span>
+              </Link>
+            )}
             <Link 
-              to="/admin" 
+              to="/profile" 
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
               onClick={() => setIsOpen(false)}
             >
-              <Shield size={16} className="text-gray-400" />
-              <span>Admin Dashboard</span>
+              <User size={16} className="text-gray-400" />
+              <span>My Profile</span>
             </Link>
             <Link 
-              to="/orders" 
+              to="/my-orders" 
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
               onClick={() => setIsOpen(false)}
             >
