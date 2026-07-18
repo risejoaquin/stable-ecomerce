@@ -97,7 +97,7 @@ export function MyOrdersPage() {
                         disabled={resumeCheckout.isPending}
                         className="bg-black text-white px-6 py-2 rounded-xl text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
                       >
-                        {resumeCheckout.isPending ? 'Processing...' : 'Complete Payment'}
+                        {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Processing...' : 'Complete Payment'}
                       </button>
                     ) : <div />}
                     <div className="flex gap-6">
