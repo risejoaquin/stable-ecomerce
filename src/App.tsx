@@ -22,7 +22,7 @@ import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
-import { SignedIn, SignedOut, RedirectToSignIn, UserButton } from './components/AuthMock';
+import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } from './components/AuthMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
@@ -348,6 +348,7 @@ export default function App() {
         <ThemeProvider>
           {routerContent}
           <Toaster position="bottom-right" />
+          <AuthModalProvider>{null}</AuthModalProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </HelmetProvider>
