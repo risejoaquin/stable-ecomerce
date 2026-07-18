@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import express from 'express';
@@ -233,7 +234,7 @@ async function startServer() {
       const password_hash = await bcrypt.hash(password, 10);
       const { data, error } = await supabase
         .from('users')
-        .insert([{ email, password_hash, full_name }])
+        .insert([{ id: crypto.randomUUID(), email, password_hash, full_name }])
         .select()
         .single();
       if (error) {
