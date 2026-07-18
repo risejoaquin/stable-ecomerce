@@ -48,8 +48,12 @@ async function sendEmail({ to, subject, html }: { to: string, subject: string, h
     return;
   }
   try {
-    await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
-    console.log(`Email sent to ${to}`);
+    const { data, error } = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
+    if (error) {
+      console.error('Resend API Error:', error);
+    } else {
+      console.log(`Email sent to ${to}`, data);
+    }
   } catch (error) {
     console.error('Failed to send email:', error);
   }
@@ -241,6 +245,13 @@ async function startServer() {
         if (error.code === '23505') return res.status(400).json({ error: 'Email already exists' });
         throw error;
       }
+            // Send Welcome Email
+      await sendEmail({
+        to: email,
+        subject: 'Welcome to Selfcare Sinners!',
+        html: `<h1>Welcome to Selfcare Sinners, ${full_name || 'Gorgeous'}!</h1><p>We are thrilled to have you here. Discover our exclusive collection of luxury self-care products designed just for you.</p><p>Enjoy shopping with us!</p>`
+      });
+      
       const token = jwt.sign({ userId: data.id, role: data.role }, JWT_SECRET, { expiresIn: '7d' });
       res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: data.role } });
     } catch (error) {
