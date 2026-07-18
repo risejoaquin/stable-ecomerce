@@ -46,6 +46,9 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
       }
 
       localStorage.setItem('auth_token', data.token);
+      if (mode === 'signup' && data.message) {
+        alert(data.message);
+      }
       window.location.reload(); // Recargamos para que toda la app tome el nuevo estado
     } catch (err: any) {
       setError(err.message);

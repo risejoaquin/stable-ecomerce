@@ -1,12 +1,14 @@
 import fs from 'fs';
+let app = fs.readFileSync('src/App.tsx', 'utf-8');
 
-let code = fs.readFileSync('src/App.tsx', 'utf-8');
+app = app.replace(
+  "import { RecoverCartPage } from './components/RecoverCartPage';",
+  "import { RecoverCartPage } from './components/RecoverCartPage';\nimport { VerifyEmailPage } from './components/VerifyEmailPage';"
+);
 
-if (!code.includes('ProductDetailPage')) {
-  code = `import { ProductDetailPage } from './pages/store/ProductDetailPage';\n` + code;
-  code = code.replace(
-    `<Route path="/" element={<HomePage />} />`,
-    `<Route path="/" element={<HomePage />} />\n          <Route path="/product/:id" element={<ProductDetailPage />} />`
-  );
-}
-fs.writeFileSync('src/App.tsx', code);
+app = app.replace(
+  '<Route path="/recover" element={<RecoverCartPage />} />',
+  '<Route path="/recover" element={<RecoverCartPage />} />\n          <Route path="/verify-email" element={<VerifyEmailPage />} />'
+);
+
+fs.writeFileSync('src/App.tsx', app);

@@ -8,6 +8,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { CookieConsent } from './components/CookieConsent';
 import { useAuthSafe as useAuth } from './hooks/useAuthSafe';
 import { RecoverCartPage } from './pages/store/RecoverCartPage';
+import { VerifyEmailPage } from './pages/store/VerifyEmailPage';
 import { WishlistPage } from './pages/store/WishlistPage';
 import { ThemeProvider } from './components/ThemeProvider';
 import { useValidateCoupon } from './hooks/useCoupon';
@@ -305,6 +306,7 @@ export default function App() {
           {/* Public Storefront */}
           <Route path="/" element={<HomePage />} />
           <Route path="/recover" element={<RecoverCartPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsAndConditionsPage />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
