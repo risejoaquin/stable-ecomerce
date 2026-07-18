@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
-import { SafeSignInButton, SafeSignUpButton, SafeUserButton } from '../ClerkMock';
+import { SignInButton, SignUpButton, UserButton } from '../AuthMock';
 import { useCart } from '../../App';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
 
@@ -40,19 +40,19 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
       <div className="flex items-center gap-4">
         {!isSignedIn ? (
           <>
-            <SafeSignInButton mode="modal">
+            <SignInButton mode="modal">
               <button className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
                 Sign In
               </button>
-            </SafeSignInButton>
-            <SafeSignUpButton mode="modal">
+            </SignInButton>
+            <SignUpButton mode="modal">
               <button className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
                 Sign Up
               </button>
-            </SafeSignUpButton>
+            </SignUpButton>
           </>
         ) : (
-          <SafeUserButton />
+          <UserButton />
         )}
         
         <Link 

@@ -1,4 +1,4 @@
-import { SafeSignIn, SafeSignUp } from './components/ClerkMock';
+import { SignIn, SignUp } from './components/AuthMock';
 
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
@@ -22,8 +22,7 @@ import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
-import { ClerkProvider } from '@clerk/clerk-react';
-import { SafeSignedIn as SignedIn, SafeSignedOut as SignedOut, SafeRedirectToSignIn as RedirectToSignIn, SafeUserButton as UserButton } from './components/ClerkMock';
+import { SignedIn, SignedOut, RedirectToSignIn, UserButton } from './components/AuthMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
@@ -47,7 +46,6 @@ const queryClient = new QueryClient({
     onError: (error: any) => toast.error(error.message || 'Failed to fetch data')
   })
 });
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 type CartItem = {
   id: string;
   name: string;
@@ -272,23 +270,13 @@ function AdminLayout() {
         </nav>
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
           <div className="flex items-center gap-3">
-            {clerkPubKey ? (
-              <div className="flex items-center gap-3">
-                <UserButton />
-                <div>
-                  <p className="text-sm font-bold">{user?.fullName || 'User'}</p>
-                  <p className="text-[11px] opacity-60">Store Owner • {user?.id?.slice(0,8)}</p>
-                </div>
-              </div>
-            ) : (
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#A5A58D]"></div>
                 <div>
-                  <p className="text-sm font-bold">Elena Moss</p>
-                  <p className="text-[11px] opacity-60">Store Owner</p>
+                  <p className="text-sm font-bold">{user?.fullName || 'Elena Moss'}</p>
+                  <p className="text-[11px] opacity-60">Store Owner • {user?.id?.slice(0,8) || 'Admin'}</p>
                 </div>
               </div>
-            )}
           </div>
         </div>
       </aside>
@@ -321,8 +309,8 @@ export default function App() {
           <Route path="/terms" element={<TermsAndConditionsPage />} />
           <Route path="/returns" element={<ReturnPolicyPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/sign-in/*" element={<SafeSignIn />} />
-          <Route path="/sign-up/*" element={<SafeSignUp />} />
+          <Route path="/sign-in/*" element={<SignIn />} />
+          <Route path="/sign-up/*" element={<SignUp />} />
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
@@ -333,18 +321,14 @@ export default function App() {
           
           {/* Admin Panel */}
           <Route path="/admin" element={
-            clerkPubKey ? (
-              <>
-                <SignedIn>
-                  <AdminProtectedRoute>
-                    <AdminLayout />
-                  </AdminProtectedRoute>
-                </SignedIn>
-                <SignedOut><RedirectToSignIn /></SignedOut>
-              </>
-            ) : (
-              <AdminLayout />
-            )
+            <>
+              <SignedIn>
+                <AdminProtectedRoute>
+                  <AdminLayout />
+                </AdminProtectedRoute>
+              </SignedIn>
+              <SignedOut><RedirectToSignIn /></SignedOut>
+            </>
           }>
             <Route index element={<AdminDashboard />} />
             <Route path="products" element={<ProductsPage />} />
@@ -361,18 +345,10 @@ export default function App() {
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-      {clerkPubKey ? (
-        <ClerkProvider publishableKey={clerkPubKey}>
-          
-            {routerContent}
-          
-        </ClerkProvider>
-      ) : (
-        routerContent
-      )}
-      <Toaster position="bottom-right" />
-    </ThemeProvider>
+        <ThemeProvider>
+          {routerContent}
+          <Toaster position="bottom-right" />
+        </ThemeProvider>
       </QueryClientProvider>
     </HelmetProvider>
   );

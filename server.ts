@@ -7,14 +7,32 @@ import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-import { clerkMiddleware, requireAuth } from '@clerk/express';
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
+
+const requireAuth = () => (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    req.auth = { userId: decoded.userId };
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+const mockAuthMiddleware = requireAuth;
+
+
+
 import multer from 'multer';
 
-// --- CONFIG ---
-if (!process.env.CLERK_PUBLISHABLE_KEY && process.env.VITE_CLERK_PUBLISHABLE_KEY) {
-  process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
-}
 
 const PORT = 3000;
 
@@ -147,8 +165,8 @@ async function startServer() {
   // Regular JSON middleware for other routes
   app.use(express.json());
 
-  // Clerk middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
-  app.use('/api', clerkMiddleware());
+  // Mock Auth middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
+  app.use('/api', mockAuthMiddleware());
 
   
   app.get('/api/orders/my', requireAuth(), async (req: any, res) => {
@@ -220,7 +238,7 @@ async function startServer() {
     res.json({ status: 'ok', database: dbStatus });
   });
 
-  app.post('/api/orders', clerkMiddleware(), orderLimiter, async (req: any, res) => {
+  app.post('/api/orders', mockAuthMiddleware(), orderLimiter, async (req: any, res) => {
     const { items, storeId } = req.body;
     if (!supabase) return res.json({ id: 'dummy_order_' + Date.now(), total: 100 });
 
@@ -788,7 +806,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     }
   });
 
-  app.post('/api/products/:productId/reviews', clerkMiddleware(), async (req: any, res) => {
+  app.post('/api/products/:productId/reviews', mockAuthMiddleware(), async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
       if (!req.auth || !req.auth.userId) return res.status(401).json({ error: 'Unauthorized' });
