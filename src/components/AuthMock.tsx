@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
+import { LogOut, User, Package, Heart, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // Un simple store global para el modal de auth
 let openAuthModal: ((mode: 'signin' | 'signup') => void) | null = null;
@@ -143,10 +145,77 @@ export const SignedOut = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const UserButton = () => {
-  return <div onClick={() => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSignOut = () => {
     localStorage.removeItem('auth_token');
     window.location.reload();
-  }} className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600 cursor-pointer" title="Sign Out">U</div>;
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+      >
+        <User size={20} className="text-gray-600" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
+          <div className="px-4 py-2 border-b border-gray-100">
+            <p className="text-sm font-medium text-gray-900 truncate">My Account</p>
+          </div>
+          
+          <div className="py-1 border-b border-gray-100">
+            <Link 
+              to="/admin" 
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              <Shield size={16} className="text-gray-400" />
+              <span>Admin Dashboard</span>
+            </Link>
+            <Link 
+              to="/orders" 
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              <Package size={16} className="text-gray-400" />
+              <span>My Orders</span>
+            </Link>
+            <Link 
+              to="/wishlist" 
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              <Heart size={16} className="text-gray-400" />
+              <span>Wishlist</span>
+            </Link>
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export const RedirectToSignIn = () => {
