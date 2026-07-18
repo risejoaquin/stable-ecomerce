@@ -34,7 +34,7 @@ const mockAuthMiddleware = requireAuth;
 import multer from 'multer';
 
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -166,7 +166,7 @@ async function startServer() {
   app.use(express.json());
 
   // Mock Auth middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
-  app.use('/api', mockAuthMiddleware());
+  // app.use('/api', mockAuthMiddleware());
 
   
   app.get('/api/orders/my', requireAuth(), async (req: any, res) => {
@@ -221,6 +221,52 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+
+  // --- AUTH ROUTES ---
+  app.post('/api/register', async (req, res) => {
+    const { email, password, full_name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    try {
+      const password_hash = await bcrypt.hash(password, 10);
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ email, password_hash, full_name }])
+        .select()
+        .single();
+      if (error) {
+        if (error.code === '23505') return res.status(400).json({ error: 'Email already exists' });
+        throw error;
+      }
+      const token = jwt.sign({ userId: data.id, role: data.role }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: data.role } });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+      if (error || !user) return res.status(401).json({ error: 'Invalid credentials' });
+      
+      const isValid = await bcrypt.compare(password, user.password_hash);
+      if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
+      
+      const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role } });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
