@@ -73,7 +73,7 @@ export function ProductDetailPage() {
                 </div>
               )}
 
-              <p className="text-2xl font-semibold mb-8" style={{ color: themeColor }}>${Number(product.price).toFixed(2)}</p>
+              <p className="text-2xl font-semibold mb-8" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
               <p className="text-lg opacity-80 mb-8 leading-relaxed" style={{ color: secondaryColor }}>{product.description}</p>
               
               <button 

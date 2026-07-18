@@ -23,7 +23,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
               {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-10 h-10 object-cover rounded-md" /> : <div className="w-10 h-10 bg-gray-100 rounded-md"></div>}
             </td>
             <td className="font-medium">{p.name}</td>
-            <td className="text-gray-600">${(p.price || 0).toFixed(2)}</td>
+            <td className="text-gray-600">MXN ${(p.price || 0).toFixed(2)}</td>
             <td className="text-gray-600">{p.stock}</td>
             <td className="text-right">
               <button onClick={() => onEdit(p)} className="text-[#6B705C] font-bold text-xs mr-3 hover:underline">Edit</button>

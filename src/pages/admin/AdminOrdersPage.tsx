@@ -109,7 +109,7 @@ export function AdminOrdersPage() {
                   <td className="font-mono text-xs text-gray-500">#{o.id.split('-')[0]}</td>
                   <td className="text-gray-600">{new Date(o.created_at).toLocaleString()}</td>
                   <td className="text-gray-900">{o.customerDetails?.name || o.customer_email || 'Guest'}</td>
-                  <td className="text-gray-900 font-medium">${(Number(o.total) || 0).toFixed(2)}</td>
+                  <td className="text-gray-900 font-medium">MXN ${(Number(o.total) || 0).toFixed(2)}</td>
                   <td>
                     <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${getStatusColor(o.status)}`}>
                       {o.status.replace('_', ' ')}
@@ -220,7 +220,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                               </div>
                             </td>
                             <td className="py-3 px-4 text-right text-sm font-medium text-gray-900">
-                              ${(item.unit_price * item.quantity).toFixed(2)}
+                              MXN ${(item.unit_price * item.quantity).toFixed(2)}
                             </td>
                           </tr>
                         ))}
@@ -228,7 +228,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                       <tfoot className="bg-gray-50 border-t border-gray-100">
                         <tr>
                           <td className="py-3 px-4 text-right text-sm text-gray-500 font-medium">Total</td>
-                          <td className="py-3 px-4 text-right text-base font-bold text-gray-900">${Number(order.total).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-base font-bold text-gray-900">MXN ${Number(order.total).toFixed(2)}</td>
                         </tr>
                       </tfoot>
                     </table></div>

@@ -76,13 +76,13 @@ export function MyOrdersPage() {
                           <p className="font-medium text-sm">{item.products?.name || 'Product'}</p>
                           <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
                         </div>
-                        <p className="font-medium text-sm">${(item.unit_price * item.quantity).toFixed(2)}</p>
+                        <p className="font-medium text-sm">MXN ${(item.unit_price * item.quantity).toFixed(2)}</p>
                       </div>
                     ))}
                   </div>
                   <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-6 font-bold text-lg">
                     <span className="text-gray-500">Total</span>
-                    <span>${Number(order.total).toFixed(2)}</span>
+                    <span>MXN ${Number(order.total).toFixed(2)}</span>
                   </div>
                 </div>
               ))}

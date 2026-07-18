@@ -466,7 +466,7 @@ async function startServer() {
            const { data: product } = await supabase.from('products').select('name').eq('id', item.product_id).single();
            lineItems.push({
              price_data: {
-               currency: 'usd',
+               currency: 'mxn',
                product_data: { name: product?.name || 'Product' },
                unit_amount: Math.round(item.unit_price * 100),
              },
@@ -475,7 +475,7 @@ async function startServer() {
         }
       } else {
         lineItems = [{
-          price_data: { currency: 'usd', product_data: { name: 'Test Product' }, unit_amount: 2000 },
+          price_data: { currency: 'mxn', product_data: { name: 'Test Product' }, unit_amount: 2000 },
           quantity: 1
         }];
       }

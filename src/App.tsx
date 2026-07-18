@@ -202,7 +202,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
               )}
               <div className="flex-1">
                 <h4 className="font-bold text-sm text-[#333]">{item.name}</h4>
-                <p className="text-gray-500 text-sm mt-1">${item.price.toFixed(2)}</p>
+                <p className="text-gray-500 text-sm mt-1">MXN ${item.price.toFixed(2)}</p>
                 <div className="flex items-center gap-3 mt-3">
                   <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center border rounded-md text-gray-500 hover:bg-gray-50 transition-colors">-</button>
                   <span className="text-sm font-medium w-4 text-center">{item.quantity}</span>
@@ -255,19 +255,19 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
             <div className="flex flex-col gap-1 border-b border-gray-200 pb-4">
               <div className="flex justify-between text-gray-500">
                 <span>Subtotal</span>
-                <span>${total.toFixed(2)}</span>
+                <span>MXN ${total.toFixed(2)}</span>
               </div>
               {appliedCoupon && (
                 <div className="flex justify-between text-green-600 font-medium">
                   <span>Discount ({appliedCoupon.code})</span>
-                  <span>-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                  <span>-MXN ${appliedCoupon.discountAmount.toFixed(2)}</span>
                 </div>
               )}
             </div>
 
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span>${finalTotal.toFixed(2)}</span>
+              <span>MXN ${finalTotal.toFixed(2)}</span>
             </div>
             <button 
               

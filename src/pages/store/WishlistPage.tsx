@@ -41,7 +41,7 @@ export function WishlistPage() {
                 </Link>
                 <div className="p-4 flex flex-col flex-1">
                   <Link to={`/product/${product.id}`}><h3 className="font-bold text-base mb-1 line-clamp-1 hover:underline text-gray-900">{product.name}</h3></Link>
-                  <p className="font-semibold text-lg mb-4" style={{ color: themeColor }}>${Number(product.price).toFixed(2)}</p>
+                  <p className="font-semibold text-lg mb-4" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
                   
                   <div className="flex gap-2 mt-auto">
                     <button 

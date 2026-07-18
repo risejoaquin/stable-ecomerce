@@ -185,7 +185,7 @@ const StyledProductCard: React.FC<{ product: any, config: any, themeColor: strin
         </div>
         <p className="opacity-70 text-sm line-clamp-2 mb-4 flex-1" style={{ color: config.secondaryColor || '#666' }}>{product.description}</p>
         <div className="flex items-center justify-between mt-auto pt-4 border-t" style={{ borderColor: (config.secondaryColor || '#ccc') + '30' }}>
-          <p className="font-semibold text-lg" style={{ color: themeColor }}>${Number(product.price).toFixed(2)}</p>
+          <p className="font-semibold text-lg" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
           <button 
             onClick={() => {
               addItem({ id: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
