@@ -173,9 +173,14 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   const { items, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen } = useCart();
   const { isSignedIn } = useAuth();
   
+  const [couponCode, setCouponCode] = React.useState('');
+  const [appliedCoupon, setAppliedCoupon] = React.useState<{ code: string, discountAmount: number } | null>(null);
+  
   const checkout = useCheckout(storeId);
 
   if (!isCartOpen) return null;
+
+  const finalTotal = Math.max(0, total - (appliedCoupon?.discountAmount || 0));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -211,10 +216,58 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
           ))}
         </div>
         {items.length > 0 && (
-          <div className="p-6 border-t bg-gray-50">
-            <div className="flex justify-between mb-6 font-bold text-lg">
+          <div className="p-6 border-t bg-gray-50 flex flex-col gap-4">
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                placeholder="Promo code" 
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                id="coupon-input"
+              />
+              <button 
+                onClick={async () => {
+                  if (!couponCode) return;
+                  try {
+                    const res = await fetch('/api/coupons/validate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ code: couponCode, storeId, orderTotal: total })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                      alert(data.error);
+                      setAppliedCoupon(null);
+                    } else {
+                      setAppliedCoupon({ code: couponCode, discountAmount: data.discountAmount });
+                    }
+                  } catch (e) {
+                    alert('Failed to validate coupon');
+                  }
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-1 border-b border-gray-200 pb-4">
+              <div className="flex justify-between text-gray-500">
+                <span>Subtotal</span>
+                <span>${total.toFixed(2)}</span>
+              </div>
+              {appliedCoupon && (
+                <div className="flex justify-between text-green-600 font-medium">
+                  <span>Discount ({appliedCoupon.code})</span>
+                  <span>-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>${finalTotal.toFixed(2)}</span>
             </div>
             <button 
               
@@ -227,15 +280,15 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ email, items })
-                    }).then(() => checkout.mutate());
+                    }).then(() => checkout.mutate({ couponCode: appliedCoupon?.code }));
                   }
                 } else {
-                  checkout.mutate();
+                  checkout.mutate({ couponCode: appliedCoupon?.code });
                 }
               }}
               disabled={checkout.isPending}
               style={{ backgroundColor: buttonColor || themeColor }}
-              className="w-full text-white py-4 rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="w-full text-white py-4 rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50 mt-2"
             >
               {checkout.isPending ? 'Processing...' : 'Checkout'}
             </button>

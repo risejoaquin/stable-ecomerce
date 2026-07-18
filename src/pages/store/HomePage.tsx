@@ -49,7 +49,7 @@ export function HomePage() {
 
   const currentStore = store || { name: 'My Store', config: {}, description: '' };
   const currentProducts = searchResult?.data || [];
-  const totalPages = searchResult ? Math.ceil(searchResult.total / searchResult.pageSize) : 1;
+  const totalPages = searchResult && searchResult.total ? Math.ceil(searchResult.total / (searchResult.pageSize || 20)) : 1;
   const config = currentStore.config || {};
   
   const themeColor = config.themeColor || '#6B705C';

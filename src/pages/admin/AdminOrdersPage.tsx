@@ -16,7 +16,7 @@ export function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const { data: response, isLoading } = useAdminOrders({ status: filterStatus, page, pageSize: 20 });
   const orders = response?.data || [];
-  const totalPages = response ? Math.ceil(response.total / response.pageSize) : 1;
+  const totalPages = response && response.total ? Math.ceil(response.total / (response.pageSize || 20)) : 1;
 
   // New order notification
   const [previousOrderCount, setPreviousOrderCount] = useState<number | null>(null);
@@ -25,10 +25,10 @@ export function AdminOrdersPage() {
     if (response && previousOrderCount !== null && response.total > previousOrderCount) {
       toast.success('New order received!', { icon: '🛍️' });
     }
-    if (orders) {
-      setPreviousOrderCount(response.total);
+    if (response) {
+      setPreviousOrderCount(response.total || 0);
     }
-  }, [orders]);
+  }, [response, previousOrderCount]);
 
   const filteredOrders = orders;
 

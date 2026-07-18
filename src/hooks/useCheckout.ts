@@ -7,10 +7,11 @@ export function useCheckout(storeId?: string) {
   const { items, clearCart } = useCart();
 
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ couponCode }: { couponCode?: string } = {}) => {
       const orderRes = await apiFetch.post("/orders", {
         storeId,
-        items: items.map(i => ({ productId: i.id, quantity: i.quantity }))
+        items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+        couponCode
       });
       
       const checkoutRes = await apiFetch.post("/checkout", {
