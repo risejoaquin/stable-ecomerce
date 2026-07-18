@@ -1,7 +1,7 @@
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { EmptyState } from '../../components/EmptyState';
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useApiClient } from '../../api/useApiClient';
 import { SEO } from '../../components/SEO';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
@@ -14,6 +14,16 @@ export function MyOrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['my-orders'],
     queryFn: () => apiClient.get('/orders/my'),
+  });
+
+  const resumeCheckout = useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await apiClient.post("/checkout", { orderId });
+      return res.url;
+    },
+    onSuccess: (url) => {
+      window.location.href = url;
+    }
   });
 
   const getStatusColor = (status: string) => {
@@ -80,9 +90,20 @@ export function MyOrdersPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-6 font-bold text-lg">
-                    <span className="text-gray-500">Total</span>
-                    <span>MXN ${Number(order.total).toFixed(2)}</span>
+                  <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center gap-6 font-bold text-lg">
+                    {order.status === 'pending' ? (
+                      <button 
+                        onClick={() => resumeCheckout.mutate(order.id)}
+                        disabled={resumeCheckout.isPending}
+                        className="bg-black text-white px-6 py-2 rounded-xl text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                      >
+                        {resumeCheckout.isPending ? 'Processing...' : 'Complete Payment'}
+                      </button>
+                    ) : <div />}
+                    <div className="flex gap-6">
+                      <span className="text-gray-500">Total</span>
+                      <span>MXN ${Number(order.total).toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
               ))}
