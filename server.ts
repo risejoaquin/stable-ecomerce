@@ -547,15 +547,9 @@ async function startServer() {
     }
   });
 
-  app.get('/api/me', requireAuth(), async (req: any, res) => {
-    if (!supabase) return res.json({ id: req.auth.userId, email: 'mock@example.com', full_name: 'Local Admin' });
-    try {
-      const { data, error } = await supabase.from('users').select('id, email, full_name, role').eq('id', req.auth.userId).single();
-      if (error || !data) return res.status(404).json({ error: 'User not found' });
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
+  app.get('/api/me', requireAuth(), (req: any, res) => {
+    // Test auth route
+    res.json({ userId: req.auth.userId });
   });
 
   // Admin orders
