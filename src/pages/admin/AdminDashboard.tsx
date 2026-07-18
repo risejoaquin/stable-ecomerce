@@ -22,7 +22,7 @@ export function AdminDashboard() {
 
   if (isSalesLoading || isProductsLoading || isOrdersLoading) return <div className="p-4 sm:p-10">Loading analytics...</div>;
 
-  const formatCurrency = (val: number) => `\$\${(val || 0).toFixed(2)}`;
+  const formatCurrency = (val: number) => `$${(val || 0).toFixed(2)}`;
 
   return (
     <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto">

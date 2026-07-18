@@ -9,6 +9,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
   const queryClient = useQueryClient();
 
   const [name, setName] = useState(product?.name || '');
+  const [description, setDescription] = useState(product?.description || '');
   const [price, setPrice] = useState(product?.price || 0);
   const [stock, setStock] = useState(product?.stock || 0);
   const [images, setImages] = useState<string[]>(product?.images || []);
@@ -62,6 +63,14 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
               value={name} onChange={e => setName(e.target.value)} 
             />
           </div>
+          <div>
+            <label className="block text-xs font-bold text-[#A5A58D] mb-1">Description</label>
+            <textarea 
+              rows={3}
+              className="w-full bg-[#FDFCFB] border border-[#E5E5E1] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#6B705C] resize-none" 
+              value={description} onChange={e => setDescription(e.target.value)} 
+            />
+          </div>
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-xs font-bold text-[#A5A58D] mb-1">Price</label>
@@ -98,7 +107,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
         <div className="flex justify-end gap-3 mt-8">
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
           <button 
-            onClick={() => saveProduct.mutate({ name, price, stock, images })}
+            onClick={() => saveProduct.mutate({ name, description, price, stock, images })}
             disabled={saveProduct.isPending || !name}
             className="bg-[#6B705C] text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors disabled:opacity-50"
           >

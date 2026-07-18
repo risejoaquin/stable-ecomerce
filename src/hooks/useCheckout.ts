@@ -8,10 +8,13 @@ export function useCheckout(storeId?: string) {
 
   return useMutation({
     mutationFn: async ({ couponCode }: { couponCode?: string } = {}) => {
+      const customerEmail = typeof window !== 'undefined' ? localStorage.getItem('guest_email') : null;
+      
       const orderRes = await apiFetch.post("/orders", {
         storeId,
         items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
-        couponCode
+        couponCode,
+        customerEmail
       });
       
       const checkoutRes = await apiFetch.post("/checkout", {

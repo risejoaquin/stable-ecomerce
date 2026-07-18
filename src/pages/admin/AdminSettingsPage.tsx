@@ -116,6 +116,22 @@ export function AdminSettingsPage() {
           {updateConfig.isPending ? 'Saving...' : <><Check size={18} /> Save Changes</>}
         </button>
       </header>
+
+      <div className="flex gap-6 px-4 sm:px-10 py-4 border-b border-[#E5E5E1] bg-white shrink-0">
+        <button 
+          onClick={() => setActiveTab('theme')} 
+          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'theme' ? 'border-[#6B705C] text-[#6B705C]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+        >
+          <Palette size={16} /> Theme & Colors
+        </button>
+        <button 
+          onClick={() => setActiveTab('content')} 
+          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'content' ? 'border-[#6B705C] text-[#6B705C]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+        >
+          <LayoutIcon size={16} /> Layout & Content
+        </button>
+      </div>
+
       <StoreSettingsForm 
         activeTab={activeTab} 
         config={config} 

@@ -124,8 +124,11 @@ async function startServer() {
       const session = event.data.object as Stripe.Checkout.Session;
       const orderId = session.metadata?.order_id;
       if (orderId && supabase) {
-        // Update order status to paid
-        const { data: order, error } = await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId).select().single();
+        // Update order status to paid and save email if missing
+        const customerEmail = session.customer_details?.email || null;
+        const updateData: any = { status: 'paid' };
+        if (customerEmail) updateData.customer_email = customerEmail;
+        const { data: order, error } = await supabase.from('orders').update(updateData).eq('id', orderId).select().single();
         
         // Decrement stock
         const { data: orderItems } = await supabase.from('order_items').select('*, products(*)').eq('order_id', orderId);
@@ -414,6 +417,7 @@ async function startServer() {
       const { data: order, error: orderError } = await supabase.from('orders').insert([{
         store_id: storeId,
         customer_user_id: req.auth?.userId || null,
+        customer_email: req.body.customerEmail || null,
         status: 'pending',
         total: finalTotal,
         coupon_code: couponCode,
