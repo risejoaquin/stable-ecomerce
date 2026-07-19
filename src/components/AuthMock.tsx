@@ -4,11 +4,11 @@ import { LogOut, User, Package, Heart, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // Un simple store global para el modal de auth
-let openAuthModal: ((mode: 'signin' | 'signup') => void) | null = null;
+let openAuthModal: ((mode: 'signin' | 'signup' | 'forgot-password') => void) | null = null;
 
 export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot-password'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -72,7 +72,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
               ✕
             </button>
             <h2 className="text-2xl font-bold mb-6 text-center">
-              {mode === 'signin' ? 'Sign In' : 'Sign Up'}
+              {mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Recuperar Contraseña'}
             </h2>
             
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">{error}</div>}
@@ -80,7 +80,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
                   <input 
                     type="text" 
                     required 
@@ -91,7 +91,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
                 <input 
                   type="email" 
                   required 
@@ -100,30 +100,45 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+              {mode !== 'forgot-password' && (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Contraseña</label>
+                    {mode === 'signin' && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setMode('forgot-password'); setError(''); }} 
+                        className="text-xs text-[#6B705C] hover:underline"
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    )}
+                  </div>
+                  <input 
+                    type="password" 
+                    required 
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              )}
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-black text-white font-medium py-2 rounded hover:bg-gray-800 disabled:opacity-50"
+                className="w-full bg-[#6B705C] text-white font-medium py-2 rounded hover:bg-[#5a5f4d] disabled:opacity-50 transition-colors"
               >
-                {loading ? 'Cargando...' : (mode === 'signin' ? 'Sign In' : 'Sign Up')}
+                {loading ? 'Cargando...' : (mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar Enlace')}
               </button>
             </form>
 
             <div className="mt-4 text-center text-sm">
               {mode === 'signin' ? (
-                <p>Don't have an account? <button onClick={() => { setMode('signup'); setError(''); }} className="text-blue-600 underline">Sign up</button></p>
+                <p>¿No tienes una cuenta? <button onClick={() => { setMode('signup'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Regístrate</button></p>
+              ) : mode === 'signup' ? (
+                <p>¿Ya tienes una cuenta? <button onClick={() => { setMode('signin'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Inicia sesión</button></p>
               ) : (
-                <p>Already have an account? <button onClick={() => { setMode('signin'); setError(''); }} className="text-blue-600 underline">Sign in</button></p>
+                <p><button onClick={() => { setMode('signin'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Volver a Iniciar Sesión</button></p>
               )}
             </div>
           </div>

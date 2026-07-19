@@ -36,6 +36,7 @@ import { ProfilePage } from './pages/store/ProfilePage';
 import { TrackOrderPage } from './pages/store/TrackOrderPage';
 import { MyOrdersPage } from './pages/store/MyOrdersPage';
 import { CheckoutSuccessPage } from './pages/store/CheckoutSuccessPage';
+import { ResetPasswordPage } from './pages/store/ResetPasswordPage';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
@@ -385,6 +386,7 @@ export default function App() {
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
           <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
           <Route path="/profile" element={<SignedIn><ProfilePage /></SignedIn>} />
