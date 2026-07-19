@@ -4,6 +4,7 @@ import { useAdminProducts } from '../../hooks/useProducts';
 import { useApiClient } from '../../api/useApiClient';
 import { ProductTable } from '../../components/admin/ProductTable';
 import { ProductFormModal } from '../../components/admin/ProductFormModal';
+import toast from 'react-hot-toast';
 
 export function ProductsPage() {
   const apiClient = useApiClient();
@@ -15,7 +16,13 @@ export function ProductsPage() {
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/admin/products/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      toast.success('Product deleted successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete product');
+    }
   });
 
   const handleEdit = (product: any) => {

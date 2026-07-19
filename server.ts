@@ -10,6 +10,7 @@ import Stripe from 'stripe';
 import { Resend } from 'resend';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
 
@@ -156,11 +157,17 @@ async function startServer() {
 
            // Customer Confirmation
            if (customerEmail) {
-             const itemsHtml = orderItems ? orderItems.map(item => `<li>${item.quantity}x ${item.products?.name} - ${item.unit_price}</li>`).join('') : '';
+             const itemsHtml = orderItems ? orderItems.map(item => `
+               <div class="order-item">
+                 <span>${item.quantity}x ${item.products?.name}</span>
+                 <span>$${item.unit_price}</span>
+               </div>
+             `).join('') : '';
+             
              await sendEmail({
                to: customerEmail,
                subject: `Order Confirmation: #${order.id.split('-')[0]}`,
-               html: `<h1>Thank you for your order!</h1><p>We have received your order and it is now being processed.</p><ul>${itemsHtml}</ul><p>Total: ${order.total}</p>`
+               html: getOrderConfirmationEmail(order.id, `$${order.total}`, itemsHtml)
              });
            }
         }
@@ -256,10 +263,7 @@ async function startServer() {
       await sendEmail({
         to: email,
         subject: 'Verify your Selfcare Sinners account',
-        html: `<h1>Welcome to Selfcare Sinners, ${full_name || 'Gorgeous'}!</h1>
-               <p>We are thrilled to have you here. Please click the link below to verify your email address:</p>
-               <a href="${verificationLink}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Verify Email</a>
-               <p>If you did not create this account, you can safely ignore this email.</p>`
+        html: getVerificationEmail(full_name, verificationLink)
       });
       
       // Still issue a normal token so they can be logged in immediately (or you can require verification to log in)
@@ -320,9 +324,7 @@ async function startServer() {
       await sendEmail({
         to: email,
         subject: 'Verify your Selfcare Sinners account',
-        html: `<h1>Hello ${user.full_name || 'Gorgeous'}!</h1>
-               <p>Please click the link below to verify your email address:</p>
-               <a href="${verificationLink}" style="display: inline-block; padding: 10px 20px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px;">Verify Email</a>`
+        html: getVerificationEmail(user.full_name, verificationLink)
       });
       
       res.json({ success: true, message: 'Verification email resent.' });
@@ -692,10 +694,11 @@ async function startServer() {
          
          if (customerEmail) {
            const statusText = status === 'shipped' ? 'has been shipped' : 'has been cancelled';
+           const trackingInfo = status === 'shipped' && data.tracking_number ? `<p style="margin:0;">Tracking Number: <strong>${data.tracking_number}</strong></p>` : '';
            await sendEmail({
              to: customerEmail,
              subject: `Order Update: #${data.id.split('-')[0]} ${statusText}`,
-             html: `<p>Your order #${data.id.split('-')[0]} ${statusText}.</p>${status === 'shipped' && data.tracking_number ? `<p>Tracking Number: <strong>${data.tracking_number}</strong></p>` : ''}`
+             html: getOrderStatusEmail(data.id, statusText, trackingInfo)
            });
          }
       }
@@ -823,7 +826,15 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         .delete()
         .eq('id', req.params.id)
         .eq('store_id', store.id);
-      if (error) throw error;
+        
+      if (error) {
+        if (error.code === '23503' || error.message.includes('foreign key constraint')) {
+          return res.status(400).json({ 
+            error: 'Cannot delete this product because it has been ordered by customers. Please hide or archive the product instead.' 
+          });
+        }
+        throw error;
+      }
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -1056,6 +1067,34 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       const { error } = await supabase.from('coupons').delete().eq('id', id).eq('store_id', store.id);
       if (error) throw error;
       res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/admin/coupons/:id/send', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+    try {
+      const { id } = req.params;
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: 'Email is required' });
+
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+
+      const { data: coupon, error } = await supabase.from('coupons').select('*').eq('id', id).eq('store_id', store.id).single();
+      if (error || !coupon) return res.status(404).json({ error: 'Coupon not found' });
+      
+      const discountText = coupon.discount_type === 'percentage' ? `${coupon.discount_value}%` : `$${coupon.discount_value}`;
+      const expiryDate = coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : undefined;
+
+      await sendEmail({
+        to: email,
+        subject: 'A special gift just for you!',
+        html: getDiscountCouponEmail(coupon.code, discountText, expiryDate)
+      });
+
+      res.json({ success: true, message: 'Coupon sent successfully' });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -1348,21 +1387,19 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         // Ensure email is valid
         if (!cart.email || !cart.email.includes('@')) continue;
 
-        const recoverUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/recover?token=${cart.id}`;
+        const recoverUrl = `\${process.env.VITE_APP_URL || 'http://localhost:3000'}/recover?token=\${cart.id}`;
         
-        const html = `
-          <h2>Did you forget something?</h2>
-          <p>We saved your cart for you.</p>
-          <ul>
-            ${cart.items.map((i: any) => `<li>${i.name} - ${i.price} (x${i.quantity})</li>`).join('')}
-          </ul>
-          <a href="${recoverUrl}" style="padding: 10px 20px; background: #6B705C; color: white; text-decoration: none; border-radius: 5px;">Recover Cart</a>
-        `;
+        const itemsHtml = cart.items.map((i: any) => `
+          <div class="order-item">
+            <span>\${i.quantity}x \${i.name}</span>
+            <span>\${i.price}</span>
+          </div>
+        `).join('');
         
         await sendEmail({
           to: cart.email,
           subject: 'Complete your purchase',
-          html
+          html: getAbandonedCartEmail(recoverUrl, itemsHtml)
         });
         
         await supabase

@@ -45,12 +45,14 @@ const getHeaders = async () => {
 
 export const apiClient = {
   get: async (url: string) => {
-    // Aseguramos que url empiece con / para que se concatene correctamente si BASE_URL no termina en /
     const normalizedUrl = url.startsWith('/') ? url : `/${url}`;
     const res = await fetch(`${BASE_URL}${normalizedUrl}`, {
       headers: await getHeaders(),
     });
-    if (!res.ok) throw new Error('API Error');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'API Error');
+    }
     return res.json();
   },
   
@@ -61,7 +63,10 @@ export const apiClient = {
       headers: await getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('API Error');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'API Error');
+    }
     return res.json();
   },
   
@@ -72,7 +77,10 @@ export const apiClient = {
       headers: await getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('API Error');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'API Error');
+    }
     return res.json();
   },
   
@@ -82,7 +90,10 @@ export const apiClient = {
       method: 'DELETE',
       headers: await getHeaders(),
     });
-    if (!res.ok) throw new Error('API Error');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'API Error');
+    }
     return res.json();
   }
 };
