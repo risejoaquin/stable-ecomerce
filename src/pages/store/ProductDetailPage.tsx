@@ -23,6 +23,9 @@ export function ProductDetailPage() {
   const { data: ratingData } = useProductRating(id || '');
   const { isSignedIn } = useAuth();
 
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+
   const { data: product, isLoading: isProductLoading } = useQuery({
     queryKey: ['product', id],
     queryFn: () => apiClient.get(`/products/${id}`),
@@ -39,11 +42,26 @@ export function ProductDetailPage() {
   const backgroundColor = config.backgroundColor || '#FDFCFB';
   const textColor = config.textColor || '#333333';
   const buttonColor = config.buttonColor || themeColor;
-  const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' : 
-                     config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' : 
-                     '"Inter", sans-serif';
+  const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' :
+                      config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' :
+                      '"Inter", sans-serif';
 
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+
+  const hasVariants = product.variants && product.variants.length > 0;
+  const inStock = hasVariants 
+    ? (selectedVariant ? product.variants.find((v: any) => v.name === selectedVariant)?.stock > 0 : product.variants.some((v: any) => v.stock > 0))
+    : product.stock > 0;
+
+  const handleAddToCart = () => {
+    if (hasVariants && !selectedVariant) {
+      toast.error('Please select an option first');
+      return;
+    }
+    const itemName = hasVariants ? `${product.name} - ${selectedVariant}` : product.name;
+    addItem({ id: hasVariants ? `${product.id}-${selectedVariant}` : product.id, name: itemName, price: product.price, quantity: 1, image: product.images?.[0] });
+    toast.success('Added to cart');
+  };
 
   return (
     <>
@@ -56,15 +74,50 @@ export function ProductDetailPage() {
         {/* Main Content */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full py-8 sm:py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-            <div className="bg-gray-50 aspect-square rounded-2xl overflow-hidden flex items-center justify-center">
-               {product.images && product.images[0] ? (
-                 <img src={product.images[0]} alt={product.name}  className="w-full h-full object-cover" loading="lazy" />
-               ) : (
-                 <div className="text-gray-400">No Image</div>
-               )}
+            
+            {/* Image Gallery */}
+            <div className="flex flex-col gap-4">
+              <div className="bg-gray-50 aspect-square rounded-2xl overflow-hidden flex items-center justify-center relative">
+                <WishlistButton productId={product.id} className="absolute top-4 right-4 z-10 p-3 shadow-md border border-gray-100" />
+                {product.images && product.images[selectedImageIndex] ? (
+                  <img src={product.images[selectedImageIndex]} alt={product.name} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
+                ) : (
+                  <div className="text-gray-400">No Image</div>
+                )}
+              </div>
+              
+              {/* Thumbnails */}
+              {product.images && product.images.length > 1 && (
+                <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                  {product.images.map((img: string, idx: number) => (
+                    <button 
+                      key={idx}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 transition-colors ${selectedImageIndex === idx ? 'border-black' : 'border-transparent'}`}
+                      style={{ borderColor: selectedImageIndex === idx ? themeColor : 'transparent' }}
+                    >
+                      <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover opacity-80 hover:opacity-100" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex flex-col justify-center">
-              <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
+
+            {/* Product Details */}
+            <div className="flex flex-col justify-start pt-4">
+              <div className="mb-2 flex items-center gap-2">
+                {product.brand && (
+                  <span className="text-sm font-bold uppercase tracking-wider" style={{ color: secondaryColor }}>{product.brand}</span>
+                )}
+                {product.category && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-sm" style={{ color: secondaryColor }}>{product.category}</span>
+                  </>
+                )}
+              </div>
+              
+              <h1 className="text-4xl font-bold mb-4 leading-tight">{product.name}</h1>
               
               {ratingData && ratingData.count > 0 && (
                 <div className="flex items-center gap-3 mb-6">
@@ -73,18 +126,51 @@ export function ProductDetailPage() {
                 </div>
               )}
 
-              <p className="text-2xl font-semibold mb-8" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
-              <p className="text-lg opacity-80 mb-8 leading-relaxed" style={{ color: secondaryColor }}>{product.description}</p>
+              <p className="text-2xl font-semibold mb-6" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
+              
+              <div className="prose prose-sm md:prose-base mb-8">
+                <p className="opacity-80 leading-relaxed" style={{ color: textColor }}>{product.description}</p>
+              </div>
+              
+              {/* Variants Selector */}
+              {hasVariants && (
+                <div className="mb-8">
+                  <label className="block text-sm font-medium mb-3 uppercase tracking-wider text-gray-500">Select Option</label>
+                  <div className="flex flex-wrap gap-3">
+                    {product.variants.map((v: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedVariant(v.name)}
+                        disabled={v.stock <= 0}
+                        className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all
+                          ${selectedVariant === v.name ? 'border-current shadow-sm' : 'border-gray-200 hover:border-gray-300 text-gray-600'}
+                          ${v.stock <= 0 ? 'opacity-40 cursor-not-allowed line-through' : 'cursor-pointer'}
+                        `}
+                        style={{ 
+                          borderColor: selectedVariant === v.name ? buttonColor : '',
+                          color: selectedVariant === v.name ? buttonColor : '' 
+                        }}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {!inStock && (
+                <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl font-medium border border-red-100">
+                  Out of Stock
+                </div>
+              )}
               
               <button 
-                onClick={() => {
-                  addItem({ id: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
-                  toast.success('Added to cart');
-                }}
-                className="px-8 py-4 text-white text-lg font-medium rounded-xl transition-opacity hover:opacity-90 active:scale-95"
+                onClick={handleAddToCart}
+                disabled={!inStock}
+                className="px-8 py-4 text-white text-lg font-medium rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
                 style={{ backgroundColor: buttonColor }}
               >
-                Add to Cart
+                {inStock ? 'Add to Cart' : 'Sold Out'}
               </button>
             </div>
           </div>
@@ -108,7 +194,7 @@ export function ProductDetailPage() {
             </div>
           </div>
         </main>
-
+        
         <CartDrawer storeId={currentStore?.id} themeColor={themeColor} />
       </div>
     </>

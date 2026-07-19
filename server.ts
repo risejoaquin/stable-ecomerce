@@ -932,7 +932,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       const page = parseInt(req.query.page as string) || 1;
       const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
 
-      let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', store.id);
+      let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', store.id).eq('status', 'active');
       
       if (search) {
         query = query.ilike('name', `%${search}%`);

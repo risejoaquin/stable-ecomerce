@@ -11,6 +11,9 @@ export interface Product {
   description?: string;
   price: number;
   stock: number;
+  brand?: string;
+  category?: string;
+  variants?: { name: string; stock: number }[];
   status: string;
   images: string[];
 }
