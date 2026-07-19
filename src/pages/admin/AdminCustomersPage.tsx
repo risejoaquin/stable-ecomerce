@@ -11,9 +11,9 @@ export function AdminCustomersPage() {
   const exportCSV = () => {
     if (!customers) return;
     
-    const headers = ['Email/ID', 'Orders Count', 'Total Spent', 'Last Order Date'];
+    const headers = ['Name', 'Email', 'Orders Count', 'Total Spent', 'Last Order Date'];
     const csvContent = customers.map((c: any) => 
-      `"${c.email}","${c.orders_count}","${c.total_spent}","${new Date(c.last_order_date).toLocaleString()}"`
+      `"${c.name}","${c.email}","${c.orders_count}","${c.total_spent}","${c.last_order_date ? new Date(c.last_order_date).toLocaleString() : 'Nunca'}"`
     ).join('\n');
     
     const finalCsv = headers.join(',') + '\n' + csvContent;
@@ -81,8 +81,8 @@ export function AdminCustomersPage() {
                           <Users size={18} />
                         </div>
                         <div>
-                          <p className="font-bold text-gray-900">{customer.email}</p>
-                          <p className="text-xs text-gray-500 truncate max-w-[200px]">{customer.id !== customer.email ? customer.id : ''}</p>
+                          <p className="font-bold text-gray-900">{customer.name || customer.email}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-[200px]">{customer.email}</p>
                         </div>
                       </div>
                     </td>
@@ -95,8 +95,14 @@ export function AdminCustomersPage() {
                       <p className="font-bold text-[#6B705C]">{formatCurrency(customer.total_spent)}</p>
                     </td>
                     <td className="p-4 text-right">
-                      <p className="text-sm text-gray-600">{new Date(customer.last_order_date).toLocaleDateString()}</p>
-                      <p className="text-xs text-gray-400">{new Date(customer.last_order_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                      {customer.last_order_date ? (
+                        <>
+                          <p className="text-sm text-gray-600">{new Date(customer.last_order_date).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-400">{new Date(customer.last_order_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-400 font-medium">Sin compras</p>
+                      )}
                     </td>
                   </tr>
                 ))}
