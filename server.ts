@@ -35,7 +35,7 @@ const mockAuthMiddleware = requireAuth;
 import multer from 'multer';
 
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;

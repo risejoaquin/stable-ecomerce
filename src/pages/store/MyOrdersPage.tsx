@@ -94,7 +94,7 @@ export function MyOrdersPage() {
                     {order.status === 'pending' ? (
                       <button 
                         onClick={() => resumeCheckout.mutate(order.id)}
-                        disabled={resumeCheckout.isPending}
+                        disabled={resumeCheckout.isPending && resumeCheckout.variables === order.id}
                         className="bg-black text-white px-6 py-2 rounded-xl text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
                       >
                         {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Processing...' : 'Complete Payment'}
