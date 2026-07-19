@@ -1,6 +1,6 @@
-# E-Commerce Platform
+# Selfcare Sinners - E-Commerce Platform
 
-A modern, full-stack e-commerce platform built with React, Vite, Express, and Supabase. The platform provides a public storefront for customers and a secure admin panel for store owners to manage products, orders, and store configurations.
+A modern, full-stack e-commerce platform built with React, Vite, Express, and Supabase. The platform provides a public storefront for customers and a secure admin panel for store owners to manage products, orders, coupons, and store configurations.
 
 ## Features
 
@@ -8,13 +8,20 @@ A modern, full-stack e-commerce platform built with React, Vite, Express, and Su
   - Product browsing with dynamic grid layouts.
   - Interactive shopping cart with local persistence.
   - Secure checkout process integrated with Stripe.
-  - Dynamic store branding (colors, names) based on configuration.
+  - Wishlist functionality to save favorite products.
+  - Dynamic store branding (colors, names, layouts) based on configuration.
+
+- **Authentication & User Accounts:**
+  - Custom JWT-based authentication using email and password.
+  - Email verification powered by Resend.
+  - User profiles and order history tracking.
 
 - **Admin Dashboard:**
-  - **Authentication:** Secured using Clerk.
+  - **Analytics:** View sales, total orders, and top products.
   - **Product Management:** Full CRUD operations for products, including image uploads via Supabase Storage.
-  - **Order Management:** View recent orders and track their fulfillment status.
-  - **Store Settings:** Customize the store's visual identity (e.g., theme color).
+  - **Order Management:** View recent orders, track fulfillment status, and add tracking numbers.
+  - **Coupon Management:** Create, manage, and delete discount codes.
+  - **Store Settings:** Customize the store's visual identity (theme color, logos, hero banner).
 
 ## Tech Stack
 
@@ -23,31 +30,16 @@ A modern, full-stack e-commerce platform built with React, Vite, Express, and Su
   - Tailwind CSS for styling
   - React Router for navigation
   - TanStack Query (React Query) for data fetching and state management
-  - Clerk for user authentication
   - React Hot Toast for notification toasts
+  - Lucide React for icons
 
 - **Backend:**
   - Node.js & Express
+  - Custom JWT Authentication (`jsonwebtoken`, `bcryptjs`)
   - Supabase (PostgreSQL) for database and object storage
   - Stripe for payment processing and checkout sessions
   - Multer for handling file uploads
-
-## Version History & Updates
-
-### v1.0.0 (Current) - Initial Release & MVP
-- **Core Setup:** Initialized full-stack architecture with Express serving as the backend and Vite for the frontend.
-- **Database Integration:** Integrated Supabase for storing stores, products, orders, and order items.
-- **Authentication:** Integrated Clerk to protect admin routes and API endpoints.
-- **Product CRUD & Storage:** Added the ability to create, read, update, and delete products. Implemented image uploading using `multer` and Supabase Storage.
-- **Shopping Cart & Checkout:**
-  - Implemented `CartContext` to manage shopping cart state with `localStorage` persistence.
-  - Added a responsive `CartDrawer` UI.
-  - Integrated Stripe Checkout API to handle payments securely.
-- **Order Processing:**
-  - Added order creation endpoint that validates stock.
-  - Implemented Stripe webhooks to listen for `checkout.session.completed` events.
-  - Automated order status updates and stock reduction upon successful payment.
-- **Error Handling & UX:** Added centralized error handling and success notifications using `react-hot-toast` and TanStack Query's cache settings.
+  - Resend for email notifications and verifications
 
 ## Getting Started
 
@@ -55,7 +47,7 @@ A modern, full-stack e-commerce platform built with React, Vite, Express, and Su
 - Node.js (v18+)
 - Supabase Project (Database & Storage)
 - Stripe Account
-- Clerk Account
+- Resend Account
 
 ### Environment Variables
 Create a `.env` file in the root directory and add the following:
@@ -64,17 +56,19 @@ Create a `.env` file in the root directory and add the following:
 # Server Config
 PORT=3000
 NODE_ENV=development
+JWT_SECRET=your_jwt_secret
 
 # Supabase
 SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_service_role_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 # Stripe
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 
-# Clerk (Frontend)
-VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+# Resend
+RESEND_API_KEY=your_resend_api_key
 ```
 
 ### Installation
@@ -94,5 +88,5 @@ npm run build
 ```
 Start the production server:
 ```bash
-npm start
+npm run start
 ```

