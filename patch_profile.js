@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import fs from 'fs';
+let content = fs.readFileSync('src/pages/store/ProfilePage.tsx', 'utf8');
+
+// The new profile page logic handles multiple addresses
+const newContent = `import React, { useState } from 'react';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -239,3 +243,5 @@ export function ProfilePage() {
     </div>
   );
 }
+`
+fs.writeFileSync('src/pages/store/ProfilePage.tsx', newContent);

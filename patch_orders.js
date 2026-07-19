@@ -1,5 +1,10 @@
 import fs from 'fs';
-let content = fs.readFileSync('src/pages/store/MyOrdersPage.tsx', 'utf8');
+let content = fs.readFileSync('src/pages/admin/AdminOrdersPage.tsx', 'utf8');
+
+content = content.replace(
+  `{['all', 'pending', 'paid', 'shipped', 'refunded', 'cancelled'].map(status => (`,
+  `{['all', 'pendiente', 'pagado', 'empacado', 'enviado', 'entregado', 'cancelado'].map(status => (`
+);
 
 content = content.replace(
 `  const getStatusColor = (status: string) => {
@@ -7,7 +12,9 @@ content = content.replace(
       case 'paid': return 'bg-emerald-100 text-emerald-800';
       case 'shipped': return 'bg-blue-100 text-blue-800';
       case 'refunded': 
+      case 'partially_refunded':
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'pending':
       default: return 'bg-yellow-100 text-yellow-800';
     }
   };`,
@@ -25,23 +32,18 @@ content = content.replace(
 );
 
 content = content.replace(
-  `{order.status === 'pending' ? (`,
-  `{order.status === 'pendiente' ? (`
+  `{order.status === 'paid' && (`,
+  `{order.status === 'pagado' && (`
 );
 
 content = content.replace(
-  `await checkout.mutateAsync(order.id);`,
-  `await checkout.mutateAsync({ orderId: order.id });` // Wait, checking if I need this. The previous code was `checkout.mutateAsync(order.id)`? Wait, the mutation in `MyOrdersPage.tsx` takes `orderId: string`. Let's check `useMutation` in that file.
+  `{['pending', 'paid'].includes(order.status) && (`,
+  `{['pendiente', 'pagado', 'empacado', 'enviado'].includes(order.status) && (`
 );
 
-fs.writeFileSync('src/pages/store/MyOrdersPage.tsx', content);
+content = content.replace(
+  `{['paid', 'shipped'].includes(order.status) && (`,
+  `{['pagado', 'empacado', 'enviado'].includes(order.status) && (`
+);
 
-try {
-  let typesContent = fs.readFileSync('src/types/index.ts', 'utf8');
-  typesContent = typesContent.replace(
-    `status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';`,
-    `status: 'pendiente' | 'pagado' | 'empacado' | 'enviado' | 'entregado' | 'cancelado';`
-  );
-  fs.writeFileSync('src/types/index.ts', typesContent);
-} catch(e){}
-
+fs.writeFileSync('src/pages/admin/AdminOrdersPage.tsx', content);

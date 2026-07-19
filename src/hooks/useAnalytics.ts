@@ -24,3 +24,11 @@ export function useRecentOrders() {
     queryFn: () => apiClient.get('/admin/analytics/recent_orders')
   });
 }
+
+export function useCouponsAnalytics() {
+  const apiClient = useApiClient();
+  return useQuery({
+    queryKey: ['admin-analytics-coupons'],
+    queryFn: () => apiClient.get('/admin/analytics/coupons')
+  });
+}

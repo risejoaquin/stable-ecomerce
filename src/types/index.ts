@@ -39,7 +39,7 @@ export interface Order {
   id: string;
   storeId: string;
   customerUserId?: string;
-  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pendiente' | 'pagado' | 'empacado' | 'enviado' | 'entregado' | 'cancelado';
   total: number;
   stripeSessionId?: string;
   createdAt: string;

@@ -1,11 +1,14 @@
-import React from 'react';
+import fs from 'fs';
+let content = fs.readFileSync('src/pages/admin/AdminDashboard.tsx', 'utf8');
+
+const newContent = `import React from 'react';
 import { useAdminSales, useTopProducts, useRecentOrders, useCouponsAnalytics } from '../../hooks/useAnalytics';
 import { DollarSign, ShoppingCart, TrendingUp, Users, Tag } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const MetricCard = ({ title, value, icon: Icon, color }: any) => (
   <div className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-    <div className={`w-12 h-12 rounded-full flex items-center justify-center`} style={{ backgroundColor: `${color}15`, color }}>
+    <div className={\`w-12 h-12 rounded-full flex items-center justify-center\`} style={{ backgroundColor: \`\${color}15\`, color }}>
       <Icon size={24} />
     </div>
     <div>
@@ -23,7 +26,7 @@ export function AdminDashboard() {
 
   if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading) return <div className="p-4 sm:p-10 flex items-center justify-center text-gray-500">Cargando métricas...</div>;
 
-  const formatCurrency = (val: number) => `MXN $${(val || 0).toFixed(2)}`;
+  const formatCurrency = (val: number) => \`MXN $\${(val || 0).toFixed(2)}\`;
 
   return (
     <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto bg-[#FDFCFB]">
@@ -67,9 +70,9 @@ export function AdminDashboard() {
                   <LineChart data={sales.sales_by_day}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                     <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => \`$\${val}\`} />
                     <Tooltip 
-                      formatter={(value: any) => [`$${value}`, 'Ingresos']}
+                      formatter={(value: any) => [\`$\${value}\`, 'Ingresos']}
                       labelStyle={{ color: '#374151', fontWeight: 'bold', marginBottom: '8px' }}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     />
@@ -91,9 +94,9 @@ export function AdminDashboard() {
                   <BarChart data={sales.sales_by_month}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                     <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => \`$\${val}\`} />
                     <Tooltip 
-                      formatter={(value: any) => [`$${value}`, 'Ingresos']}
+                      formatter={(value: any) => [\`$\${value}\`, 'Ingresos']}
                       cursor={{fill: '#f3f4f6'}}
                       labelStyle={{ color: '#374151', fontWeight: 'bold', marginBottom: '8px' }}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -140,7 +143,7 @@ export function AdminDashboard() {
                     <div>
                       <p className="text-sm font-bold text-gray-900">{c.code}</p>
                       <p className="text-xs text-gray-500">
-                        Descuento: {c.discount_type === 'percentage' ? `${c.discount_value}%` : formatCurrency(c.discount_value)}
+                        Descuento: {c.discount_type === 'percentage' ? \`\${c.discount_value}%\` : formatCurrency(c.discount_value)}
                       </p>
                     </div>
                     <div className="bg-[#6B705C] text-white text-xs font-bold px-2 py-1 rounded-full">
@@ -170,12 +173,12 @@ export function AdminDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-[#6B705C]">{formatCurrency(o.total)}</p>
-                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                      <span className={\`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full \${
                         o.status === 'pagado' ? 'bg-green-100 text-green-700' : 
                         o.status === 'entregado' ? 'bg-teal-100 text-teal-700' :
                         o.status === 'cancelado' ? 'bg-red-100 text-red-700' :
                         'bg-yellow-100 text-yellow-700'
-                      }`}>
+                      }\`}>
                         {o.status.replace('_', ' ')}
                       </span>
                     </div>
@@ -192,3 +195,6 @@ export function AdminDashboard() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/pages/admin/AdminDashboard.tsx', newContent);

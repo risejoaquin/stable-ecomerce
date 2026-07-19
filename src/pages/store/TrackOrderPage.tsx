@@ -26,10 +26,12 @@ export function TrackOrderPage() {
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'paid': return 'bg-emerald-100 text-emerald-800';
-      case 'shipped': return 'bg-blue-100 text-blue-800';
-      case 'refunded': 
-      case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'pagado': return 'bg-emerald-100 text-emerald-800';
+      case 'empacado': return 'bg-purple-100 text-purple-800';
+      case 'enviado': return 'bg-blue-100 text-blue-800';
+      case 'entregado': return 'bg-teal-100 text-teal-800';
+      case 'cancelado': return 'bg-red-100 text-red-800';
+      case 'pendiente':
       default: return 'bg-yellow-100 text-yellow-800';
     }
   };

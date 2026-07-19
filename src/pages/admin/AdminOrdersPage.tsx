@@ -51,12 +51,12 @@ export function AdminOrdersPage() {
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'paid': return 'bg-emerald-100 text-emerald-800';
-      case 'shipped': return 'bg-blue-100 text-blue-800';
-      case 'refunded': 
-      case 'partially_refunded':
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'pending':
+      case 'pagado': return 'bg-emerald-100 text-emerald-800';
+      case 'empacado': return 'bg-purple-100 text-purple-800';
+      case 'enviado': return 'bg-blue-100 text-blue-800';
+      case 'entregado': return 'bg-teal-100 text-teal-800';
+      case 'cancelado': return 'bg-red-100 text-red-800';
+      case 'pendiente':
       default: return 'bg-yellow-100 text-yellow-800';
     }
   };
@@ -75,7 +75,7 @@ export function AdminOrdersPage() {
       </div>
 
       <div className="flex gap-2">
-        {['all', 'pending', 'paid', 'shipped', 'refunded', 'cancelled'].map(status => (
+        {['all', 'pendiente', 'pagado', 'empacado', 'enviado', 'entregado', 'cancelado'].map(status => (
           <button
             key={status}
             onClick={() => { setFilterStatus(status); setPage(1); }}
@@ -238,25 +238,43 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Actions</h3>
                   <div className="flex flex-wrap gap-3">
-                    {order.status === 'paid' && (
+                    {order.status === 'pagado' && (
                       <button 
-                        onClick={() => updateStatus.mutate('shipped')}
+                        onClick={() => updateStatus.mutate('empacado')}
                         disabled={updateStatus.isPending}
                         className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
                       >
-                        <Check size={16} /> Mark as Shipped
+                        <Check size={16} /> Marcar como Empacado
                       </button>
                     )}
-                    {['pending', 'paid'].includes(order.status) && (
+                    {order.status === 'empacado' && (
                       <button 
-                        onClick={() => updateStatus.mutate('cancelled')}
+                        onClick={() => updateStatus.mutate('enviado')}
+                        disabled={updateStatus.isPending}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                      >
+                        <Check size={16} /> Marcar como Enviado
+                      </button>
+                    )}
+                    {order.status === 'enviado' && (
+                      <button 
+                        onClick={() => updateStatus.mutate('entregado')}
+                        disabled={updateStatus.isPending}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                      >
+                        <Check size={16} /> Marcar como Entregado
+                      </button>
+                    )}
+                    {['pendiente', 'pagado', 'empacado', 'enviado'].includes(order.status) && (
+                      <button 
+                        onClick={() => updateStatus.mutate('cancelado')}
                         disabled={updateStatus.isPending}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
                       >
-                        <X size={16} /> Cancel Order
+                        <X size={16} /> Cancelar Pedido
                       </button>
                     )}
-                    {['paid', 'shipped'].includes(order.status) && (
+                    {['pagado', 'empacado', 'enviado'].includes(order.status) && (
                       <button 
                         onClick={() => {
                           if (window.confirm('Are you sure you want to refund this order?')) {

@@ -127,7 +127,7 @@ async function startServer() {
       if (orderId && supabase) {
         // Update order status to paid and save email if missing
         const customerEmail = session.customer_details?.email || null;
-        const updateData: any = { status: 'paid' };
+        const updateData: any = { status: 'pagado' };
         if (customerEmail) updateData.customer_email = customerEmail;
         const { data: order, error } = await supabase.from('orders').update(updateData).eq('id', orderId).select().single();
         
@@ -422,7 +422,7 @@ async function startServer() {
         store_id: storeId,
         customer_user_id: req.auth?.userId || null,
         customer_email: req.body.customerEmail || null,
-        status: 'pending',
+        status: 'pendiente',
         total: finalTotal,
         coupon_code: couponCode,
         discount_amount: discountAmount
@@ -683,7 +683,7 @@ async function startServer() {
       if (error) throw error;
       
       // Send Email Notification on Status Update
-      if (['shipped', 'cancelled'].includes(status)) {
+      if (['enviado', 'cancelado'].includes(status)) {
          let customerEmail = data.customer_email;
          if (stripe && data.stripe_session_id && !customerEmail) {
             try {
@@ -1141,38 +1141,106 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   });
 
   // --- ANALYTICS ---
-  app.get('/api/admin/analytics/sales', requireAuth(), async (req: any, res) => {
-    if (!supabase) return res.json({ total_revenue: 0, total_orders: 0, average_order_value: 0, sales_by_day: [] });
+  
+  app.get('/api/admin/customers', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json([]);
     try {
       const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
-      // Get last 30 days of paid orders
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { data: orders, error } = await supabase.from('orders')
-        .select('total, created_at')
+      // Get all-time paid orders
+      const { data: allOrders, error } = await supabase.from('orders')
+        .select('total, created_at, customer_email, customer_user_id')
         .eq('store_id', store.id)
-        .eq('status', 'paid')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .in('status', ['paid', 'pagado', 'empacado', 'enviado', 'entregado']);
+
+      if (error) throw error;
+
+      if (!allOrders) return res.json([]);
+
+      // Aggregate by customer (prefer email, fallback to user_id)
+      const customersMap: Record<string, { id: string, email: string, orders_count: number, total_spent: number, last_order_date: string }> = {};
+
+      allOrders.forEach((o: any) => {
+        const id = o.customer_email || o.customer_user_id || 'Invitado';
+        const email = o.customer_email || 'Sin correo';
+        
+        if (!customersMap[id]) {
+          customersMap[id] = {
+            id,
+            email,
+            orders_count: 0,
+            total_spent: 0,
+            last_order_date: o.created_at
+          };
+        }
+        
+        customersMap[id].orders_count += 1;
+        customersMap[id].total_spent += o.total;
+        
+        if (new Date(o.created_at) > new Date(customersMap[id].last_order_date)) {
+          customersMap[id].last_order_date = o.created_at;
+        }
+      });
+
+      const customersList = Object.values(customersMap).sort((a, b) => b.total_spent - a.total_spent);
+
+      res.json(customersList);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/admin/analytics/sales', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json({ total_revenue: 0, total_orders: 0, average_order_value: 0, sales_by_day: [], sales_by_month: [] });
+    try {
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+
+      // Get all-time paid orders
+      const { data: allOrders, error } = await supabase.from('orders')
+        .select('total, created_at, customer_email, customer_user_id')
+        .eq('store_id', store.id)
+        .in('status', ['paid', 'pagado', 'empacado', 'enviado', 'entregado']);
 
       if (error) throw error;
 
       let total_revenue = 0;
-      let total_orders = orders ? orders.length : 0;
+      let total_orders = allOrders ? allOrders.length : 0;
+      let unique_customers = new Set();
       
       const sales_by_day_map: Record<string, { revenue: number, orders: number }> = {};
+      const sales_by_month_map: Record<string, { revenue: number, orders: number }> = {};
       
-      if (orders) {
-        orders.forEach((o: any) => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      if (allOrders) {
+        allOrders.forEach((o: any) => {
           total_revenue += o.total;
-          const date = new Date(o.created_at).toISOString().split('T')[0];
-          if (!sales_by_day_map[date]) {
-            sales_by_day_map[date] = { revenue: 0, orders: 0 };
+          
+          if (o.customer_email) unique_customers.add(o.customer_email);
+          else if (o.customer_user_id) unique_customers.add(o.customer_user_id);
+          
+          const createdDate = new Date(o.created_at);
+          
+          // Monthly
+          const monthStr = createdDate.toISOString().slice(0, 7); // YYYY-MM
+          if (!sales_by_month_map[monthStr]) {
+            sales_by_month_map[monthStr] = { revenue: 0, orders: 0 };
           }
-          sales_by_day_map[date].revenue += o.total;
-          sales_by_day_map[date].orders += 1;
+          sales_by_month_map[monthStr].revenue += o.total;
+          sales_by_month_map[monthStr].orders += 1;
+          
+          // Daily (only last 30 days)
+          if (createdDate >= thirtyDaysAgo) {
+              const dateStr = createdDate.toISOString().split('T')[0];
+              if (!sales_by_day_map[dateStr]) {
+                sales_by_day_map[dateStr] = { revenue: 0, orders: 0 };
+              }
+              sales_by_day_map[dateStr].revenue += o.total;
+              sales_by_day_map[dateStr].orders += 1;
+          }
         });
       }
 
@@ -1183,8 +1251,14 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         revenue: sales_by_day_map[date].revenue,
         orders: sales_by_day_map[date].orders
       })).sort((a, b) => a.date.localeCompare(b.date));
+      
+      const sales_by_month = Object.keys(sales_by_month_map).map(month => ({
+        month,
+        revenue: sales_by_month_map[month].revenue,
+        orders: sales_by_month_map[month].orders
+      })).sort((a, b) => a.month.localeCompare(b.month));
 
-      res.json({ total_revenue, total_orders, average_order_value, sales_by_day });
+      res.json({ total_revenue, total_orders, average_order_value, sales_by_day, sales_by_month, total_customers: unique_customers.size });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -1200,7 +1274,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         .from('order_items')
         .select('quantity, unit_price, product_id, orders!inner(store_id, status), products(name)')
         .eq('orders.store_id', store.id)
-        .eq('orders.status', 'paid');
+        .in('orders.status', ['paid', 'pagado', 'empacado', 'enviado', 'entregado']);
       
       if (error) throw error;
 
@@ -1220,6 +1294,25 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         .slice(0, 5);
 
       res.json(topProducts);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  
+  app.get('/api/admin/analytics/coupons', requireAuth(), async (req: any, res) => {
+    if (!supabase) return res.json([]);
+    try {
+      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      if (!store) return res.status(403).json({ error: 'Unauthorized' });
+
+      const { data: coupons, error } = await supabase.from('coupons')
+        .select('code, discount_type, discount_value, current_uses')
+        .eq('store_id', store.id)
+        .order('current_uses', { ascending: false });
+
+      if (error) throw error;
+      res.json(coupons || []);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

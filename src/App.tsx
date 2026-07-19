@@ -29,6 +29,7 @@ import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'rea
 import { Toaster, toast } from 'react-hot-toast';
 import { ProductsPage } from './pages/admin/ProductsPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
+import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { HomePage } from './pages/store/HomePage';
 import { ProfilePage } from './pages/store/ProfilePage';
@@ -324,10 +325,11 @@ function AdminLayout() {
         </div>
         <nav className="flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
           <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
-          <Link to="/admin/products" className={navItemClass('/admin/products')}>Products</Link>
-          <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Coupons</Link>
-          <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Orders</Link>
-          <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Store Settings</Link>
+          <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
+          <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
+          <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
+          <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
+          <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
         </nav>
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
           <div className="flex items-center gap-3">
@@ -403,6 +405,7 @@ export default function App() {
             <Route path="products" element={<ProductsPage />} />
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
         </Routes>
