@@ -136,10 +136,19 @@ async function startServer() {
         if (orderItems && orderItems.length > 0) {
           for (const item of orderItems) {
             // Fetch current product to safely decrement stock
-            const { data: product } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+            const { data: product } = await supabase.from('products').select('stock, variants').eq('id', item.product_id).single();
             if (product && typeof product.stock === 'number') {
               const newStock = Math.max(0, product.stock - item.quantity);
-              await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
+              
+              let newVariants = product.variants;
+              if (newVariants && Array.isArray(newVariants) && item.name) {
+                const variantMatch = newVariants.find(v => item.name.includes(v.name));
+                if (variantMatch) {
+                   variantMatch.stock = Math.max(0, variantMatch.stock - item.quantity);
+                }
+              }
+              
+              await supabase.from('products').update({ stock: newStock, variants: newVariants }).eq('id', item.product_id);
             }
           }
         }
@@ -455,7 +464,16 @@ async function startServer() {
 
         const { data: product } = await supabase.from('products').select('*').eq('id', actualProductId).single();
         if (!product) throw new Error(`Product ${item.productId} not found`);
-        if (product.stock < item.quantity) throw new Error(`Not enough stock for ${product.name}`);
+        
+        let stockToCheck = product.stock;
+        if (product.variants && Array.isArray(product.variants) && item.name) {
+           const variantMatch = product.variants.find(v => item.name.includes(v.name));
+           if (variantMatch) {
+             stockToCheck = variantMatch.stock;
+           }
+        }
+        
+        if (stockToCheck < item.quantity) throw new Error(`Not enough stock for ${item.name || product.name}`);
         
         total += product.price * item.quantity;
         orderItems.push({
