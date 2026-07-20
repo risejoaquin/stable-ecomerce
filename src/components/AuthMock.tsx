@@ -26,6 +26,28 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
     setError('');
     setLoading(true);
 
+    if (mode === 'forgot-password') {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api';
+        const res = await fetch(`${API_URL}/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Error enviando el correo');
+        }
+        alert(data.message || 'Se ha enviado un enlace para restablecer tu contraseña.');
+        setMode('signin');
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const endpoint = mode === 'signin' ? '/api/login' : '/api/register';
     const body = mode === 'signin' 
       ? { email, password } 

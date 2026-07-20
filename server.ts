@@ -257,7 +257,8 @@ async function startServer() {
       }
       // Generate verification token
       const verificationToken = jwt.sign({ userId: data.id, purpose: 'email_verification' }, JWT_SECRET, { expiresIn: '24h' });
-      const verificationLink = `${req.protocol}://${req.get('host')}/verify-email?token=${verificationToken}`;
+      const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+      const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}`;
 
       // Send Verification Email
       await sendEmail({
@@ -319,7 +320,8 @@ async function startServer() {
       if (user.is_verified) return res.status(400).json({ error: 'Email is already verified' });
       
       const verificationToken = jwt.sign({ userId: user.id, purpose: 'email_verification' }, JWT_SECRET, { expiresIn: '24h' });
-      const verificationLink = `${req.protocol}://${req.get('host')}/verify-email?token=${verificationToken}`;
+      const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+      const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}`;
       
       await sendEmail({
         to: email,
@@ -345,7 +347,8 @@ async function startServer() {
       }
       
       const resetToken = jwt.sign({ userId: user.id, purpose: 'password_reset' }, JWT_SECRET, { expiresIn: '1h' });
-      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+      const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+      const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
       
       await sendEmail({
         to: email,
