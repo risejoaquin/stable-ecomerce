@@ -110,10 +110,10 @@ export function CouponsPage() {
                 <tr key={c.id} className="border-b border-[#E5E5E1] last:border-0 hover:bg-gray-50">
                   <td className="px-6 py-4 font-mono font-bold text-gray-900">{c.code}</td>
                   <td className="px-6 py-4">
-                    {c.discount_type === 'percentage' ? `\${c.discount_value}%` : `$\${c.discount_value}`}
+                    {c.discount_type === 'percentage' ? `${c.discount_value}%` : `$${c.discount_value}`}
                   </td>
                   <td className="px-6 py-4">
-                    {c.current_uses} {c.max_uses ? `/ \${c.max_uses}` : ''}
+                    {c.current_uses} {c.max_uses ? `/ ${c.max_uses}` : ''}
                   </td>
                   <td className="px-6 py-4 text-gray-500">
                     {c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never'}
