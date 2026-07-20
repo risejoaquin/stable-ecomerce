@@ -1183,8 +1183,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         return res.status(400).json({ error: 'Invalid coupon code' });
       }
 
-      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        return res.status(400).json({ error: 'Coupon expired' });
+      if (coupon.expires_at) {
+        const expiry = new Date(coupon.expires_at);
+        // Expiration is at the end of the chosen day (UTC)
+        expiry.setUTCHours(23, 59, 59, 999);
+        if (expiry.getTime() < new Date().getTime()) {
+          return res.status(400).json({ error: 'Coupon expired' });
+        }
       }
 
       if (coupon.max_uses && coupon.current_uses >= coupon.max_uses) {

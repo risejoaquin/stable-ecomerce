@@ -1,8 +1,21 @@
 import fs from 'fs';
 
-let code = fs.readFileSync('server.ts', 'utf-8');
+let content = fs.readFileSync('server.ts', 'utf8');
 
-const regex = /  \}\);\s+if \(error\) throw error;\s+res\.json\(data \|\| \[\]\);\s+\} catch \(e: any\) \{\s+res\.status\(500\)\.json\(\{ error: e\.message \}\);\s+\}\s+\}\);/g;
-code = code.replace(regex, "  });");
+const oldCheck = `      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+        return res.status(400).json({ error: 'Coupon expired' });
+      }`;
 
-fs.writeFileSync('server.ts', code);
+const newCheck = `      if (coupon.expires_at) {
+        const expiry = new Date(coupon.expires_at);
+        // Expiration is at the end of the chosen day (UTC)
+        expiry.setUTCHours(23, 59, 59, 999);
+        if (expiry.getTime() < new Date().getTime()) {
+          return res.status(400).json({ error: 'Coupon expired' });
+        }
+      }`;
+
+content = content.replace(oldCheck, newCheck);
+
+fs.writeFileSync('server.ts', content);
+console.log('Fixed server.ts expiration check');

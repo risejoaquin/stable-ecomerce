@@ -183,13 +183,25 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   const { isSignedIn } = useAuth();
   
   const [couponCode, setCouponCode] = React.useState('');
-  const [appliedCoupon, setAppliedCoupon] = React.useState<{ code: string, discountAmount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = React.useState<any | null>(null);
   
   const checkout = useCheckout(storeId);
 
   if (!isCartOpen) return null;
 
-  const finalTotal = Math.max(0, total - (appliedCoupon?.discountAmount || 0));
+    let currentDiscount = 0;
+  let isCouponActive = false;
+  if (appliedCoupon) {
+    if (!appliedCoupon.min_order_amount || total >= appliedCoupon.min_order_amount) {
+      isCouponActive = true;
+      if (appliedCoupon.discount_type === 'percentage') {
+        currentDiscount = (total * appliedCoupon.discount_value) / 100;
+      } else {
+        currentDiscount = appliedCoupon.discount_value;
+      }
+    }
+  }
+  const finalTotal = Math.max(0, total - currentDiscount);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -249,7 +261,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                       alert(data.error);
                       setAppliedCoupon(null);
                     } else {
-                      setAppliedCoupon({ code: couponCode, discountAmount: data.discountAmount });
+                      setAppliedCoupon(data.coupon);
                     }
                   } catch (e) {
                     alert('Failed to validate coupon');
@@ -266,10 +278,10 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                 <span>Subtotal</span>
                 <span>MXN ${total.toFixed(2)}</span>
               </div>
-              {appliedCoupon && (
+              {isCouponActive && appliedCoupon && (
                 <div className="flex justify-between text-green-600 font-medium">
                   <span>Discount ({appliedCoupon.code})</span>
-                  <span>-MXN ${appliedCoupon.discountAmount.toFixed(2)}</span>
+                  <span>-MXN ${currentDiscount.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -292,7 +304,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                     }).then(() => checkout.mutate({ couponCode: appliedCoupon?.code }));
                   }
                 } else {
-                  checkout.mutate({ couponCode: appliedCoupon?.code });
+                  checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined });
                 }
               }}
               disabled={checkout.isPending}
