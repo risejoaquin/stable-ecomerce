@@ -130,7 +130,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
                       <button 
                         type="button" 
                         onClick={() => { setMode('forgot-password'); setError(''); }} 
-                        className="text-xs text-[#6B705C] hover:underline"
+                        className="text-xs text-[var(--color-primary)] hover:underline"
                       >
                         ¿Olvidaste tu contraseña?
                       </button>
@@ -148,7 +148,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-[#6B705C] text-white font-medium py-2 rounded hover:bg-[#5a5f4d] disabled:opacity-50 transition-colors"
+                className="w-full bg-[var(--color-primary)] text-white font-medium py-2 rounded hover:bg-[#5a5f4d] disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Cargando...' : (mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar Enlace')}
               </button>
@@ -156,11 +156,11 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
 
             <div className="mt-4 text-center text-sm">
               {mode === 'signin' ? (
-                <p>¿No tienes una cuenta? <button onClick={() => { setMode('signup'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Regístrate</button></p>
+                <p>¿No tienes una cuenta? <button onClick={() => { setMode('signup'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Regístrate</button></p>
               ) : mode === 'signup' ? (
-                <p>¿Ya tienes una cuenta? <button onClick={() => { setMode('signin'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Inicia sesión</button></p>
+                <p>¿Ya tienes una cuenta? <button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Inicia sesión</button></p>
               ) : (
-                <p><button onClick={() => { setMode('signin'); setError(''); }} className="text-[#6B705C] font-semibold hover:underline">Volver a Iniciar Sesión</button></p>
+                <p><button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Volver a Iniciar Sesión</button></p>
               )}
             </div>
           </div>

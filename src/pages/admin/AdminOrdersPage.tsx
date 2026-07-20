@@ -64,7 +64,7 @@ export function AdminOrdersPage() {
   return (
     <div className="p-10 flex flex-col gap-6 h-full">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-2xl text-[#333]">Orders</h2>
+        <h2 className="font-serif text-2xl text-[var(--color-text)]">Orders</h2>
         <button 
           onClick={exportCSV}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E5E1] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
@@ -81,7 +81,7 @@ export function AdminOrdersPage() {
             onClick={() => { setFilterStatus(status); setPage(1); }}
             className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
               filterStatus === status 
-                ? 'bg-[#6B705C] text-white' 
+                ? 'bg-[var(--color-primary)] text-white' 
                 : 'bg-white text-gray-500 border border-[#E5E5E1] hover:bg-gray-50'
             }`}
           >
@@ -93,7 +93,7 @@ export function AdminOrdersPage() {
       <div className="bg-white rounded-[24px] border border-[#E5E5E1] flex-1 p-6 overflow-auto">
         {isLoading ? <p>Loading orders...</p> : (
           <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
-            <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
+            <thead className="text-[10px] uppercase tracking-widest font-bold text-[var(--color-secondary)] border-b border-[#F0EFE9]">
               <tr className="h-10">
                 <th className="font-medium pb-2">Order ID</th>
                 <th className="font-medium pb-2">Date</th>
@@ -128,7 +128,7 @@ export function AdminOrdersPage() {
               ))}
               {filteredOrders?.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-[#A5A58D] text-sm">
+                  <td colSpan={5} className="text-center py-12 text-[var(--color-secondary)] text-sm">
                     No orders found matching the criteria.
                   </td>
                 </tr>
@@ -174,7 +174,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
     <Dialog.Root open={true} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-[#FDFCFB] rounded-[24px] shadow-2xl p-8 z-50 max-h-[90vh] overflow-y-auto">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-[var(--color-background)] rounded-[24px] shadow-2xl p-8 z-50 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-start mb-6">
             <div>
               <Dialog.Title className="text-2xl font-serif text-gray-900 flex items-center gap-3">
@@ -242,7 +242,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                       <button 
                         onClick={() => updateStatus.mutate('empacado')}
                         disabled={updateStatus.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
                       >
                         <Check size={16} /> Marcar como Empacado
                       </button>
@@ -251,7 +251,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                       <button 
                         onClick={() => updateStatus.mutate('enviado')}
                         disabled={updateStatus.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
                       >
                         <Check size={16} /> Marcar como Enviado
                       </button>
@@ -260,7 +260,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                       <button 
                         onClick={() => updateStatus.mutate('entregado')}
                         disabled={updateStatus.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50 transition-colors"
                       >
                         <Check size={16} /> Marcar como Entregado
                       </button>
@@ -303,7 +303,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                         value={trackingNumber}
                         onChange={(e) => setTrackingNumber(e.target.value)}
                         placeholder="e.g. 1Z9999999999999999"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                       />
                     </div>
                     <div>
@@ -313,7 +313,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Notes for this order..."
                         rows={3}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B705C] resize-none"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-none"
                       />
                     </div>
                     <button 

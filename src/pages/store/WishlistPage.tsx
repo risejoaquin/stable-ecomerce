@@ -20,7 +20,7 @@ export function WishlistPage() {
       <SEO title="My Wishlist" />
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12 min-h-[60vh]">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold font-serif text-[#333]">Mi Lista de Deseos</h1>
+          <h1 className="text-3xl font-bold font-serif text-[var(--color-text)]">Mi Lista de Deseos</h1>
           <Link to="/" className="text-sm font-medium underline" style={{ color: themeColor }}>Seguir Comprando</Link>
         </div>
 

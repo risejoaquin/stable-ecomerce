@@ -7,7 +7,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
 
   return (
     <div className="overflow-x-auto"><table className="w-full text-left">
-      <thead className="text-[10px] uppercase tracking-widest font-bold text-[#A5A58D] border-b border-[#F0EFE9]">
+      <thead className="text-[10px] uppercase tracking-widest font-bold text-[var(--color-secondary)] border-b border-[#F0EFE9]">
         <tr className="h-10">
           <th className="font-medium">Image</th>
           <th className="font-medium">Product Name</th>
@@ -28,7 +28,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
             </td>
             <td className="font-medium">{p.name}</td>
             <td className="text-gray-500 text-xs">{p.brand || '-'}</td>
-            <td className="text-gray-500 text-xs">{p.category || '-'}</td>
+            <td className="text-gray-500 text-xs">{p.categories?.length > 0 ? p.categories.join(', ') : (p.category || '-')}</td>
             <td className="text-gray-500 text-xs">{p.subcategory || '-'}</td>
             <td className="text-gray-600">MXN ${(p.price || 0).toFixed(2)}</td>
             <td className="text-gray-600">
@@ -45,7 +45,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
               </span>
             </td>
             <td className="text-right">
-              <button onClick={() => onEdit(p)} className="text-[#6B705C] font-bold text-xs mr-3 hover:underline">Edit</button>
+              <button onClick={() => onEdit(p)} className="text-[var(--color-primary)] font-bold text-xs mr-3 hover:underline">Edit</button>
               <button onClick={() => { if(window.confirm('Delete product?')) onDelete(p.id); }} className="text-red-500 font-bold text-xs hover:underline">Delete</button>
             </td>
           </tr>

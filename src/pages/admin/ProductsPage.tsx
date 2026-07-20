@@ -37,10 +37,10 @@ export function ProductsPage() {
   return (
     <div className="p-10 flex flex-col gap-6 h-full relative">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-2xl text-[#333]">Products</h2>
+        <h2 className="font-serif text-2xl text-[var(--color-text)]">Products</h2>
         <button 
           onClick={() => { setEditingProduct(null); setIsFormOpen(true); }}
-          className="bg-[#6B705C] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors"
+          className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors"
         >
           Add Product
         </button>

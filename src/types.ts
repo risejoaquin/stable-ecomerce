@@ -13,6 +13,7 @@ export interface Product {
   stock: number;
   brand?: string;
   category?: string;
+  categories?: string[];
   subcategory?: string;
   variants?: { name: string; stock: number }[];
   status: string;

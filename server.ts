@@ -703,7 +703,7 @@ async function startServer() {
   app.get('/api/admin/orders', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
 
       const status = req.query.status as string;
@@ -735,7 +735,7 @@ async function startServer() {
     if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
     try {
       const { id } = req.params;
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data: order, error } = await supabase.from('orders').select('*, order_items(*, products(*))').eq('id', id).eq('store_id', store.id).single();
@@ -764,7 +764,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       const { status } = req.body;
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
       
       const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).eq('store_id', store.id).select().single();
@@ -803,7 +803,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       const { tracking_number, notes } = req.body;
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
       
       const { data, error } = await supabase.from('orders').update({ tracking_number, notes }).eq('id', id).eq('store_id', store.id).select().single();
@@ -819,7 +819,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     try {
       const { id } = req.params;
       const { amount } = req.body; // optional amount
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
       
       const { data: order, error } = await supabase.from('orders').select('*').eq('id', id).eq('store_id', store.id).single();
@@ -853,7 +853,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/products', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.json([]);
       const { data, error } = await supabase.from('products').select('*').eq('store_id', store.id);
       if (error) throw error;
@@ -866,7 +866,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.post('/api/admin/products', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ id: Date.now().toString(), ...req.body });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(404).json({ error: 'Store not found' });
       
       const newProduct = {
@@ -885,7 +885,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.put('/api/admin/products/:id', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ id: req.params.id, ...req.body });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(404).json({ error: 'Store not found' });
       
       const updateData = { ...req.body };
@@ -907,7 +907,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.delete('/api/admin/products/:id', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(404).json({ error: 'Store not found' });
 
       const { error } = await supabase.from('products')
@@ -933,9 +933,12 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.put('/api/admin/store/config', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
+      // update config
+      const { data: storeToUpdate } = await supabase.from('stores').select('id').limit(1).single();
+      if (!storeToUpdate) throw new Error("Store not found");
       const { data, error } = await supabase.from('stores')
         .update({ config: req.body })
-        .eq('owner_user_id', req.auth.userId)
+        .eq('id', storeToUpdate.id)
         .select().single();
       if (error) throw error;
       res.json(data);
@@ -1029,7 +1032,9 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       }
       if (minPrice) query = query.gte('price', minPrice);
       if (maxPrice) query = query.lte('price', maxPrice);
-      if (category && category !== 'all') query = query.eq('category', category);
+      if (category && category !== 'all') {
+        query = query.or(`category.eq."${category}",categories.cs.["${category}"]`);
+      }
       if (subcategory && subcategory !== 'all') query = query.eq('subcategory', subcategory);
       
       query = query.order(sortBy, { ascending: order === 'asc' });
@@ -1123,7 +1128,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/coupons', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data, error } = await supabase.from('coupons').select('*').eq('store_id', store.id).order('created_at', { ascending: false });
@@ -1137,7 +1142,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.post('/api/admin/coupons', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const coupon = { ...req.body, store_id: store.id };
@@ -1153,7 +1158,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     if (!supabase) return res.json({ success: true });
     try {
       const { id } = req.params;
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { error } = await supabase.from('coupons').delete().eq('id', id).eq('store_id', store.id);
@@ -1171,7 +1176,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       const { email } = req.body;
       if (!email) return res.status(400).json({ error: 'Email is required' });
 
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data: coupon, error } = await supabase.from('coupons').select('*').eq('id', id).eq('store_id', store.id).single();
@@ -1242,7 +1247,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/customers', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       // Get all registered users
@@ -1330,7 +1335,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/analytics/sales', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ total_revenue: 0, total_orders: 0, average_order_value: 0, sales_by_day: [], sales_by_month: [] });
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       // Get all-time paid orders
@@ -1403,7 +1408,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/analytics/top_products', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data: orderItems, error } = await supabase
@@ -1439,7 +1444,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/analytics/coupons', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data: coupons, error } = await supabase.from('coupons')
@@ -1457,7 +1462,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.get('/api/admin/analytics/recent_orders', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json([]);
     try {
-      const { data: store } = await supabase.from('stores').select('id').eq('owner_user_id', req.auth.userId).single();
+      const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(403).json({ error: 'Unauthorized' });
 
       const { data: orders, error } = await supabase.from('orders')

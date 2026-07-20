@@ -23,8 +23,8 @@ export function AdminSettingsPage() {
     isPending: updateConfigBase.isPending,
     mutate: (config: any) => {
       updateConfigBase.mutate(config, {
-        onSuccess: () => toast.success('Settings saved successfully'),
-        onError: (err: any) => toast.error(err.message || 'Failed to save settings')
+        onSuccess: () => toast.success('Configuración guardada exitosamente'),
+        onError: (err: any) => toast.error(err.message || 'Error al guardar la configuración')
       });
     }
   };
@@ -71,7 +71,7 @@ export function AdminSettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    toast.loading('Uploading...', { id: 'upload' });
+    toast.loading('Subiendo...', { id: 'upload' });
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -90,45 +90,45 @@ export function AdminSettingsPage() {
         } else {
           updateConfigField(field, data.url);
         }
-        toast.success('Upload complete', { id: 'upload' });
+        toast.success('Carga completada', { id: 'upload' });
       } else {
-        toast.error(data.error || 'Upload failed', { id: 'upload' });
+        toast.error(data.error || 'Error al subir', { id: 'upload' });
       }
     } catch(err) {
       toast.error('Upload failed', { id: 'upload' });
     }
   };
 
-  if (isLoading) return <div className="p-4 sm:p-10">Loading settings...</div>;
+  if (isLoading) return <div className="p-4 sm:p-10">Cargando configuración...</div>;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#FDFCFB]">
+    <div className="flex h-full flex-col overflow-hidden bg-[var(--color-background)]">
       <header className="px-4 sm:px-10 py-4 sm:py-6 border-b border-[#E5E5E1] bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
-          <h2 className="font-serif text-2xl text-[#333]">Store Customization</h2>
-          <p className="text-sm text-gray-500 mt-1">Design your storefront exactly how you want it.</p>
+          <h2 className="font-serif text-2xl text-[var(--color-text)]">Personalización de Tienda</h2>
+          <p className="text-sm text-gray-500 mt-1">Diseña tu tienda exactamente como la quieres.</p>
         </div>
         <button 
           onClick={() => updateConfig.mutate(config)}
           disabled={updateConfig.isPending}
-          className="flex items-center gap-2 bg-[#6B705C] text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-[#6B705C]/20 hover:bg-[#5a5e4d] transition-all disabled:opacity-50"
+          className="flex items-center gap-2 bg-[var(--color-primary)] text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-[var(--color-primary)]/20 hover:bg-[#5a5e4d] transition-all disabled:opacity-50"
         >
-          {updateConfig.isPending ? 'Saving...' : <><Check size={18} /> Save Changes</>}
+          {updateConfig.isPending ? 'Guardando...' : <><Check size={18} /> Guardar Cambios</>}
         </button>
       </header>
 
       <div className="flex gap-6 px-4 sm:px-10 py-4 border-b border-[#E5E5E1] bg-white shrink-0">
         <button 
           onClick={() => setActiveTab('theme')} 
-          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'theme' ? 'border-[#6B705C] text-[#6B705C]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'theme' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
         >
-          <Palette size={16} /> Theme & Colors
+          <Palette size={16} /> Tema y Colores
         </button>
         <button 
           onClick={() => setActiveTab('content')} 
-          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'content' ? 'border-[#6B705C] text-[#6B705C]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+          className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'content' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
         >
-          <LayoutIcon size={16} /> Layout & Content
+          <LayoutIcon size={16} /> Diseño y Contenido
         </button>
       </div>
 

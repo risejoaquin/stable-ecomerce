@@ -45,10 +45,10 @@ export function CouponsPage() {
   return (
     <div className="p-10 flex flex-col h-full overflow-y-auto">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="font-serif text-2xl text-[#333]">Discount Coupons</h2>
+        <h2 className="font-serif text-2xl text-[var(--color-text)]">Discount Coupons</h2>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm font-medium hover:bg-[#5a5e4d] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:bg-[#5a5e4d] transition-colors"
         >
           <Plus size={16} /> Create Coupon
         </button>
@@ -85,7 +85,7 @@ export function CouponsPage() {
           </div>
           <div className="md:col-span-2 mt-4 flex justify-end gap-3">
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
-            <button type="submit" disabled={createCoupon.isPending} className="px-4 py-2 bg-[#6B705C] text-white rounded-lg text-sm">{createCoupon.isPending ? 'Saving...' : 'Save Coupon'}</button>
+            <button type="submit" disabled={createCoupon.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm">{createCoupon.isPending ? 'Saving...' : 'Save Coupon'}</button>
           </div>
         </form>
       )}
@@ -95,7 +95,7 @@ export function CouponsPage() {
       ) : (
         <div className="bg-white border border-[#E5E5E1] rounded-2xl overflow-hidden">
           <div className="overflow-x-auto"><table className="w-full text-left">
-            <thead className="bg-[#FDFCFB] border-b border-[#E5E5E1] text-[11px] uppercase tracking-wider text-gray-500 font-bold">
+            <thead className="bg-[var(--color-background)] border-b border-[#E5E5E1] text-[11px] uppercase tracking-wider text-gray-500 font-bold">
               <tr>
                 <th className="px-6 py-4">Code</th>
                 <th className="px-6 py-4">Discount</th>

@@ -16,22 +16,24 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
   
   const themeColor = config.themeColor || '#6B705C';
   const backgroundColor = config.backgroundColor || '#F7F6F2';
+  const headerColor = config.headerColor || backgroundColor;
   const secondaryColor = config.secondaryColor || '#A5A58D';
   
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
 
   return (
-    <header className="min-h-20 py-4 px-4 sm:px-8 max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-4 border-b" style={{ borderColor: secondaryColor + '30' }}>
-      {backButton ? (
-        <Link to="/" className="flex items-center gap-2" style={{ color: themeColor }}>
-          <ArrowLeft size={20} />
-          <span className="font-medium">Volver a la Tienda</span>
-        </Link>
-      ) : (
-        <Link to="/" className="flex items-center">
-          <img src={config.logoUrl || "/logo.png"} alt={currentStore.name} className="h-10 object-contain" loading="lazy" />
-        </Link>
-      )}
+    <div className="sticky top-0 z-50 w-full transition-all duration-300" style={{ backgroundColor: headerColor }}>
+      <header className="min-h-20 py-4 px-4 sm:px-8 max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-4 border-b" style={{ borderColor: secondaryColor + '30' }}>
+        {backButton ? (
+          <Link to="/" className="flex items-center gap-2" style={{ color: themeColor }}>
+            <ArrowLeft size={20} />
+            <span className="font-medium">Volver a la Tienda</span>
+          </Link>
+        ) : (
+          <Link to="/" className="flex items-center">
+            <img src={config.logoUrl || "/logo.png"} alt={currentStore.name} className="h-10 object-contain" loading="lazy" />
+          </Link>
+        )}
 
       <div className="flex items-center gap-4">
         {!isSignedIn ? (
@@ -75,6 +77,7 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
           )}
         </button>
       </div>
-    </header>
+      </header>
+    </div>
   );
 }

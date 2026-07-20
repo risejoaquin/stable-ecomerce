@@ -21,7 +21,7 @@ export function EmptyState({
       <h2 className="text-2xl font-bold font-serif mb-2">{title}</h2>
       <p className="text-gray-500 mb-8 max-w-sm">{description}</p>
       {actionText && actionLink && (
-        <Link to={actionLink} className="bg-[#6B705C] text-white px-6 py-3 rounded-xl font-bold hover:bg-opacity-90 transition-opacity">
+        <Link to={actionLink} className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-xl font-bold hover:bg-opacity-90 transition-opacity">
           {actionText}
         </Link>
       )}

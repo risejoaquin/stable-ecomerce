@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useCart, CartDrawer } from '../../App';
 import { useApiClient } from '../../api/useApiClient';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
+import { useSearchProducts } from '../../hooks/useSearchProducts';
+import { StyledProductCard } from '../../pages/store/HomePage';
 import { ReviewList } from '../../components/reviews/ReviewList';
 import { ReviewForm } from '../../components/reviews/ReviewForm';
 import { StarRating } from '../../components/reviews/StarRating';
@@ -32,8 +34,15 @@ export function ProductDetailPage() {
     enabled: !!id
   });
 
-  if (isStoreLoading || isProductLoading) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Loading...</div>;
-  if (!product) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Product not found</div>;
+  const { data: similarProductsResult, isLoading: isSimilarLoading } = useSearchProducts(
+    store?.slug,
+    { category: (product?.categories && product.categories.length > 0) ? product.categories[0] : (product?.category || ''), pageSize: 4 },
+  );
+  
+  const similarProducts = similarProductsResult?.data?.filter((p: any) => p.id !== product?.id).slice(0, 3) || [];
+
+  if (isStoreLoading || isProductLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Loading...</div>;
+  if (!product) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Product not found</div>;
 
   const currentStore = store || { name: 'My Store', config: {}, description: '' };
   const config = currentStore.config || {};
@@ -180,6 +189,18 @@ export function ProductDetailPage() {
               </button>
             </div>
           </div>
+
+          {/* Productos Similares Section */}
+          {similarProducts.length > 0 && (
+            <div className="mt-24 border-t pt-16" style={{ borderColor: secondaryColor + '30' }}>
+              <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Productos Similares</h2>
+              <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {similarProducts.map((p: any) => (
+                  <StyledProductCard key={p.id} product={p} config={config} themeColor={themeColor} textColor={textColor} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Reseñas Section */}
           <div className="mt-24 border-t pt-16" style={{ borderColor: secondaryColor + '30' }}>

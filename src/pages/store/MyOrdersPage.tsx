@@ -41,19 +41,19 @@ export function MyOrdersPage() {
   const themeColor = store?.config?.themeColor || '#6B705C';
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] flex flex-col font-sans">
+    <div className="min-h-screen bg-[var(--color-background)] flex flex-col font-sans">
       <SEO title="My Orders" />
       <StoreHeader />
       
       <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 flex flex-col">
-        <h1 className="font-serif text-3xl mb-8 text-[#333]">Mis Pedidos</h1>
+        <h1 className="font-serif text-3xl mb-8 text-[var(--color-text)]">Mis Pedidos</h1>
         
         {isLoading ? <p className="text-gray-500">Loading your orders...</p> : (
           orders?.length === 0 ? (
             <div className="text-center py-20">
               <Package size={48} className="mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500 text-lg">No has realizado ningún pedido todavía.</p>
-              <a href="/" className="mt-4 inline-block text-[#6B705C] hover:underline font-medium">Continue Shopping</a>
+              <a href="/" className="mt-4 inline-block text-[var(--color-primary)] hover:underline font-medium">Continue Shopping</a>
             </div>
           ) : (
             <div className="grid gap-6">

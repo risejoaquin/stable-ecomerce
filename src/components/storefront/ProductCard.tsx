@@ -17,13 +17,13 @@ export const ProductCard: React.FC<{ product: any }> = ({ product }) => {
         )}
       </div>
       <div className="px-2 pb-2 flex-1 flex flex-col">
-        <h3 className="font-bold text-sm text-[#333]">{product.name}</h3>
-        <p className="text-[#A5A58D] text-xs mt-1 mb-4">MXN ${(product.price || 0).toFixed(2)}</p>
+        <h3 className="font-bold text-sm text-[var(--color-text)]">{product.name}</h3>
+        <p className="text-[var(--color-secondary)] text-xs mt-1 mb-4">MXN ${(product.price || 0).toFixed(2)}</p>
         <div className="mt-auto">
           <button 
             onClick={() => addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] })}
             style={{ color: themeColor }}
-            className="w-full bg-[#F7F6F2] font-bold text-xs py-2.5 rounded-xl hover:bg-[#E5E5E1] transition-colors border border-[#E5E5E1]"
+            className="w-full bg-[var(--color-background)] font-bold text-xs py-2.5 rounded-xl hover:bg-[#E5E5E1] transition-colors border border-[#E5E5E1]"
           >
             Añadir al Carrito
           </button>

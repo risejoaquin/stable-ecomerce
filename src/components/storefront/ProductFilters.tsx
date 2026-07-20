@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function ProductFilters({ filters, setFilters }: { filters: any, setFilters: any }) {
+export function ProductFilters({ filters, setFilters, categories = [] }: { filters: any, setFilters: any, categories?: any[] }) {
   
   return (
         <div className="bg-white p-6 rounded-2xl border border-gray-100 flex flex-col gap-6">
@@ -9,23 +9,12 @@ export function ProductFilters({ filters, setFilters }: { filters: any, setFilte
         <select 
           value={filters.category || 'all'}
           onChange={(e) => setFilters((prev: any) => ({ ...prev, category: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         >
           <option value="all">Todas</option>
-          <option value="Categoria 1">Categoria 1</option>
-          <option value="Categoria 2">Categoria 2</option>
-        </select>
-      </div>
-      <div>
-        <h3 className="font-bold text-sm mb-3">Subcategorías</h3>
-        <select 
-          value={filters.subcategory || 'all'}
-          onChange={(e) => setFilters((prev: any) => ({ ...prev, subcategory: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
-        >
-          <option value="all">Todas</option>
-          <option value="Subcategoria A">Subcategoria A</option>
-          <option value="Subcategoria B">Subcategoria B</option>
+          {categories.map((c: any) => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
         </select>
       </div>
       <div>
@@ -36,7 +25,7 @@ export function ProductFilters({ filters, setFilters }: { filters: any, setFilte
             const [sortBy, order] = e.target.value.split('-');
             setFilters((prev: any) => ({ ...prev, sortBy, order }));
           }}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         >
           <option value="created_at-desc">Más Recientes</option>
           <option value="price-asc">Precio: Menor a Mayor</option>

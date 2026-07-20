@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
+import fs from 'fs';
+
+let content = fs.readFileSync('src/index.css', 'utf8');
+
+const newCSS = `@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -13,14 +17,6 @@
   --color-status-pending-text: #B08C00;
   --color-status-shipped-bg: #E6F5ED;
   --color-status-shipped-text: #2D6A4F;
-  
-  --radius-xs: calc(var(--border-radius-base) * 0.25);
-  --radius-sm: calc(var(--border-radius-base) * 0.5);
-  --radius-md: calc(var(--border-radius-base) * 0.75);
-  --radius-lg: var(--border-radius-base);
-  --radius-xl: var(--border-radius-base);
-  --radius-2xl: var(--border-radius-base);
-  --radius-3xl: var(--border-radius-base);
 }
 
 :root {
@@ -38,3 +34,7 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
 }
+`;
+
+fs.writeFileSync('src/index.css', newCSS);
+console.log('Updated index.css');

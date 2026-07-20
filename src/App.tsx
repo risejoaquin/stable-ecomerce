@@ -31,6 +31,7 @@ import { ProductsPage } from './pages/admin/ProductsPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
+import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { HomePage } from './pages/store/HomePage';
 import { ProfilePage } from './pages/store/ProfilePage';
 import { TrackOrderPage } from './pages/store/TrackOrderPage';
@@ -128,10 +129,10 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
   });
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center p-8">
       <div className="bg-white p-10 rounded-[32px] border border-[#F0EFE9] text-center shadow-sm max-w-md w-full">
-        <h1 className="font-serif text-3xl text-[#333] mb-2">Crea tu Tienda</h1>
-        <p className="text-[#A5A58D] text-sm mb-8">Configura tu tienda para empezar a vender.</p>
+        <h1 className="font-serif text-3xl text-[var(--color-text)] mb-2">Crea tu Tienda</h1>
+        <p className="text-[var(--color-secondary)] text-sm mb-8">Configura tu tienda para empezar a vender.</p>
         <form onSubmit={(e) => { e.preventDefault(); createStore.mutate(name); }}>
           <input
             type="text"
@@ -139,12 +140,12 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre de la Tienda"
-            className="w-full mb-6 p-3 rounded-xl border border-[#E5E5E1] bg-[#F7F6F2] outline-none focus:border-[#6B705C] transition-colors"
+            className="w-full mb-6 p-3 rounded-xl border border-[#E5E5E1] bg-[var(--color-background)] outline-none focus:border-[var(--color-primary)] transition-colors"
           />
           <button 
             type="submit" 
             disabled={createStore.isPending}
-            className="w-full bg-[#6B705C] text-white font-bold text-sm px-6 py-3 rounded-xl hover:bg-[#5a5e4d] transition-colors disabled:opacity-50"
+            className="w-full bg-[var(--color-primary)] text-white font-bold text-sm px-6 py-3 rounded-xl hover:bg-[#5a5e4d] transition-colors disabled:opacity-50"
           >
             {createStore.isPending ? 'Creating...' : 'Crear Tienda'}
           </button>
@@ -164,11 +165,11 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   });
 
   if (role !== 'admin') {
-    return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Acceso Denegado. Solo administradores.</div>;
+    return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center text-red-500">Acceso Denegado. Solo administradores.</div>;
   }
 
-  if (isLoading) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center">Cargando administración...</div>;
-  if (error) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Error al cargar la información de la tienda.</div>;
+  if (isLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Cargando administración...</div>;
+  if (error) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center text-red-500">Error al cargar la información de la tienda.</div>;
 
   if (data && !data.hasStore) {
     return <StoreCreationForm onCreated={() => queryClient.invalidateQueries({ queryKey: ['admin-store'] })} />;
@@ -223,7 +224,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                 <div className="w-16 h-16 bg-gray-100 rounded-lg"></div>
               )}
               <div className="flex-1">
-                <h4 className="font-bold text-sm text-[#333]">{item.name}</h4>
+                <h4 className="font-bold text-sm text-[var(--color-text)]">{item.name}</h4>
                 <p className="text-gray-500 text-sm mt-1">MXN ${item.price.toFixed(2)}</p>
                 <div className="flex items-center gap-3 mt-3">
                   <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center border rounded-md text-gray-500 hover:bg-gray-50 transition-colors">-</button>
@@ -327,19 +328,20 @@ function AdminLayout() {
 
   const navItemClass = (path: string) => {
     const isActive = location.pathname === path;
-    return `px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'bg-[#6B705C] text-white' : 'text-[#6B705C] hover:bg-gray-50'}`;
+    return `px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-primary)] hover:bg-gray-50'}`;
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[#F7F6F2] font-sans text-[#333]">
+    <div className="flex flex-col md:flex-row min-h-screen bg-[var(--color-background)] font-sans text-[var(--color-text)]">
       <aside className="w-full md:w-[260px] md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-[#E5E5E1] py-6 md:py-10 px-6 flex flex-col shrink-0">
         <div className="mb-12">
-          <h1 className="font-serif text-2xl font-bold text-[#6B705C]">Terra & Tide</h1>
+          <h1 className="font-serif text-2xl font-bold text-[var(--color-primary)]">Terra & Tide</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Store Management v.1.0</p>
         </div>
         <nav className="flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
           <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
           <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
+          <Link to="/admin/categories" className={navItemClass('/admin/categories')}>Categorías</Link>
           <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
           <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
           <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
@@ -348,7 +350,7 @@ function AdminLayout() {
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
           <div className="flex items-center gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#A5A58D]"></div>
+                <div className="w-10 h-10 rounded-full bg-[var(--color-secondary)]"></div>
                 <div>
                   <p className="text-sm font-bold">{user?.fullName || 'Elena Moss'}</p>
                   <p className="text-[11px] opacity-60">Store Owner • {user?.id?.slice(0,8) || 'Admin'}</p>
@@ -368,7 +370,7 @@ function AdminLayout() {
                 error: 'Failed to sync catalog'
               });
             }} className="px-4 py-2 bg-white border border-[#E5E5E1] rounded-full text-xs font-bold hover:bg-gray-50 transition-colors">Sync Catalog</button>
-            <button onClick={() => window.open('/', '_blank')} className="px-6 py-2 bg-[#6B705C] text-white rounded-full text-xs font-bold shadow-lg shadow-[#6B705C]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
+            <button onClick={() => window.open('/', '_blank')} className="px-6 py-2 bg-[var(--color-primary)] text-white rounded-full text-xs font-bold shadow-lg shadow-[var(--color-primary)]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
           </div>
         </header>
         <div className="flex-1 overflow-auto">
@@ -418,6 +420,7 @@ export default function App() {
           }>
             <Route index element={<AdminDashboard />} />
             <Route path="products" element={<ProductsPage />} />
+            <Route path="categories" element={<AdminCategoriesPage />} />
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />

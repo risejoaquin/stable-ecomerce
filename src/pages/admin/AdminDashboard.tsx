@@ -26,9 +26,9 @@ export function AdminDashboard() {
   const formatCurrency = (val: number) => `MXN $${(val || 0).toFixed(2)}`;
 
   return (
-    <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto bg-[#FDFCFB]">
+    <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto bg-[var(--color-background)]">
       <div>
-        <h2 className="font-serif text-3xl text-[#333] mb-8">Panel de Control</h2>
+        <h2 className="font-serif text-3xl text-[var(--color-text)] mb-8">Panel de Control</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard 
@@ -112,7 +112,7 @@ export function AdminDashboard() {
           
           {/* Top Productos */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Tag size={20} className="text-[#6B705C]"/> Productos Más Vendidos</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Tag size={20} className="text-[var(--color-primary)]"/> Productos Más Vendidos</h3>
             {topProducts && topProducts.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {topProducts.map((p: any, i: number) => (
@@ -121,7 +121,7 @@ export function AdminDashboard() {
                       <p className="text-sm font-medium text-gray-900 line-clamp-1">{p.name}</p>
                       <p className="text-xs text-gray-500">{p.quantity} unidades vendidas</p>
                     </div>
-                    <p className="text-sm font-bold text-[#6B705C]">{formatCurrency(p.revenue)}</p>
+                    <p className="text-sm font-bold text-[var(--color-primary)]">{formatCurrency(p.revenue)}</p>
                   </div>
                 ))}
               </div>
@@ -132,7 +132,7 @@ export function AdminDashboard() {
 
           {/* Cupones Usados */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><DollarSign size={20} className="text-[#6B705C]"/> Cupones Populares</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><DollarSign size={20} className="text-[var(--color-primary)]"/> Cupones Populares</h3>
             {coupons && coupons.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {coupons.filter((c: any) => c.current_uses > 0).slice(0, 5).map((c: any, i: number) => (
@@ -143,7 +143,7 @@ export function AdminDashboard() {
                         Descuento: {c.discount_type === 'percentage' ? `${c.discount_value}%` : formatCurrency(c.discount_value)}
                       </p>
                     </div>
-                    <div className="bg-[#6B705C] text-white text-xs font-bold px-2 py-1 rounded-full">
+                    <div className="bg-[var(--color-primary)] text-white text-xs font-bold px-2 py-1 rounded-full">
                       {c.current_uses} usos
                     </div>
                   </div>
@@ -159,7 +159,7 @@ export function AdminDashboard() {
 
           {/* Órdenes Recientes */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-[#6B705C]"/> Órdenes Recientes</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-[var(--color-primary)]"/> Órdenes Recientes</h3>
             {recentOrders && recentOrders.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {recentOrders.map((o: any) => (
@@ -169,7 +169,7 @@ export function AdminDashboard() {
                       <p className="text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-[#6B705C]">{formatCurrency(o.total)}</p>
+                      <p className="text-sm font-bold text-[var(--color-primary)]">{formatCurrency(o.total)}</p>
                       <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
                         o.status === 'pagado' ? 'bg-green-100 text-green-700' : 
                         o.status === 'entregado' ? 'bg-teal-100 text-teal-700' :

@@ -45,7 +45,7 @@ export function HomePage() {
     }
   }, [store?.config?.fontFamily]);
 
-  if (isStoreLoading) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Cargando...</div>;
+  if (isStoreLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Cargando...</div>;
 
   const currentStore = store || { name: 'My Store', config: {}, description: '' };
   const currentProducts = searchResult?.data || [];
@@ -117,7 +117,7 @@ export function HomePage() {
                 } else {
                     setFilters({ ...f, page: 1 });
                 }
-            }} />
+            }} categories={config.categories} />
           </div>
           
           <div className="flex-1 w-full">
@@ -161,7 +161,7 @@ export function HomePage() {
   );
 }
 
-const StyledProductCard: React.FC<{ product: any, config: any, themeColor: string, textColor: string }> = ({ product, config, themeColor, textColor }) => {
+export const StyledProductCard: React.FC<{ product: any, config: any, themeColor: string, textColor: string }> = ({ product, config, themeColor, textColor }) => {
   const { addItem } = useCart();
   const isList = config.layout === 'list';
   const hasVariants = product.variants && product.variants.length > 0;

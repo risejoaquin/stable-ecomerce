@@ -31,10 +31,10 @@ export function AdminCustomersPage() {
   );
 
   return (
-    <div className="p-4 sm:p-10 flex flex-col gap-6 h-full bg-[#FDFCFB]">
+    <div className="p-4 sm:p-10 flex flex-col gap-6 h-full bg-[var(--color-background)]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-serif text-3xl text-[#333] mb-1">Clientes</h2>
+          <h2 className="font-serif text-3xl text-[var(--color-text)] mb-1">Clientes</h2>
           <p className="text-gray-500 text-sm">Gestiona y analiza la información de tus compradores.</p>
         </div>
         <button 
@@ -54,7 +54,7 @@ export function AdminCustomersPage() {
               placeholder="Buscar por correo electrónico..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
         </div>
@@ -77,7 +77,7 @@ export function AdminCustomersPage() {
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#6B705C] bg-opacity-10 flex items-center justify-center text-[#6B705C]">
+                        <div className="w-10 h-10 rounded-full bg-[var(--color-primary)] bg-opacity-10 flex items-center justify-center text-[var(--color-primary)]">
                           <Users size={18} />
                         </div>
                         <div>
@@ -92,7 +92,7 @@ export function AdminCustomersPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <p className="font-bold text-[#6B705C]">{formatCurrency(customer.total_spent)}</p>
+                      <p className="font-bold text-[var(--color-primary)]">{formatCurrency(customer.total_spent)}</p>
                     </td>
                     <td className="p-4 text-right">
                       {customer.last_order_date ? (

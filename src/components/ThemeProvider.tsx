@@ -28,6 +28,19 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       root.style.setProperty('--color-button', config.themeColor);
     }
 
+    // Border Radius mapping
+    if (config.borderRadius) {
+      let radiusVal = '0.5rem';
+      switch (config.borderRadius) {
+        case 'none': radiusVal = '0px'; break;
+        case 'sm': radiusVal = '0.25rem'; break;
+        case 'md': radiusVal = '0.5rem'; break;
+        case 'lg': radiusVal = '1rem'; break;
+        case 'full': radiusVal = '9999px'; break;
+      }
+      root.style.setProperty('--border-radius-base', radiusVal);
+    }
+
     // Load font dynamically
     if (config.fontFamily) {
       const fontName = config.fontFamily;
