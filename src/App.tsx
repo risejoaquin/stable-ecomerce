@@ -129,15 +129,15 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
   return (
     <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center p-8">
       <div className="bg-white p-10 rounded-[32px] border border-[#F0EFE9] text-center shadow-sm max-w-md w-full">
-        <h1 className="font-serif text-3xl text-[#333] mb-2">Create Your Store</h1>
-        <p className="text-[#A5A58D] text-sm mb-8">Set up your storefront to start selling.</p>
+        <h1 className="font-serif text-3xl text-[#333] mb-2">Crea tu Tienda</h1>
+        <p className="text-[#A5A58D] text-sm mb-8">Configura tu tienda para empezar a vender.</p>
         <form onSubmit={(e) => { e.preventDefault(); createStore.mutate(name); }}>
           <input
             type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Store Name"
+            placeholder="Nombre de la Tienda"
             className="w-full mb-6 p-3 rounded-xl border border-[#E5E5E1] bg-[#F7F6F2] outline-none focus:border-[#6B705C] transition-colors"
           />
           <button 
@@ -145,7 +145,7 @@ function StoreCreationForm({ onCreated }: { onCreated: () => void }) {
             disabled={createStore.isPending}
             className="w-full bg-[#6B705C] text-white font-bold text-sm px-6 py-3 rounded-xl hover:bg-[#5a5e4d] transition-colors disabled:opacity-50"
           >
-            {createStore.isPending ? 'Creating...' : 'Create Store'}
+            {createStore.isPending ? 'Creating...' : 'Crear Tienda'}
           </button>
         </form>
       </div>
@@ -163,11 +163,11 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   });
 
   if (role !== 'admin') {
-    return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Access Denied. Admins only.</div>;
+    return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Acceso Denegado. Solo administradores.</div>;
   }
 
-  if (isLoading) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center">Loading admin...</div>;
-  if (error) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Error loading store info.</div>;
+  if (isLoading) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center">Cargando administración...</div>;
+  if (error) return <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center text-red-500">Error al cargar la información de la tienda.</div>;
 
   if (data && !data.hasStore) {
     return <StoreCreationForm onCreated={() => queryClient.invalidateQueries({ queryKey: ['admin-store'] })} />;
@@ -196,12 +196,12 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
       <div className="absolute inset-0 bg-black/20 transition-opacity" onClick={() => setIsCartOpen(false)}></div>
       <div className="relative w-full max-w-md bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
         <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="font-serif text-xl font-bold">Your Cart</h2>
+          <h2 className="font-serif text-xl font-bold">Tu Carrito</h2>
           <button onClick={() => setIsCartOpen(false)} className="text-gray-500 hover:text-black">&times;</button>
         </div>
         <div className="flex-1 overflow-auto p-6 flex flex-col gap-6">
           {items.length === 0 ? (
-            <p className="text-gray-500 text-center mt-10">Your cart is empty.</p>
+            <p className="text-gray-500 text-center mt-10">Tu carrito está vacío.</p>
           ) : items.map(item => (
             <div key={item.id} className="flex gap-4 items-center">
               {item.image ? (
@@ -229,7 +229,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
             <div className="flex gap-2">
               <input 
                 type="text" 
-                placeholder="Promo code" 
+                placeholder="Código promocional" 
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
                 className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
@@ -282,7 +282,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
               
               onClick={() => {
                 if (!isSignedIn && !localStorage.getItem('guest_email')) {
-                  const email = prompt('Please enter your email to continue checkout:');
+                  const email = prompt('Por favor ingresa tu correo electrónico para continuar el pago:');
                   if (email) {
                     localStorage.setItem('guest_email', email);
                     fetch('/api/cart/sync', {
@@ -299,7 +299,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
               style={{ backgroundColor: buttonColor || themeColor }}
               className="w-full text-white py-4 rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50 mt-2"
             >
-              {checkout.isPending ? 'Processing...' : 'Checkout'}
+              {checkout.isPending ? 'Procesando...' : 'Pagar'}
             </button>
           </div>
         )}

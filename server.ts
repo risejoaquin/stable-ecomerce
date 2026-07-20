@@ -997,6 +997,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
 
       const category = req.query.category as string;
+      const subcategory = req.query.subcategory as string;
       let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', store.id).eq('status', 'active');
       
       if (search) {
@@ -1005,6 +1006,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       if (minPrice) query = query.gte('price', minPrice);
       if (maxPrice) query = query.lte('price', maxPrice);
       if (category && category !== 'all') query = query.eq('category', category);
+      if (subcategory && subcategory !== 'all') query = query.eq('subcategory', subcategory);
       
       query = query.order(sortBy, { ascending: order === 'asc' });
       

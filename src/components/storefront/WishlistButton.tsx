@@ -17,7 +17,7 @@ export const WishlistButton = ({ productId, className = '' }: { productId: strin
     e.stopPropagation();
 
     if (!isSignedIn) {
-      toast.error('Please sign in to save items to your wishlist');
+      toast.error('Por favor, inicia sesión para guardar artículos en tu lista de deseos');
       // For a real Clerk setup, you might trigger a sign in modal or redirect.
       return;
     }
@@ -26,10 +26,10 @@ export const WishlistButton = ({ productId, className = '' }: { productId: strin
 
     if (isWished) {
       removeFromWishlist(productId);
-      toast.success('Removed from wishlist');
+      toast.success('Eliminado de la lista de deseos');
     } else {
       addToWishlist(productId);
-      toast.success('Added to wishlist');
+      toast.success('Añadido a la lista de deseos');
     }
   };
 

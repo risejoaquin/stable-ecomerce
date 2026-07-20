@@ -12,6 +12,7 @@ export function useSearchProducts(storeSlug?: string, filters?: any) {
       
       if (filters?.search) params.append('search', filters.search);
       if (filters?.category && filters.category !== 'all') params.append('category', filters.category);
+      if (filters?.subcategory && filters.subcategory !== 'all') params.append('subcategory', filters.subcategory);
       if (filters?.minPrice) params.append('min_price', filters.minPrice);
       if (filters?.maxPrice) params.append('max_price', filters.maxPrice);
       if (filters?.sortBy) params.append('sort_by', filters.sortBy);

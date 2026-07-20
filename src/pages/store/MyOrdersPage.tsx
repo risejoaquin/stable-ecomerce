@@ -46,13 +46,13 @@ export function MyOrdersPage() {
       <StoreHeader />
       
       <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 flex flex-col">
-        <h1 className="font-serif text-3xl mb-8 text-[#333]">My Orders</h1>
+        <h1 className="font-serif text-3xl mb-8 text-[#333]">Mis Pedidos</h1>
         
         {isLoading ? <p className="text-gray-500">Loading your orders...</p> : (
           orders?.length === 0 ? (
             <div className="text-center py-20">
               <Package size={48} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500 text-lg">You haven't placed any orders yet.</p>
+              <p className="text-gray-500 text-lg">No has realizado ningún pedido todavía.</p>
               <a href="/" className="mt-4 inline-block text-[#6B705C] hover:underline font-medium">Continue Shopping</a>
             </div>
           ) : (
@@ -61,7 +61,7 @@ export function MyOrdersPage() {
                 <div key={order.id} className="bg-white p-6 rounded-2xl border border-[#E5E5E1]">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 pb-4 border-b border-gray-100">
                     <div>
-                      <h2 className="text-lg font-bold">Order #{order.id.split('-')[0]}</h2>
+                      <h2 className="text-lg font-bold">Pedido #{order.id.split('-')[0]}</h2>
                       <p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString()}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(order.status)}`}>

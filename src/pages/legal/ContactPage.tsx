@@ -30,14 +30,14 @@ export function ContactPage() {
 
   return (
     <>
-      <SEO title="Contact Us" />
+      <SEO title="Contáctanos" />
       <div className="max-w-2xl mx-auto px-4 sm:px-8 py-8 sm:py-16">
-        <h1 className="text-3xl font-serif font-bold mb-4 text-center">Contact Us</h1>
-        <p className="text-gray-500 text-center mb-12">Have a question or feedback? We'd love to hear from you.</p>
+        <h1 className="text-3xl font-serif font-bold mb-4 text-center">Contáctanos</h1>
+        <p className="text-gray-500 text-center mb-12">¿Tienes alguna pregunta o comentario? Nos encantaría escucharte.</p>
         
         <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Name</label>
+            <label className="block text-sm font-medium mb-2">Nombre</label>
             <input 
               required
               type="text" 
@@ -49,7 +49,7 @@ export function ContactPage() {
             />
           </div>
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Email</label>
+            <label className="block text-sm font-medium mb-2">Correo</label>
             <input 
               required
               type="email" 
@@ -60,7 +60,7 @@ export function ContactPage() {
             />
           </div>
           <div className="mb-8">
-            <label className="block text-sm font-medium mb-2">Message</label>
+            <label className="block text-sm font-medium mb-2">Mensaje</label>
             <textarea 
               required
               rows={5}

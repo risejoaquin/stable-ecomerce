@@ -32,7 +32,7 @@ export function RecoverCartPage() {
       })
       .catch(err => {
         console.error(err);
-        setStatus('Error recovering cart.');
+        setStatus('Error al recuperar el carrito.');
       });
   }, [token, navigate, setItems]);
 

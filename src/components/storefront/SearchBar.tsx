@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 
-export function SearchBar({ onSearch, placeholder = 'Search products...' }: { onSearch: (s: string) => void, placeholder?: string }) {
+export function SearchBar({ onSearch, placeholder = 'Buscar productos...' }: { onSearch: (s: string) => void, placeholder?: string }) {
   const [term, setTerm] = useState('');
 
   useEffect(() => {

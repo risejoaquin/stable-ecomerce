@@ -45,7 +45,7 @@ export function HomePage() {
     }
   }, [store?.config?.fontFamily]);
 
-  if (isStoreLoading) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Loading...</div>;
+  if (isStoreLoading) return <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">Cargando...</div>;
 
   const currentStore = store || { name: 'My Store', config: {}, description: '' };
   const currentProducts = searchResult?.data || [];
@@ -90,8 +90,8 @@ export function HomePage() {
              }}>
           <div className="absolute inset-0 bg-black/40"></div>
           <div className="relative z-10 text-white max-w-3xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 tracking-tight">{config.heroBanner?.title || 'Welcome'}</h1>
-            <p className="text-xl md:text-2xl opacity-90 font-light">{config.heroBanner?.subtitle || 'Discover our collection'}</p>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 tracking-tight">{config.heroBanner?.title || 'Bienvenido'}</h1>
+            <p className="text-xl md:text-2xl opacity-90 font-light">{config.heroBanner?.subtitle || 'Descubre nuestra colección'}</p>
           </div>
         </div>
       )}
@@ -100,8 +100,8 @@ export function HomePage() {
       <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
         {(!config.heroBanner?.image && layout !== 'hero') && (
           <div className="mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight" style={{ color: textColor }}>{config.heroBanner?.title || 'New Arrivals'}</h1>
-            <p className="text-lg opacity-70" style={{ color: secondaryColor }}>{config.heroBanner?.subtitle || 'Explore our latest collection.'}</p>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight" style={{ color: textColor }}>{config.heroBanner?.title || 'Novedades'}</h1>
+            <p className="text-lg opacity-70" style={{ color: secondaryColor }}>{config.heroBanner?.subtitle || 'Explora nuestra colección más reciente.'}</p>
           </div>
         )}
         
@@ -122,7 +122,7 @@ export function HomePage() {
           
           <div className="flex-1 w-full">
             {isProductsLoading ? (
-              <div className="py-20 text-center opacity-50">Loading products...</div>
+              <div className="py-20 text-center opacity-50">Cargando productos...</div>
             ) : (
               <>
                 <div className={`grid gap-8 ${layout === 'list' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3'}`}>
@@ -131,7 +131,7 @@ export function HomePage() {
                   ))}
                 </div>
                 {currentProducts.length === 0 && (
-                  <div className="text-center py-20 opacity-50">No products found.</div>
+                  <div className="text-center py-20 opacity-50">No se encontraron productos.</div>
                 )}
                 <Pagination page={filters.page} totalPages={totalPages} setPage={(page) => setFilters(prev => ({ ...prev, page }))} themeColor={themeColor} />
               </>
@@ -146,10 +146,10 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
           <div>{config.footerText || `© ${new Date().getFullYear()} ${currentStore.name}`}</div>
           <div className="flex flex-wrap justify-center gap-6">
-            <Link to="/contact" className="hover:underline">Contact</Link>
-            <Link to="/returns" className="hover:underline">Return Policy</Link>
-            <Link to="/privacy" className="hover:underline">Privacy Policy</Link>
-            <Link to="/terms" className="hover:underline">Terms & Conditions</Link>
+            <Link to="/contact" className="hover:underline">Contacto</Link>
+            <Link to="/returns" className="hover:underline">Política de Devolución</Link>
+            <Link to="/privacy" className="hover:underline">Política de Privacidad</Link>
+            <Link to="/terms" className="hover:underline">Términos y Condiciones</Link>
           </div>
         </div>
       </footer>
@@ -183,7 +183,7 @@ const StyledProductCard: React.FC<{ product: any, config: any, themeColor: strin
         {product.images && product.images[0] ? (
           <img src={product.images[0]} alt={product.name}  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-300">No Image</div>
+          <div className="absolute inset-0 flex items-center justify-center text-gray-300">Sin Imagen</div>
         )}
       </Link>
       <div className={`p-5 flex flex-col ${isList ? 'w-full sm:w-2/3 justify-center' : 'flex-1'}`}>
@@ -203,6 +203,12 @@ const StyledProductCard: React.FC<{ product: any, config: any, themeColor: strin
             <>
               {product.brand && <span className="text-gray-300 text-[10px]">•</span>}
               <span className="text-[10px] text-gray-400">{product.category}</span>
+            </>
+          )}
+          {product.subcategory && (
+            <>
+              {(product.brand || product.category) && <span className="text-gray-300 text-[10px]">•</span>}
+              <span className="text-[10px] text-gray-400">{product.subcategory}</span>
             </>
           )}
         </div>

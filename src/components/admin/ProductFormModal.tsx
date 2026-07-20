@@ -15,6 +15,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
   const [price, setPrice] = useState(product?.price || 0);
   const [brand, setBrand] = useState(product?.brand || '');
   const [category, setCategory] = useState(product?.category || '');
+  const [subcategory, setSubcategory] = useState(product?.subcategory || '');
   const [stock, setStock] = useState(product?.stock || 0);
   const [status, setStatus] = useState(product?.status || 'active');
   const [images, setImages] = useState<string[]>(product?.images || []);
@@ -118,6 +119,14 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
                   className="w-full bg-[#FDFCFB] border border-[#E5E5E1] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#6B705C]" 
                   value={category} onChange={e => setCategory(e.target.value)} 
                   placeholder="E.g. Clothing"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[#A5A58D] mb-1">Subcategoría</label>
+                <input 
+                  className="w-full bg-[#FDFCFB] border border-[#E5E5E1] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#6B705C]" 
+                  value={subcategory} onChange={e => setSubcategory(e.target.value)} 
+                  placeholder="E.g. Shirts"
                 />
               </div>
             </div>
@@ -251,7 +260,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
             Cancel
           </button>
           <button 
-            onClick={() => saveProduct.mutate({ name, description, price, stock, status, images, brand, category, variants })}
+            onClick={() => saveProduct.mutate({ name, description, price, stock, status, images, brand, category, subcategory, variants })}
             disabled={saveProduct.isPending || !name}
             className="bg-[#1a1a1a] text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >

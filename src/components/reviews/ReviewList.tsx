@@ -8,8 +8,8 @@ export const ReviewList = ({ productId, themeColor }: { productId: string, theme
   const pageSize = 5;
   const { data, isLoading } = useReviews(productId, page, pageSize);
 
-  if (isLoading) return <div className="py-8 text-center text-gray-500">Loading reviews...</div>;
-  if (!data?.data || data.data.length === 0) return <div className="py-8 text-center text-gray-500">No reviews yet.</div>;
+  if (isLoading) return <div className="py-8 text-center text-gray-500">Cargando reseñas...</div>;
+  if (!data?.data || data.data.length === 0) return <div className="py-8 text-center text-gray-500">Aún no hay reseñas.</div>;
 
   const totalPages = Math.ceil(data.total / pageSize);
 
@@ -23,7 +23,7 @@ export const ReviewList = ({ productId, themeColor }: { productId: string, theme
                   {review.user_id ? review.user_id.substring(review.user_id.length - 2).toUpperCase() : 'AN'}
                </div>
                <div>
-                 <p className="text-sm font-medium text-gray-900">Verified Buyer</p>
+                 <p className="text-sm font-medium text-gray-900">Comprador Verificado</p>
                  <p className="text-xs text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
                </div>
             </div>

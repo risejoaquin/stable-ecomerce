@@ -40,15 +40,15 @@ export function TrackOrderPage() {
 
   return (
     <div className="min-h-screen bg-[#FDFCFB] flex flex-col font-sans">
-      <SEO title="Track Order" />
+      <SEO title="Rastrear Pedido" />
       <StoreHeader />
       
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 sm:p-8 flex flex-col">
-        <h1 className="font-serif text-3xl mb-8 text-[#333]">Track Your Order</h1>
+        <h1 className="font-serif text-3xl mb-8 text-[#333]">Rastrea tu Pedido</h1>
         
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-[#E5E5E1] flex flex-col gap-4 mb-8">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Order ID</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">ID de Pedido</label>
             <input 
               type="text" 
               required

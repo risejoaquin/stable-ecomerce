@@ -10,7 +10,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot-password'>('signin');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setContraseña] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -141,7 +141,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
                     required 
                     className="w-full border border-gray-300 rounded px-3 py-2"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => setContraseña(e.target.value)}
                   />
                 </div>
               )}
@@ -213,7 +213,7 @@ export const UserButton = () => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
           <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900 truncate">My Account</p>
+            <p className="text-sm font-medium text-gray-900 truncate">Mi Cuenta</p>
           </div>
           
           <div className="py-1 border-b border-gray-100">
@@ -224,7 +224,7 @@ export const UserButton = () => {
                 onClick={() => setIsOpen(false)}
               >
                 <Shield size={16} className="text-gray-400" />
-                <span>Admin Dashboard</span>
+                <span>Panel de Administración</span>
               </Link>
             )}
             <Link 
@@ -233,7 +233,7 @@ export const UserButton = () => {
               onClick={() => setIsOpen(false)}
             >
               <User size={16} className="text-gray-400" />
-              <span>My Profile</span>
+              <span>Mi Perfil</span>
             </Link>
             <Link 
               to="/my-orders" 
@@ -241,7 +241,7 @@ export const UserButton = () => {
               onClick={() => setIsOpen(false)}
             >
               <Package size={16} className="text-gray-400" />
-              <span>My Orders</span>
+              <span>Mis Pedidos</span>
             </Link>
             <Link 
               to="/wishlist" 
@@ -249,7 +249,7 @@ export const UserButton = () => {
               onClick={() => setIsOpen(false)}
             >
               <Heart size={16} className="text-gray-400" />
-              <span>Wishlist</span>
+              <span>Lista de Deseos</span>
             </Link>
           </div>
 
@@ -258,7 +258,7 @@ export const UserButton = () => {
             className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
           >
             <LogOut size={16} />
-            <span>Sign out</span>
+            <span>Cerrar Sesión</span>
           </button>
         </div>
       )}
@@ -271,7 +271,7 @@ export const RedirectToSignIn = () => {
   React.useEffect(() => {
     if (openAuthModal) openAuthModal('signin');
   }, []);
-  return <div>Please sign in...</div>;
+  return <div>Por favor, inicia sesión...</div>;
 };
 
 export const SignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
@@ -287,9 +287,9 @@ export const SignUpButton = ({ children, mode }: { children: React.ReactNode, mo
 };
 
 export const SignIn = () => {
-  return <div>Sign In Page</div>;
+  return <div>Iniciar Sesión Page</div>;
 };
 
 export const SignUp = () => {
-  return <div>Sign Up Page</div>;
+  return <div>Registrarse Page</div>;
 };

@@ -13,6 +13,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
           <th className="font-medium">Product Name</th>
           <th className="font-medium">Brand</th>
           <th className="font-medium">Category</th>
+          <th className="font-medium">Subcategoría</th>
           <th className="font-medium">Price</th>
           <th className="font-medium">Stock</th>
           <th className="font-medium">Status</th>
@@ -28,6 +29,7 @@ export function ProductTable({ products, onEdit, onDelete }: { products: any[], 
             <td className="font-medium">{p.name}</td>
             <td className="text-gray-500 text-xs">{p.brand || '-'}</td>
             <td className="text-gray-500 text-xs">{p.category || '-'}</td>
+            <td className="text-gray-500 text-xs">{p.subcategory || '-'}</td>
             <td className="text-gray-600">MXN ${(p.price || 0).toFixed(2)}</td>
             <td className="text-gray-600">
               <div className="flex flex-col">

@@ -28,15 +28,15 @@ export const ReviewForm = ({ productId, themeColor }: { productId: string, theme
 
   return (
     <form onSubmit={handleSubmit} className="p-6 rounded-xl border border-gray-100 bg-white shadow-sm flex flex-col gap-4">
-      <h3 className="text-lg font-semibold text-gray-900">Write a Review</h3>
+      <h3 className="text-lg font-semibold text-gray-900">Escribir una Reseña</h3>
       
       <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">Rating</label>
+        <label className="text-sm font-medium text-gray-700">Calificación</label>
         <StarRating rating={rating} onChange={setRating} color={themeColor} size={24} />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">Comment (Optional)</label>
+        <label className="text-sm font-medium text-gray-700">Comentario (Opcional)</label>
         <textarea 
           value={comment}
           onChange={(e) => setComment(e.target.value)}

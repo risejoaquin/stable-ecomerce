@@ -25,7 +25,7 @@ export const ProductCard: React.FC<{ product: any }> = ({ product }) => {
             style={{ color: themeColor }}
             className="w-full bg-[#F7F6F2] font-bold text-xs py-2.5 rounded-xl hover:bg-[#E5E5E1] transition-colors border border-[#E5E5E1]"
           >
-            Add to Cart
+            Añadir al Carrito
           </button>
         </div>
       </div>

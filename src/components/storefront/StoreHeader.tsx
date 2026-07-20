@@ -25,7 +25,7 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
       {backButton ? (
         <Link to="/" className="flex items-center gap-2" style={{ color: themeColor }}>
           <ArrowLeft size={20} />
-          <span className="font-medium">Back to Store</span>
+          <span className="font-medium">Volver a la Tienda</span>
         </Link>
       ) : (
         <Link to="/" className="flex items-center">
@@ -42,12 +42,12 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
           <>
             <SignInButton mode="modal">
               <button className="px-4 py-2 font-medium transition-colors" style={{ color: themeColor }}>
-                Sign In
+                Iniciar Sesión
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
               <button className="px-4 py-2 text-white font-medium rounded-lg transition-opacity hover:opacity-90" style={{ backgroundColor: themeColor }}>
-                Sign Up
+                Registrarse
               </button>
             </SignUpButton>
           </>

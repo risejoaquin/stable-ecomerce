@@ -17,6 +17,18 @@ export function ProductFilters({ filters, setFilters }: { filters: any, setFilte
         </select>
       </div>
       <div>
+        <h3 className="font-bold text-sm mb-3">Subcategorías</h3>
+        <select 
+          value={filters.subcategory || 'all'}
+          onChange={(e) => setFilters((prev: any) => ({ ...prev, subcategory: e.target.value }))}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B705C]"
+        >
+          <option value="all">Todas</option>
+          <option value="Subcategoria A">Subcategoria A</option>
+          <option value="Subcategoria B">Subcategoria B</option>
+        </select>
+      </div>
+      <div>
         <h3 className="font-bold text-sm mb-3">Ordenar Por</h3>
         <select 
           value={`${filters.sortBy}-${filters.order}`}
@@ -37,7 +49,7 @@ export function ProductFilters({ filters, setFilters }: { filters: any, setFilte
         <div className="flex gap-2 items-center">
           <input 
             type="number" 
-            placeholder="Min" 
+            placeholder="Mín" 
             value={filters.minPrice || ''}
             onChange={(e) => setFilters((prev: any) => ({ ...prev, minPrice: e.target.value }))}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
@@ -45,7 +57,7 @@ export function ProductFilters({ filters, setFilters }: { filters: any, setFilte
           <span className="text-gray-400">-</span>
           <input 
             type="number" 
-            placeholder="Max" 
+            placeholder="Máx" 
             value={filters.maxPrice || ''}
             onChange={(e) => setFilters((prev: any) => ({ ...prev, maxPrice: e.target.value }))}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"

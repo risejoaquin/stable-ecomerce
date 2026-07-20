@@ -115,6 +115,12 @@ export function ProductDetailPage() {
                     <span className="text-sm" style={{ color: secondaryColor }}>{product.category}</span>
                   </>
                 )}
+                {product.subcategory && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-sm" style={{ color: secondaryColor }}>{product.subcategory}</span>
+                  </>
+                )}
               </div>
               
               <h1 className="text-4xl font-bold mb-4 leading-tight">{product.name}</h1>
@@ -160,7 +166,7 @@ export function ProductDetailPage() {
               
               {!inStock && (
                 <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl font-medium border border-red-100">
-                  Out of Stock
+                  Agotado
                 </div>
               )}
               
@@ -170,14 +176,14 @@ export function ProductDetailPage() {
                 className="px-8 py-4 text-white text-lg font-medium rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
                 style={{ backgroundColor: buttonColor }}
               >
-                {inStock ? 'Add to Cart' : 'Sold Out'}
+                {inStock ? 'Añadir al Carrito' : 'Sold Out'}
               </button>
             </div>
           </div>
 
-          {/* Reviews Section */}
+          {/* Reseñas Section */}
           <div className="mt-24 border-t pt-16" style={{ borderColor: secondaryColor + '30' }}>
-            <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Customer Reviews</h2>
+            <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Customer Reseñas</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               <div className="lg:col-span-2">
                 <ReviewList productId={product.id} themeColor={buttonColor} />
@@ -187,7 +193,7 @@ export function ProductDetailPage() {
                   <ReviewForm productId={product.id} themeColor={buttonColor} />
                 ) : (
                   <div className="p-8 rounded-2xl border bg-gray-50 text-center">
-                    <p className="text-gray-600 mb-4">Please sign in to write a review.</p>
+                    <p className="text-gray-600 mb-4">Inicia sesión para escribir una reseña.</p>
                   </div>
                 )}
               </div>
