@@ -447,7 +447,13 @@ async function startServer() {
       const orderItems = [];
 
       for (const item of items) {
-        const { data: product } = await supabase.from('products').select('*').eq('id', item.productId).single();
+        let actualProductId = item.productId;
+        const uuidMatch = actualProductId.match(/^([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+        if (uuidMatch) {
+          actualProductId = uuidMatch[1];
+        }
+
+        const { data: product } = await supabase.from('products').select('*').eq('id', actualProductId).single();
         if (!product) throw new Error(`Product ${item.productId} not found`);
         if (product.stock < item.quantity) throw new Error(`Not enough stock for ${product.name}`);
         
@@ -456,7 +462,7 @@ async function startServer() {
           product_id: product.id,
           quantity: item.quantity,
           unit_price: product.price,
-          name: product.name 
+          name: item.name || product.name 
         });
       }
 
