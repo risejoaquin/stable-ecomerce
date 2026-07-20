@@ -59,7 +59,7 @@ export function ProductDetailPage() {
       return;
     }
     const itemName = hasVariants ? `${product.name} - ${selectedVariant}` : product.name;
-    addItem({ id: hasVariants ? `${product.id}-${selectedVariant}` : product.id, name: itemName, price: product.price, quantity: 1, image: product.images?.[0] });
+    addItem({ id: hasVariants ? `${product.id}-${selectedVariant}` : product.id, productId: product.id, name: itemName, price: product.price, quantity: 1, image: product.images?.[0] });
     toast.success('Added to cart');
   };
 

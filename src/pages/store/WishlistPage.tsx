@@ -46,7 +46,7 @@ export function WishlistPage() {
                   <div className="flex gap-2 mt-auto">
                     <button 
                       onClick={() => {
-                        addItem({ id: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
+                        addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
                         toast.success('Añadido al carrito');
                       }}
                       className="flex-1 flex items-center justify-center gap-2 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90 active:scale-95" 

@@ -232,7 +232,7 @@ const StyledProductCard: React.FC<{ product: any, config: any, themeColor: strin
             <button 
               disabled={!inStock}
               onClick={() => {
-                addItem({ id: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
+                addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
                 toast.success('Added to cart');
               }}
               className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 

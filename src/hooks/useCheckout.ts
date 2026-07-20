@@ -12,7 +12,7 @@ export function useCheckout(storeId?: string) {
       
       const orderRes = await apiFetch.post("/orders", {
         storeId,
-        items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+        items: items.map(i => ({ productId: i.productId || i.id, quantity: i.quantity })),
         couponCode,
         customerEmail
       });

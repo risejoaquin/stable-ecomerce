@@ -21,7 +21,7 @@ export const ProductCard: React.FC<{ product: any }> = ({ product }) => {
         <p className="text-[#A5A58D] text-xs mt-1 mb-4">MXN ${(product.price || 0).toFixed(2)}</p>
         <div className="mt-auto">
           <button 
-            onClick={() => addItem(product)}
+            onClick={() => addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] })}
             style={{ color: themeColor }}
             className="w-full bg-[#F7F6F2] font-bold text-xs py-2.5 rounded-xl hover:bg-[#E5E5E1] transition-colors border border-[#E5E5E1]"
           >

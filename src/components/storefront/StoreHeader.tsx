@@ -29,11 +29,7 @@ export function StoreHeader({ backButton }: { backButton?: boolean }) {
         </Link>
       ) : (
         <Link to="/" className="flex items-center">
-          {config.logoUrl ? (
-            <img src={config.logoUrl} alt={currentStore.name} className="h-10 object-contain" loading="lazy" />
-          ) : (
-            <span className="text-2xl font-bold tracking-tight" style={{ color: themeColor }}>{currentStore.name}</span>
-          )}
+          <img src={config.logoUrl || "/logo.png"} alt={currentStore.name} className="h-10 object-contain" loading="lazy" />
         </Link>
       )}
 
