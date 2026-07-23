@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useApiClient } from '../api/useApiClient';
 import { useCart } from '../App';
+import { toast } from 'react-hot-toast';
 
 export function useCheckout(storeId?: string) {
   const apiFetch = useApiClient();
@@ -28,5 +29,9 @@ export function useCheckout(storeId?: string) {
       // clearCart will happen on success page
       window.location.href = url;
     },
+    onError: (error: any) => {
+      console.error("Checkout error:", error);
+      toast.error(error.message || 'Error processing checkout. Please try again.');
+    }
   });
 }

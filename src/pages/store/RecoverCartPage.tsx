@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../../App';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
+import { toast } from 'react-hot-toast';
 
 export function RecoverCartPage() {
   const [searchParams] = useSearchParams();
@@ -33,6 +34,7 @@ export function RecoverCartPage() {
       .catch(err => {
         console.error(err);
         setStatus('Error al recuperar el carrito.');
+        toast.error('Error al recuperar el carrito.');
       });
   }, [token, navigate, setItems]);
 

@@ -44,7 +44,7 @@ export function ContactPage() {
               value={formData.name}
               onChange={e => setFormData({...formData, name: e.target.value})}
               className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-opacity-50 outline-none"
-              style={{ focusRingColor: themeColor }}
+              style={{ outlineColor: themeColor, borderColor: themeColor }}
               placeholder="Your name"
             />
           </div>
