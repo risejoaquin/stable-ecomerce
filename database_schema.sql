@@ -117,3 +117,17 @@ CREATE INDEX IF NOT EXISTS idx_orders_store_id ON orders(store_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_abandoned_carts_email ON abandoned_carts(email);
 CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id);
+
+-- Enable Row Level Security (RLS) on all tables to secure them from anonymous access
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE abandoned_carts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+
+-- Note: No policies are created by default. 
+-- Since the backend uses the Service Role Key, it will bypass RLS.
+-- This guarantees that any leaked Anon Key cannot be used to query or modify the database directly.

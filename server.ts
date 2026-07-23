@@ -10,7 +10,54 @@ import Stripe from 'stripe';
 import { Resend } from 'resend';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import * as Sentry from '@sentry/node';
+import pino from 'pino';
+import pinoHttp from 'pino-http';
+import multer from 'multer';
+import { z } from 'zod';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
+
+// Setup Sentry
+Sentry.init({
+  dsn: process.env.VITE_SENTRY_DSN || process.env.SENTRY_DSN || '',
+  tracesSampleRate: 1.0,
+});
+
+// Setup Pino Logger
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  ...(process.env.NODE_ENV !== 'production' && {
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+      }
+    }
+  })
+});
+
+// Custom AppError
+class AppError extends Error {
+  public statusCode: number;
+  public isOperational: boolean;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+// Async Handler Wrapper
+const asyncHandler = (fn: express.RequestHandler) => (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
 
@@ -34,6 +81,34 @@ const mockAuthMiddleware = requireAuth;
 
 
 import multer from 'multer';
+import { z } from 'zod';
+
+const OrderItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().positive(),
+  name: z.string().optional()
+});
+
+const OrderInputSchema = z.object({
+  storeId: z.string().uuid().or(z.string().min(1)),
+  items: z.array(OrderItemSchema).min(1),
+  couponCode: z.string().optional().nullable()
+});
+
+const ProductInputSchema = z.object({
+  name: z.string().min(1),
+  price: z.number().nonnegative(),
+  stock: z.number().int().nonnegative(),
+  description: z.string().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  subcategory: z.string().optional().nullable(),
+  images: z.array(z.string()).optional(),
+  status: z.string().optional(),
+  variants: z.array(z.any()).optional(),
+  categories: z.array(z.string()).optional()
+});
+
 
 
 const PORT = 3000;
@@ -45,18 +120,18 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
 
 async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
   if (!resend) {
-    console.log(`[Email Mock] To: ${to} | Subject: ${subject}`);
+    logger.info(`[Email Mock] To: ${to} | Subject: ${subject}`);
     return;
   }
   try {
     const { data, error } = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
     if (error) {
-      console.error('Resend API Error:', error);
+      logger.error('Resend API Error:', error);
     } else {
-      console.log(`Email sent to ${to}`, data);
+      logger.info(`Email sent to ${to}`, data);
     }
   } catch (error) {
-    console.error('Failed to send email:', error);
+    logger.error('Failed to send email:', error);
   }
 }
 
@@ -93,6 +168,8 @@ const upload = multer({
 
 async function startServer() {
   const app = express();
+  
+  app.use(pinoHttp({ logger }));
 
   app.use(cors());
 
@@ -119,12 +196,19 @@ async function startServer() {
     }
 
     // Handle the event
-    console.log(`Received Stripe event: ${event.type}`);
+    logger.info(`Received Stripe event: ${event.type}`);
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const orderId = session.metadata?.order_id;
       if (orderId && supabase) {
+        // Fetch current order status to enforce idempotency
+        const { data: currentOrder } = await supabase.from('orders').select('status').eq('id', orderId).single();
+        if (currentOrder && currentOrder.status !== 'pendiente') {
+          logger.info(`Order ${orderId} already processed (status: ${currentOrder.status}). Skipping.`);
+          return res.json({received: true});
+        }
+
         // Update order status to paid and save email if missing
         const customerEmail = session.customer_details?.email || null;
         const updateData: any = { status: 'pagado' };
@@ -281,7 +365,7 @@ async function startServer() {
       const token = jwt.sign({ userId: data.id, role: userRole }, JWT_SECRET, { expiresIn: '7d' });
       res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: userRole, is_verified: false }, message: 'Registration successful. Please check your email to verify your account.' });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -380,7 +464,7 @@ async function startServer() {
 
       res.json({ message: 'Se ha enviado un correo con instrucciones para restablecer tu contraseña.' });
     } catch (err: any) {
-      console.error('Error en forgot-password:', err);
+      logger.error('Error en forgot-password:', err);
       res.status(500).json({ error: 'Ocurrió un error al procesar tu solicitud.' });
     }
   });
@@ -424,12 +508,12 @@ async function startServer() {
       const token = jwt.sign({ userId: user.id, role: userRole }, JWT_SECRET, { expiresIn: '7d' });
       res.json({ token, user: { id: user.id, email: user.email, full_name: user.full_name, role: userRole } });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
 
-  app.get('/api/health', async (req, res) => {
+  app.get('/api/health', asyncHandler(async (req, res) => {
     // Check Supabase connection if configured
     let dbStatus = 'unconfigured';
     if (supabase) {
@@ -441,16 +525,14 @@ async function startServer() {
       }
     }
     res.json({ status: 'ok', database: dbStatus });
-  });
+  }));
 
   app.post('/api/orders', mockAuthMiddleware(), orderLimiter, async (req: any, res) => {
-    const { items, storeId } = req.body;
     if (!supabase) return res.json({ id: 'dummy_order_' + Date.now(), total: 100 });
 
     try {
-      if (!items || !items.length || !storeId) {
-        return res.status(400).json({ error: 'Missing items or storeId' });
-      }
+      const parsedBody = OrderInputSchema.parse(req.body);
+      let { items, storeId, couponCode } = parsedBody;
 
       let total = 0;
       const orderItems = [];
@@ -466,26 +548,25 @@ async function startServer() {
         if (!product) throw new Error(`Product ${item.productId} not found`);
         
         let stockToCheck = product.stock;
-        if (product.variants && Array.isArray(product.variants) && item.name) {
-           const variantMatch = product.variants.find(v => item.name.includes(v.name));
+        if (product.variants && Array.isArray(product.variants) && (item as any).name) {
+           const variantMatch = product.variants.find(v => (item as any).name.includes(v.name));
            if (variantMatch) {
              stockToCheck = variantMatch.stock;
            }
         }
         
-        if (stockToCheck < item.quantity) throw new Error(`Not enough stock for ${item.name || product.name}`);
+        if (stockToCheck < item.quantity) throw new Error(`Not enough stock for ${(item as any).name || product.name}`);
         
         total += product.price * item.quantity;
         orderItems.push({
           product_id: product.id,
           quantity: item.quantity,
           unit_price: product.price,
-          name: item.name || product.name 
+          name: (item as any).name || product.name 
         });
       }
 
       let finalTotal = total;
-      let couponCode = req.body.couponCode;
       let discountAmount = 0;
       
       if (couponCode) {
@@ -530,6 +611,9 @@ async function startServer() {
 
       res.json({ id: order.id, total });
     } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation Error', details: e.errors });
+      }
       res.status(500).json({ error: e.message });
     }
   });
@@ -749,7 +833,7 @@ async function startServer() {
            customerDetails = session.customer_details;
            shippingDetails = session.shipping_details;
         } catch(e) {
-           console.error("Failed to fetch stripe session", e);
+           logger.error("Failed to fetch stripe session", e);
         }
       }
 
@@ -866,11 +950,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.post('/api/admin/products', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ id: Date.now().toString(), ...req.body });
     try {
+      const parsedBody = ProductInputSchema.parse(req.body);
+
       const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(404).json({ error: 'Store not found' });
       
       const newProduct = {
-        ...req.body,
+        ...parsedBody,
         store_id: store.id
       };
       // @ts-ignore
@@ -878,6 +964,9 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       if (error) throw error;
       res.json(data);
     } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation Error', details: e.errors });
+      }
       res.status(500).json({ error: e.message });
     }
   });
@@ -885,10 +974,12 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
   app.put('/api/admin/products/:id', requireAuth(), async (req: any, res) => {
     if (!supabase) return res.json({ id: req.params.id, ...req.body });
     try {
+      const parsedBody = ProductInputSchema.parse(req.body);
+
       const { data: store } = await supabase.from('stores').select('id').limit(1).single();
       if (!store) return res.status(404).json({ error: 'Store not found' });
       
-      const updateData = { ...req.body };
+      const updateData: any = { ...parsedBody };
       delete updateData.id;
       delete updateData.store_id;
 
@@ -900,6 +991,9 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
       if (error) throw error;
       res.json(data);
     } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation Error', details: e.errors });
+      }
       res.status(500).json({ error: e.message });
     }
   });
@@ -1611,7 +1705,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
         .lt('updated_at', twoHoursAgo);
         
       if (error) {
-        console.error('Error fetching abandoned carts:', error);
+        logger.error('Error fetching abandoned carts:', error);
         return;
       }
       
@@ -1642,7 +1736,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
           .eq('id', cart.id);
       }
     } catch (e) {
-      console.error('Cron job error:', e);
+      logger.error('Cron job error:', e);
     }
   }, 60 * 60 * 1000); // run every hour
 
@@ -1662,8 +1756,25 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), async (req: any, res) =>
     });
   }
 
+  // Sentry Error Handler
+  Sentry.setupExpressErrorHandler(app);
+
+  // Global Error Handling Middleware
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    logger.error({ err }, 'Unhandled Error');
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation Error', details: err.errors });
+    }
+    const statusCode = err.status || err.statusCode || (err instanceof AppError ? err.statusCode : 500);
+    const message = err.message || 'Internal Server Error';
+    res.status(statusCode).json({
+      error: message,
+      ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {})
+    });
+  });
+
   app.listen(Number(PORT), "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
   });
 }
 
