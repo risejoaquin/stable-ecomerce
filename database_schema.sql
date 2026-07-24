@@ -139,3 +139,13 @@ CREATE TABLE stripe_events (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ALTER TABLE stripe_events ENABLE ROW LEVEL SECURITY;
+
+-- Function to decrement product stock
+CREATE OR REPLACE FUNCTION decrement_stock(product_id UUID, quantity INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE products
+  SET stock = GREATEST(0, stock - quantity)
+  WHERE id = product_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
