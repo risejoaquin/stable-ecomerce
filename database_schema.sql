@@ -131,3 +131,11 @@ ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 -- Note: No policies are created by default. 
 -- Since the backend uses the Service Role Key, it will bypass RLS.
 -- This guarantees that any leaked Anon Key cannot be used to query or modify the database directly.
+
+-- Table: stripe_events
+CREATE TABLE stripe_events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE stripe_events ENABLE ROW LEVEL SECURITY;

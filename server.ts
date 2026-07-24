@@ -197,6 +197,18 @@ async function startServer() {
           // Handle the event
           logger.info(`Received Stripe event: ${event.type}`);
 
+          if (supabase) {
+            // Idempotency check: insert the event. If it fails due to unique constraint, it was already processed.
+            const { error: insertError } = await supabase
+              .from('stripe_events')
+              .insert({ id: event.id, type: event.type });
+            
+            if (insertError && insertError.code === '23505') {
+              logger.info(`Stripe event ${event.id} already processed. Skipping.`);
+              return res.json({received: true});
+            }
+          }
+
           if (event.type === 'checkout.session.completed') {
             const session = event.data.object as Stripe.Checkout.Session;
             const orderId = session.metadata?.order_id;
