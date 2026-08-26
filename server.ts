@@ -268,7 +268,9 @@ async function startServer() {
       directives: {
         "default-src": ["'self'"],
         "script-src": ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
-        "style-src": ["'self'", "'unsafe-inline'"],
+        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
         "img-src": ["'self'", "data:", "blob:", "https:"],
         "connect-src": ["'self'", APP_URL, API_URL, "https://*.supabase.co", "https://api.stripe.com", "https://*.sentry.io"],
         "frame-src": ["https://js.stripe.com", "https://hooks.stripe.com"],
