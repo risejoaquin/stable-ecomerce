@@ -162,6 +162,149 @@ async function getPrimaryStoreId() {
   return first.data?.id || null;
 }
 
+function moneyToCents(value: any) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function centsToMoney(value: any) {
+  return Number(((Number(value || 0)) / 100).toFixed(2));
+}
+
+function isPositiveMoney(value: any) {
+  return Number.isFinite(Number(value)) && Number(value) > 0;
+}
+
+function getPaymentIntentId(session: any) {
+  if (!session?.payment_intent) return null;
+  return typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent.id;
+}
+
+async function readStripeEventState(eventId: string) {
+  if (!supabase) return { exists: false, processed: false };
+  const { data, error } = await supabase
+    .from('stripe_events')
+    .select('id, processed_at')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return { exists: Boolean(data), processed: Boolean(data?.processed_at) };
+}
+
+async function recordStripeEventReceived(event: any) {
+  if (!supabase) return;
+  const state = await readStripeEventState(event.id);
+  if (state.exists) return;
+  const { error } = await supabase
+    .from('stripe_events')
+    .insert({ id: event.id, type: event.type });
+  if (error && error.code !== '23505') throw error;
+}
+
+async function recordStripeEventProcessed(eventId: string) {
+  if (!supabase) return;
+  await supabase
+    .from('stripe_events')
+    .update({ processed_at: new Date().toISOString() })
+    .eq('id', eventId);
+}
+
+async function sendPaidOrderEmails(order: any, orderItems: any[], session: any) {
+  if (!order) return;
+  const customerEmail = session?.customer_details?.email || order.customer_email;
+
+  await sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `New Paid Order: #${String(order.id).split('-')[0]}`,
+    html: `<p>A paid order has been confirmed for $${order.total}.</p><p>Order ID: ${order.id}</p><p>Stripe session: ${order.stripe_session_id || session?.id || 'N/A'}</p>`
+  });
+
+  if (customerEmail) {
+    const itemsHtml = orderItems.map(item => `
+      <div class="order-item">
+        <span>${item.quantity}x ${item.products?.name || item.product_snapshot?.name || 'Product'}</span>
+        <span>$${item.unit_price}</span>
+      </div>
+    `).join('');
+
+    await sendEmail({
+      to: customerEmail,
+      subject: `Order Confirmation: #${String(order.id).split('-')[0]}`,
+      html: getOrderConfirmationEmail(order.id, `$${order.total}`, itemsHtml)
+    });
+  }
+}
+
+async function finalizeCheckoutSession(event: any, session: any) {
+  if (!supabase) return;
+  const orderId = session.metadata?.order_id;
+  if (!orderId) {
+    logger.warn({ stripeSessionId: session.id }, 'Stripe checkout.session.completed without order_id metadata');
+    return;
+  }
+
+  const { data: result, error: finalizeError } = await supabase.rpc('finalize_paid_order', {
+    order_id_input: orderId,
+    stripe_session_id_input: session.id,
+    stripe_payment_intent_id_input: getPaymentIntentId(session),
+    customer_email_input: session.customer_details?.email || null
+  });
+
+  if (finalizeError) {
+    logger.error({ err: finalizeError, orderId, stripeSessionId: session.id }, 'Paid order finalization failed');
+    throw finalizeError;
+  }
+
+  const finalization = Array.isArray(result) ? result[0] : result;
+  logger.info({ orderId, finalization }, 'Paid order finalization result');
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+  if (orderError) throw orderError;
+
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('*, products(*)')
+    .eq('order_id', orderId);
+
+  if (finalization?.final_status === 'inventory_exception') {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `Inventory exception after payment: #${String(orderId).split('-')[0]}`,
+      html: `<p>Stripe confirmed payment, but inventory could not be reconciled automatically.</p><p>Order ID: ${orderId}</p><p>Stripe session: ${session.id}</p><p>Message: ${finalization?.message || 'N/A'}</p>`
+    });
+    return;
+  }
+
+  if (finalization?.success) {
+    await sendPaidOrderEmails(order, orderItems || [], session);
+  }
+}
+
+async function markCheckoutSessionFailed(session: any, status: 'payment_failed' | 'cancelado') {
+  if (!supabase) return;
+  const orderId = session.metadata?.order_id;
+  if (!orderId) return;
+
+  const updateData: any = {
+    status,
+    stripe_session_id: session.id,
+    stripe_payment_intent_id: getPaymentIntentId(session),
+    updated_at: new Date().toISOString()
+  };
+  if (session.customer_details?.email) updateData.customer_email = session.customer_details.email;
+  if (status === 'cancelado') updateData.cancelled_at = new Date().toISOString();
+
+  await supabase
+    .from('orders')
+    .update(updateData)
+    .eq('id', orderId)
+    .eq('status', 'pendiente');
+}
+
 
 
 
@@ -285,102 +428,67 @@ async function startServer() {
   const contactLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, message: 'Too many contact messages, please try again later.' });
 
 
-  // Stripe webhook needs raw body
-  app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), asyncHandler(async (req, res) => {
-          if (!stripe || !STRIPE_WEBHOOK_SECRET) {
-            return res.status(500).send('Stripe not configured');
-          }
-          const sig = req.headers['stripe-signature'];
-          let event;
-          try {
-            event = stripe.webhooks.constructEvent(req.body, sig as string, STRIPE_WEBHOOK_SECRET);
-          } catch (err: any) {
-            return res.status(400).send(`Webhook Error: ${err.message}`);
-          }
+  // Stripe webhook needs raw body. This route intentionally runs before express.json().
+  app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
+    if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).send('Stripe not configured');
+    }
 
-          // Handle the event
-          logger.info(`Received Stripe event: ${event.type}`);
+    const sig = req.headers['stripe-signature'];
+    let event: Stripe.Event;
 
-          if (supabase) {
-            // Idempotency check: insert the event. If it fails due to unique constraint, it was already processed.
-            const { error: insertError } = await supabase
-              .from('stripe_events')
-              .insert({ id: event.id, type: event.type });
-            
-            if (insertError && insertError.code === '23505') {
-              logger.info(`Stripe event ${event.id} already processed. Skipping.`);
-              return res.json({received: true});
-            }
-          }
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig as string, STRIPE_WEBHOOK_SECRET);
+    } catch (err: any) {
+      logger.warn({ err: err?.message }, 'Invalid Stripe webhook signature');
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
 
-          if (event.type === 'checkout.session.completed') {
-            const session = event.data.object as Stripe.Checkout.Session;
-            const orderId = session.metadata?.order_id;
-            if (orderId && supabase) {
-              // Fetch current order status to enforce idempotency
-              const { data: currentOrder } = await supabase.from('orders').select('status').eq('id', orderId).single();
-              if (currentOrder && currentOrder.status !== 'pendiente') {
-                logger.info(`Order ${orderId} already processed (status: ${currentOrder.status}). Skipping.`);
-                return res.json({received: true});
-              }
+    logger.info({ eventId: event.id, eventType: event.type }, 'Received Stripe event');
 
-              // Update order status to paid and save email if missing
-              const customerEmail = session.customer_details?.email || null;
-              const updateData: any = { status: 'pagado' };
-              if (customerEmail) updateData.customer_email = customerEmail;
-              const { data: order, error } = await supabase.from('orders').update(updateData).eq('id', orderId).select().single();
-              
-              // Decrement stock using RPC to avoid race conditions
-              const { data: orderItems } = await supabase.from('order_items').select('*, products(*)').eq('order_id', orderId);
-              if (orderItems && orderItems.length > 0) {
-                for (const item of orderItems) {
-                  const { error: stockError } = await supabase.rpc('decrement_stock', { 
-                    product_id: item.product_id, 
-                    quantity: item.quantity 
-                  });
-                  if (stockError) {
-                    logger.error({ err: stockError, orderId, productId: item.product_id }, 'Stock decrement failed after payment');
-                    await supabase.from('orders').update({ status: 'inventory_exception', notes: 'Paid order requires manual inventory reconciliation.' }).eq('id', orderId);
-                    return res.status(500).json({ error: 'Inventory reconciliation failed' });
-                  }
-                }
-                if (order?.coupon_code) {
-                  await supabase.rpc('consume_coupon_after_payment', { coupon_code_input: order.coupon_code, store_id_input: order.store_id });
-                }
-              }
+    if (supabase) {
+      const state = await readStripeEventState(event.id);
+      if (state.processed) {
+        logger.info({ eventId: event.id }, 'Stripe event already processed. Skipping.');
+        return res.json({ received: true, duplicate: true });
+      }
+      await recordStripeEventReceived(event);
+    }
 
-              // Send Email Notifications
-              if (order && !error) {
-                 const customerEmail = session.customer_details?.email || order.customer_email;
-                 
-                 // Admin Notification
-                 await sendEmail({
-                   to: ADMIN_EMAIL,
-                   subject: `New Order Received: #${order.id.split('-')[0]}`,
-                   html: `<p>A new order has been placed for ${order.total}.</p><p>Order ID: ${order.id}</p>`
-                 });
+    try {
+      if (event.type === 'checkout.session.completed') {
+        await finalizeCheckoutSession(event, event.data.object as Stripe.Checkout.Session);
+      }
 
-                 // Customer Confirmation
-                 if (customerEmail) {
-                   const itemsHtml = orderItems ? orderItems.map(item => `
-               <div class="order-item">
-                 <span>${item.quantity}x ${item.products?.name}</span>
-                 <span>$${item.unit_price}</span>
-               </div>
-             `).join('') : '';
-                   
-                   await sendEmail({
-                     to: customerEmail,
-                     subject: `Order Confirmation: #${order.id.split('-')[0]}`,
-                     html: getOrderConfirmationEmail(order.id, `$${order.total}`, itemsHtml)
-                   });
-                 }
-              }
-            }
-          }
+      if (event.type === 'checkout.session.expired') {
+        await markCheckoutSessionFailed(event.data.object as Stripe.Checkout.Session, 'cancelado');
+      }
 
-          res.json({received: true});
-        }));
+      if (event.type === 'payment_intent.payment_failed') {
+        const paymentIntent: any = event.data.object;
+        const orderId = paymentIntent?.metadata?.order_id;
+        if (orderId && supabase) {
+          await supabase
+            .from('orders')
+            .update({
+              status: 'payment_failed',
+              stripe_payment_intent_id: paymentIntent.id,
+              notes: paymentIntent.last_payment_error?.message || 'Stripe payment failed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', orderId)
+            .eq('status', 'pendiente');
+        }
+      }
+
+      await recordStripeEventProcessed(event.id);
+      return res.json({ received: true });
+    } catch (err: any) {
+      logger.error({ err, eventId: event.id, eventType: event.type }, 'Stripe webhook processing failed');
+      // Do not mark processed; Stripe can retry, and our handler is idempotent.
+      return res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  }));
 
   // Regular JSON middleware for other routes
   app.use(express.json());
@@ -687,7 +795,15 @@ app.get('/api/health', asyncHandler(async (req, res) => {
                 product_id: product.id,
                 quantity: item.quantity,
                 unit_price: product.price,
-                name: (item as any).name || product.name 
+                name: (item as any).name || product.name,
+                product_snapshot: {
+                  id: product.id,
+                  name: (item as any).name || product.name,
+                  baseName: product.name,
+                  price: product.price,
+                  sku: product.sku || null,
+                  images: product.images || []
+                }
               });
             }
 
@@ -716,7 +832,9 @@ app.get('/api/health', asyncHandler(async (req, res) => {
               customer_user_id: req.auth?.userId || null,
               customer_email: customerEmail || req.body.customerEmail || null,
               status: 'pendiente',
+              subtotal: total,
               total: finalTotal,
+              currency: 'mxn',
               coupon_code: couponCode,
               discount_amount: discountAmount
             }] as any[]).select().single();
@@ -727,13 +845,14 @@ app.get('/api/health', asyncHandler(async (req, res) => {
               order_id: order.id,
               product_id: item.product_id,
               quantity: item.quantity,
-              unit_price: item.unit_price
+              unit_price: item.unit_price,
+              product_snapshot: item.product_snapshot
             }));
             
             // @ts-ignore
             await supabase.from('order_items').insert(itemsToInsert as any[]);
 
-            res.json({ id: order.id, total });
+            res.json({ id: order.id, total: finalTotal, subtotal: total, discountAmount });
           } catch (e: any) {
             if (e instanceof z.ZodError) {
               return res.status(400).json({ error: 'Validation Error', details: (e as any).errors });
@@ -743,62 +862,111 @@ app.get('/api/health', asyncHandler(async (req, res) => {
         }));
 
   app.post('/api/checkout', checkoutLimiter, asyncHandler(async (req, res) => {
-          const { orderId } = req.body;
-          if (!stripe) {
-            return res.status(500).json({ error: 'Stripe not configured' });
+    const { orderId } = req.body;
+    if (!stripe) {
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    try {
+      let order: any = null;
+      let orderItems: any[] = [];
+
+      if (supabase) {
+        const storeId = await getPrimaryStoreId();
+        if (!storeId) return res.status(500).json({ error: 'Primary store is not configured' });
+
+        const orderResult = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .eq('store_id', storeId)
+          .single();
+
+        if (orderResult.error || !orderResult.data) return res.status(404).json({ error: 'Order not found' });
+        order = orderResult.data;
+
+        if (order.status !== 'pendiente') {
+          return res.status(409).json({ error: `Order is not payable. Current status: ${order.status}` });
+        }
+
+        if (!isPositiveMoney(order.total) || moneyToCents(order.total) < 50) {
+          return res.status(400).json({ error: 'Order total must be at least $0.50 MXN to start Stripe Checkout' });
+        }
+
+        const itemsResult = await supabase
+          .from('order_items')
+          .select('*, products(name, sku, stock)')
+          .eq('order_id', orderId);
+        if (itemsResult.error) throw itemsResult.error;
+        orderItems = itemsResult.data || [];
+        if (orderItems.length === 0) return res.status(400).json({ error: 'Order has no items' });
+
+        for (const item of orderItems) {
+          const stock = Number(item.products?.stock ?? 0);
+          if (stock < Number(item.quantity)) {
+            return res.status(409).json({ error: `Not enough stock for ${item.products?.name || item.product_id}` });
           }
-          try {
-            let lineItems: any[] = [];
-            let cancelUrl = `${APP_URL}/`;
-            
-            if (supabase) {
-              const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
-              if (!order) throw new Error('Order not found');
-              
-              // Always redirect back to root storefront on cancel since we don't have a /store/:slug route
-              cancelUrl = `${APP_URL}/`;
+        }
+      } else {
+        order = { id: orderId, total: 20, customer_email: null };
+      }
 
-              const { data: orderItems } = await supabase.from('order_items').select('*').eq('order_id', orderId);
-              
-              for (const item of orderItems || []) {
-                 const { data: product } = await supabase.from('products').select('name').eq('id', item.product_id).single();
-                 lineItems.push({
-                   price_data: {
-                     currency: 'mxn',
-                     product_data: { name: product?.name || 'Product' },
-                     unit_amount: Math.round(item.unit_price * 100),
-                   },
-                   quantity: item.quantity
-                 });
-              }
-            } else {
-              lineItems = [{
-                price_data: { currency: 'mxn', product_data: { name: 'Test Product' }, unit_amount: 2000 },
-                quantity: 1
-              }];
-            }
+      const orderSummary = supabase
+        ? orderItems.map((item) => `${item.quantity}x ${item.products?.name || item.product_snapshot?.name || 'Product'}`).join(', ')
+        : 'Selfcare Sinners order';
 
-            const session = await stripe.checkout.sessions.create({
-              payment_method_types: ['card'],
-              line_items: lineItems,
-              mode: 'payment',
-              shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'AU', 'MX'] },
-              success_url: `${APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-              cancel_url: cancelUrl,
-              metadata: {
-                order_id: orderId
-              }
-            });
-            
-            if (supabase && orderId) {
-              await supabase.from('orders').update({ stripe_session_id: session.id }).eq('id', orderId);
-            }
-
-            res.json({ url: session.url });
-          } catch (err: any) {
-            res.status(500).json({ error: err.message });
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'mxn',
+            product_data: {
+              name: 'Selfcare Sinners Order',
+              description: orderSummary.slice(0, 500)
+            },
+            unit_amount: moneyToCents(order.total),
+          },
+          quantity: 1
+        }],
+        mode: 'payment',
+        customer_email: order.customer_email || undefined,
+        shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'AU', 'MX'] },
+        success_url: `${APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${APP_URL}/`,
+        metadata: {
+          order_id: orderId,
+          store_slug: PRIMARY_STORE_SLUG,
+          source: 'selfcare_sinners_checkout'
+        },
+        payment_intent_data: {
+          metadata: {
+            order_id: orderId,
+            store_slug: PRIMARY_STORE_SLUG
           }
-        }));
+        }
+      });
+
+      if (supabase && orderId) {
+        await supabase
+          .from('orders')
+          .update({
+            stripe_session_id: session.id,
+            stripe_payment_intent_id: getPaymentIntentId(session),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', orderId)
+          .eq('status', 'pendiente');
+      }
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (err: any) {
+      logger.error({ err, orderId }, 'Checkout session creation failed');
+      res.status(500).json({ error: err.message });
+    }
+  }));
 
   app.post('/api/stores', requireAuth(), asyncHandler(async (req: any, res) => {
           const userId = req.auth.userId;
@@ -882,8 +1050,6 @@ app.get('/api/health', asyncHandler(async (req, res) => {
         }));
 
   app.get('/api/admin/store', requireAuth(), asyncHandler(async (req: any, res) => {
-          const userId = req.auth.userId;
-          
           const isAdmin = req.auth.role === 'admin';
           
           if (!isAdmin) {
@@ -893,9 +1059,11 @@ app.get('/api/health', asyncHandler(async (req, res) => {
           if (!supabase) return res.json({ hasStore: false, role: 'admin' });
           
           try {
-            const { data, error } = await supabase.from('stores').select('*').eq('owner_user_id', userId).single();
-            if (error) return res.json({ hasStore: false, role: isAdmin ? 'admin' : 'user' });
-            res.json({ hasStore: true, store: data, role: isAdmin ? 'admin' : 'user' });
+            const storeId = await getPrimaryStoreId();
+            if (!storeId) return res.json({ hasStore: false, role: 'admin' });
+            const { data, error } = await supabase.from('stores').select('*').eq('id', storeId).single();
+            if (error) throw error;
+            res.json({ hasStore: true, store: data, role: 'admin' });
           } catch (err: any) {
             res.status(500).json({ error: err.message });
           }
@@ -1025,39 +1193,95 @@ app.get('/api/health', asyncHandler(async (req, res) => {
         }));
 
 app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req: any, res) => {
-        if (!supabase || !stripe) return res.status(500).json({ error: 'Not configured' });
-        try {
-          const { id } = req.params;
-          const { amount } = req.body; // optional amount
-          const storeId = await getPrimaryStoreId();
-          if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
-          
-          const { data: order, error } = await supabase.from('orders').select('*').eq('id', id).eq('store_id', storeId).single();
-          if (error) throw error;
-          if (!order || !order.stripe_session_id) return res.status(400).json({ error: 'Cannot refund this order' });
+  if (!supabase || !stripe) return res.status(500).json({ error: 'Not configured' });
+  try {
+    const { id } = req.params;
+    const { amount, reason, restock } = req.body || {};
+    const storeId = await getPrimaryStoreId();
+    if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
 
-          const session: any = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
-          if (!session.payment_intent) return res.status(400).json({ error: 'No payment intent found' });
-          
-          const refundParams: any = {
-            payment_intent: session.payment_intent as string,
-          };
-          if (amount) {
-             refundParams.amount = Math.round(amount * 100);
-          }
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .eq('store_id', storeId)
+      .single();
+    if (error) throw error;
+    if (!order || !order.stripe_session_id) return res.status(400).json({ error: 'Cannot refund this order' });
+    if (!['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(order.status)) {
+      return res.status(409).json({ error: `Order status ${order.status} cannot be refunded` });
+    }
 
-          const refund = await stripe.refunds.create(refundParams);
-          
-          // Update status to refunded
-          const newStatus = amount && amount < order.total ? 'partially_refunded' : 'refunded';
-          const { data: updatedOrder } = await supabase.from('orders').update({ status: newStatus }).eq('id', id).select().single();
+    const alreadyRefunded = Number(order.refunded_amount || 0);
+    const orderTotal = Number(order.total || 0);
+    const requestedAmount = amount === undefined || amount === null || amount === ''
+      ? orderTotal - alreadyRefunded
+      : Number(amount);
 
-          res.json(updatedOrder);
-        } catch (e: any) {
-          res.status(500).json({ error: e.message });
-        }
-      }));
+    if (!isPositiveMoney(requestedAmount)) return res.status(400).json({ error: 'Refund amount must be greater than zero' });
+    if (requestedAmount + alreadyRefunded > orderTotal) {
+      return res.status(400).json({ error: 'Refund amount exceeds remaining refundable total' });
+    }
 
+    const paymentIntentId = order.stripe_payment_intent_id || getPaymentIntentId(await stripe.checkout.sessions.retrieve(order.stripe_session_id));
+    if (!paymentIntentId) return res.status(400).json({ error: 'No payment intent found' });
+
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      amount: moneyToCents(requestedAmount),
+      reason: ['duplicate', 'fraudulent', 'requested_by_customer'].includes(reason) ? reason : 'requested_by_customer',
+      metadata: {
+        order_id: id,
+        store_slug: PRIMARY_STORE_SLUG
+      }
+    } as any);
+
+    const newRefundedAmount = Number((alreadyRefunded + requestedAmount).toFixed(2));
+    const newStatus = newRefundedAmount >= orderTotal ? 'refunded' : 'partially_refunded';
+    const updatePayload: any = {
+      status: newStatus,
+      refunded_amount: newRefundedAmount,
+      stripe_refund_id: refund.id,
+      refunded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('store_id', storeId)
+      .select()
+      .single();
+    if (updateError) throw updateError;
+
+    if (restock === true && Array.isArray(order.order_items)) {
+      for (const item of order.order_items) {
+        await supabase.from('products')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', item.product_id);
+        await supabase.rpc('restock_refunded_item', {
+          product_id_input: item.product_id,
+          quantity_input: item.quantity,
+          order_id_input: id
+        });
+      }
+    }
+
+    await supabase.from('audit_logs').insert({
+      actor_user_id: req.auth.userId,
+      action: 'order_refund_created',
+      entity_type: 'order',
+      entity_id: id,
+      metadata: { refund_id: refund.id, amount: requestedAmount, status: newStatus, restock: restock === true }
+    });
+
+    res.json(updatedOrder);
+  } catch (e: any) {
+    logger.error({ err: e, orderId: req.params.id }, 'Refund failed');
+    res.status(500).json({ error: e.message });
+  }
+}));
 
   // Product CRUD
   app.get('/api/admin/products', requireAuth(), asyncHandler(async (req: any, res) => {
