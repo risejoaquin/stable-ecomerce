@@ -195,18 +195,32 @@ async function recordStripeEventReceived(event: any) {
   if (!supabase) return;
   const state = await readStripeEventState(event.id);
   if (state.exists) return;
+
+  const insertPayload: any = { id: event.id, type: event.type };
+  if (event?.data?.object) insertPayload.payload = event.data.object;
+
   const { error } = await supabase
     .from('stripe_events')
-    .insert({ id: event.id, type: event.type });
+    .insert(insertPayload);
   if (error && error.code !== '23505') throw error;
 }
 
 async function recordStripeEventProcessed(eventId: string) {
   if (!supabase) return;
-  await supabase
+  const { error } = await supabase
     .from('stripe_events')
-    .update({ processed_at: new Date().toISOString() })
+    .update({ processed_at: new Date().toISOString(), error_message: null })
     .eq('id', eventId);
+  if (error) logger.warn({ err: error, eventId }, 'Unable to mark Stripe event as processed');
+}
+
+async function recordStripeEventFailed(eventId: string, errorMessage: string) {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from('stripe_events')
+    .update({ error_message: errorMessage, processed_at: null })
+    .eq('id', eventId);
+  if (error) logger.warn({ err: error, eventId }, 'Unable to mark Stripe event as failed');
 }
 
 async function sendPaidOrderEmails(order: any, orderItems: any[], session: any) {
@@ -271,16 +285,27 @@ async function finalizeCheckoutSession(event: any, session: any) {
     .eq('order_id', orderId);
 
   if (finalization?.final_status === 'inventory_exception') {
-    await sendEmail({
-      to: ADMIN_EMAIL,
-      subject: `Inventory exception after payment: #${String(orderId).split('-')[0]}`,
-      html: `<p>Stripe confirmed payment, but inventory could not be reconciled automatically.</p><p>Order ID: ${orderId}</p><p>Stripe session: ${session.id}</p><p>Message: ${finalization?.message || 'N/A'}</p>`
-    });
+    try {
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `Inventory exception after payment: #${String(orderId).split('-')[0]}`,
+        html: `<p>Stripe confirmed payment, but inventory could not be reconciled automatically.</p><p>Order ID: ${orderId}</p><p>Stripe session: ${session.id}</p><p>Message: ${finalization?.message || 'N/A'}</p>`
+      });
+    } catch (emailError) {
+      logger.error({ err: emailError, orderId }, 'Inventory exception email failed');
+    }
     return;
   }
 
-  if (finalization?.success) {
+  if (!finalization?.success) {
+    throw new Error(`Paid order finalization returned unsuccessful status: ${finalization?.final_status || 'unknown'} ${finalization?.message || ''}`.trim());
+  }
+
+  try {
     await sendPaidOrderEmails(order, orderItems || [], session);
+  } catch (emailError) {
+    logger.error({ err: emailError, orderId }, 'Paid order email notification failed');
+    // Email delivery must not make the Stripe webhook fail after the payment and order are finalized.
   }
 }
 
@@ -485,6 +510,7 @@ async function startServer() {
       return res.json({ received: true });
     } catch (err: any) {
       logger.error({ err, eventId: event.id, eventType: event.type }, 'Stripe webhook processing failed');
+      await recordStripeEventFailed(event.id, err?.message || 'Webhook processing failed');
       // Do not mark processed; Stripe can retry, and our handler is idempotent.
       return res.status(500).json({ error: 'Webhook processing failed' });
     }
