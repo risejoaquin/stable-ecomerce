@@ -122,3 +122,8 @@ scripts/db/005_storefront_customer_experience_and_timeline.sql
 ```
 
 Validates commercial home, product detail, cart UX, FAQ, public order tracking with timeline, Selfcare Sinners branding, and D.0 real order status timeline trigger.
+
+
+## Hotfix D.1 — Public Order Tracking Resilience
+
+Fixes `/api/orders/track` so invalid/missing email matches return 404 instead of PostgREST single-object 500 errors. Legacy manually finalized orders may need `customer_email` backfill for public tracking.

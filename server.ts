@@ -620,18 +620,26 @@ async function startServer() {
   app.get('/api/orders/track', asyncHandler(async (req, res) => {
           if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
           try {
-            const email = String(req.query.email || '').trim();
+            const email = String(req.query.email || '').trim().toLowerCase();
             const orderId = String(req.query.order_id || '').trim();
             if (!email || !orderId) return res.status(400).json({ error: 'Email and order_id required' });
 
+            // Do not use .single() with the email filter here. PostgREST returns
+            // PGRST116 / "Cannot coerce the result to a single JSON object" when
+            // the email does not match or the order has a null legacy customer_email.
+            // Fetch by order id, then compare the normalized email in application code
+            // so the public API returns a clean 404 instead of a 500.
             const { data, error } = await supabase
               .from('orders')
               .select('*, order_items(*, products(name, images, sku))')
               .eq('id', orderId)
-              .ilike('customer_email', email)
-              .single();
+              .maybeSingle();
             if (error) throw error;
-            if (!data) return res.status(404).json({ error: 'Order not found' });
+
+            const storedEmail = String(data?.customer_email || '').trim().toLowerCase();
+            if (!data || !storedEmail || storedEmail !== email) {
+              return res.status(404).json({ error: 'Order not found' });
+            }
 
             const timelineResult = await supabase
               .from('order_timeline')
@@ -644,7 +652,8 @@ async function startServer() {
               timeline: timelineResult.error ? [] : (timelineResult.data || [])
             });
           } catch (e: any) {
-            res.status(500).json({ error: e.message });
+            logger.error({ err: e, orderId: req.query.order_id }, 'Public order tracking failed');
+            res.status(500).json({ error: 'Order tracking failed' });
           }
         }));
 
