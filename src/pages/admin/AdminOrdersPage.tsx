@@ -5,7 +5,7 @@ import { useApiClient } from '../../api/useApiClient';
 import { toast } from 'react-hot-toast';
 import { Search, Filter, Download, Eye, X, Check, Package, RotateCcw } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useAdminOrders, useAdminOrder, useUpdateOrderTracking, useUpdateOrderStatus, useRefundOrder } from '../../hooks/useAdminOrders';
+import { useAdminOrders, useAdminOrder, useUpdateOrderTracking, useUpdateOrderStatus, useRefundOrder, useResendOrderConfirmation } from '../../hooks/useAdminOrders';
 
 export function AdminOrdersPage() {
   const apiClient = useApiClient();
@@ -159,6 +159,7 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
   const { data: order, isLoading } = useAdminOrder(orderId);
   const updateStatus = useUpdateOrderStatus(orderId);
   const refundOrder = useRefundOrder(orderId);
+  const resendConfirmation = useResendOrderConfirmation(orderId);
   const updateTracking = useUpdateOrderTracking(orderId);
   
   React.useEffect(() => {
@@ -278,13 +279,22 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                       <button 
                         onClick={() => {
                           if (window.confirm('Are you sure you want to refund this order?')) {
-                            refundOrder.mutate();
+                            refundOrder.mutate({ restock: true });
                           }
                         }}
                         disabled={refundOrder.isPending}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
                       >
                         <RotateCcw size={16} /> Refund Order
+                      </button>
+                    )}
+                    {['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(order.status) && (
+                      <button
+                        onClick={() => resendConfirmation.mutate(undefined, { onSuccess: () => toast.success('Confirmation resent') })}
+                        disabled={resendConfirmation.isPending}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        <Check size={16} /> Reenviar confirmación
                       </button>
                     )}
                   </div>
@@ -354,6 +364,19 @@ function OrderDetailsModal({ orderId, onClose, getStatusColor }: { orderId: stri
                   </div>
                 </div>
                 
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Timeline</h3>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-sm space-y-3 max-h-48 overflow-y-auto">
+                    {order.timeline?.length ? order.timeline.map((event: any) => (
+                      <div key={event.id} className="border-b border-gray-50 last:border-0 pb-2 last:pb-0">
+                        <p className="font-medium text-gray-900">{event.event_type}</p>
+                        <p className="text-xs text-gray-500">{event.from_status || '—'} → {event.to_status || '—'}</p>
+                        <p className="text-xs text-gray-400">{new Date(event.created_at).toLocaleString()}</p>
+                      </div>
+                    )) : <p className="text-gray-400 italic">No timeline events yet.</p>}
+                  </div>
+                </div>
+
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Stripe Reference</h3>
                   <p className="font-mono text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100 break-all">

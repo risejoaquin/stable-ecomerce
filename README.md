@@ -91,3 +91,22 @@ Este proyecto emplea un modelo de compilación unificado Full-Stack para facilit
    npm run start
    ```
    *Inicia Express, sirve las APIs y auto-redirige a la SPA de React.*
+
+## Phase C — Ecommerce Operations & Admin Hardening
+
+This checkpoint adds admin operations visibility and fulfillment hardening. Before validating Phase C in production, run:
+
+```txt
+scripts/db/004_ecommerce_operations_admin_hardening.sql
+```
+
+Primary validation targets:
+
+```txt
+GET /api/admin/operations/summary = 200
+GET /api/admin/orders = 200
+GET /api/admin/stripe-events = 200
+GET /api/admin/inventory/movements = 200
+Order status update creates audit/timeline records
+Tracking update creates audit/timeline records
+```

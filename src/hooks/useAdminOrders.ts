@@ -39,9 +39,22 @@ export function useUpdateOrderStatus(id: string) {
 
 export function useRefundOrder(id: string) {
   const apiClient = useApiClient();
+  const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: () => apiClient.post(`/admin/orders/${id}/refund`, {})
+    mutationFn: (data?: { amount?: number | string, reason?: string, restock?: boolean }) => apiClient.post(`/admin/orders/${id}/refund`, data || {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['admin-operations-summary'] });
+    }
+  });
+}
+
+export function useResendOrderConfirmation(id: string) {
+  const apiClient = useApiClient();
+  return useMutation({
+    mutationFn: () => apiClient.post(`/admin/orders/${id}/resend-confirmation`, {})
   });
 }
 

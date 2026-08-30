@@ -331,6 +331,86 @@ async function markCheckoutSessionFailed(session: any, status: 'payment_failed' 
 }
 
 
+const ORDER_STATUSES = [
+  'pendiente',
+  'pagado',
+  'payment_failed',
+  'inventory_exception',
+  'empacado',
+  'enviado',
+  'entregado',
+  'cancelado',
+  'refunded',
+  'partially_refunded'
+];
+
+const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
+  pendiente: ['cancelado'],
+  pagado: ['empacado', 'cancelado'],
+  inventory_exception: ['pagado', 'cancelado'],
+  empacado: ['enviado', 'cancelado'],
+  enviado: ['entregado'],
+  entregado: [],
+  cancelado: [],
+  payment_failed: ['cancelado'],
+  refunded: [],
+  partially_refunded: ['refunded']
+};
+
+function isValidOrderStatus(status: string) {
+  return ORDER_STATUSES.includes(status);
+}
+
+function canTransitionOrderStatus(currentStatus: string, nextStatus: string) {
+  if (currentStatus === nextStatus) return true;
+  return (ALLOWED_ORDER_TRANSITIONS[currentStatus] || []).includes(nextStatus);
+}
+
+async function writeAuditLog({ actorUserId, action, entityType, entityId, metadata }: { actorUserId?: string | null, action: string, entityType: string, entityId?: string | null, metadata?: any }) {
+  if (!supabase) return;
+  try {
+    await supabase.from('audit_logs').insert({
+      actor_user_id: actorUserId || null,
+      action,
+      entity_type: entityType,
+      entity_id: entityId || null,
+      metadata: metadata || {}
+    });
+  } catch (err) {
+    logger.error({ err, action, entityType, entityId }, 'Audit log write failed');
+  }
+}
+
+async function writeOrderTimeline({ orderId, actorUserId, eventType, fromStatus, toStatus, metadata }: { orderId: string, actorUserId?: string | null, eventType: string, fromStatus?: string | null, toStatus?: string | null, metadata?: any }) {
+  if (!supabase) return;
+  try {
+    await supabase.from('order_timeline').insert({
+      order_id: orderId,
+      actor_user_id: actorUserId || null,
+      event_type: eventType,
+      from_status: fromStatus || null,
+      to_status: toStatus || null,
+      metadata: metadata || {}
+    });
+  } catch (err) {
+    // order_timeline is introduced in Phase C. The API should keep working if the migration has not been applied yet.
+    logger.warn({ err, orderId, eventType }, 'Order timeline write skipped');
+  }
+}
+
+function normalizeVariantInput(variants: any[] | undefined) {
+  if (!Array.isArray(variants)) return [];
+  return variants.map((variant, index) => ({
+    id: variant?.id || `${Date.now()}-${index}`,
+    name: String(variant?.name || '').trim(),
+    sku: variant?.sku ? String(variant.sku).trim() : null,
+    price: Number.isFinite(Number(variant?.price)) ? Number(variant.price) : null,
+    stock: Number.isFinite(Number(variant?.stock)) ? Math.max(0, Math.floor(Number(variant.stock))) : 0,
+    attributes: variant?.attributes && typeof variant.attributes === 'object' ? variant.attributes : {}
+  })).filter((variant) => variant.name.length > 0);
+}
+
+
 
 
 const OrderItemSchema = z.object({
@@ -1102,6 +1182,133 @@ app.get('/api/health', asyncHandler(async (req, res) => {
 
   app.use('/api/admin', requireAuth(), requireAdmin());
 
+  // Admin operations dashboard: operational health, exceptions and audit visibility.
+  app.get('/api/admin/operations/summary', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ orders: {}, payments: {}, inventory: {}, alerts: [], recentStripeEvents: [], recentAuditLogs: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+
+      const paidStatuses = ['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'];
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const [ordersResult, todayOrdersResult, lowStockResult, stripeEventsResult, auditResult, inventoryResult] = await Promise.all([
+        supabase.from('orders').select('id, status, total, created_at, notes').eq('store_id', storeId).order('created_at', { ascending: false }).limit(250),
+        supabase.from('orders').select('id, status, total, created_at').eq('store_id', storeId).gte('created_at', todayStart.toISOString()),
+        supabase.from('products').select('id, name, stock, status').eq('store_id', storeId).lte('stock', 5).neq('status', 'archived').order('stock', { ascending: true }).limit(20),
+        supabase.from('stripe_events').select('id, type, processed_at, error_message, created_at').order('created_at', { ascending: false }).limit(15),
+        supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(15),
+        supabase.from('inventory_movements').select('*, products(name)').order('created_at', { ascending: false }).limit(15)
+      ]);
+
+      if (ordersResult.error) throw ordersResult.error;
+      if (todayOrdersResult.error) throw todayOrdersResult.error;
+      if (lowStockResult.error) throw lowStockResult.error;
+      if (stripeEventsResult.error) throw stripeEventsResult.error;
+      if (auditResult.error) throw auditResult.error;
+      if (inventoryResult.error) throw inventoryResult.error;
+
+      const orders = ordersResult.data || [];
+      const todayOrders = todayOrdersResult.data || [];
+      const statusCounts = orders.reduce((acc: Record<string, number>, order: any) => {
+        acc[order.status] = (acc[order.status] || 0) + 1;
+        return acc;
+      }, {});
+      const revenueToday = todayOrders
+        .filter((order: any) => paidStatuses.includes(order.status))
+        .reduce((sum: number, order: any) => sum + Number(order.total || 0), 0);
+      const revenue7d = orders
+        .filter((order: any) => paidStatuses.includes(order.status) && new Date(order.created_at) >= sevenDaysAgo)
+        .reduce((sum: number, order: any) => sum + Number(order.total || 0), 0);
+      const failedStripeEvents = (stripeEventsResult.data || []).filter((event: any) => !event.processed_at || event.error_message);
+
+      const alerts = [
+        ...(statusCounts.inventory_exception ? [{ level: 'critical', code: 'inventory_exception', message: `${statusCounts.inventory_exception} paid order(s) need inventory reconciliation.` }] : []),
+        ...(failedStripeEvents.length ? [{ level: 'critical', code: 'stripe_webhook_errors', message: `${failedStripeEvents.length} recent Stripe event(s) are unprocessed or have errors.` }] : []),
+        ...((lowStockResult.data || []).length ? [{ level: 'warning', code: 'low_stock', message: `${(lowStockResult.data || []).length} product(s) are at low stock.` }] : [])
+      ];
+
+      res.json({
+        orders: {
+          totalRecent: orders.length,
+          statusCounts,
+          pending: statusCounts.pendiente || 0,
+          paid: statusCounts.pagado || 0,
+          packing: statusCounts.empacado || 0,
+          shipped: statusCounts.enviado || 0,
+          delivered: statusCounts.entregado || 0,
+          cancelled: statusCounts.cancelado || 0,
+          inventoryExceptions: statusCounts.inventory_exception || 0
+        },
+        payments: {
+          revenueToday,
+          revenue7d,
+          failedStripeEvents: failedStripeEvents.length
+        },
+        inventory: {
+          lowStockProducts: lowStockResult.data || [],
+          recentMovements: inventoryResult.data || []
+        },
+        alerts,
+        recentStripeEvents: stripeEventsResult.data || [],
+        recentAuditLogs: auditResult.data || []
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Admin operations summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/audit-logs', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = Math.min(parseInt(req.query.page_size as string) || 50, 100);
+      const entityType = req.query.entity_type as string;
+      let query = supabase.from('audit_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+      if (entityType && entityType !== 'all') query = query.eq('entity_type', entityType);
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0, page, pageSize });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/stripe-events', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const status = (req.query.status as string) || 'all';
+      let query = supabase.from('stripe_events').select('*', { count: 'exact' }).order('created_at', { ascending: false }).limit(100);
+      if (status === 'failed') query = query.not('error_message', 'is', null);
+      if (status === 'unprocessed') query = query.is('processed_at', null);
+      const { data, error, count } = await query;
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/inventory/movements', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const productId = req.query.product_id as string;
+      let query = supabase.from('inventory_movements').select('*, products(name, sku)', { count: 'exact' }).order('created_at', { ascending: false }).limit(100);
+      if (productId) query = query.eq('product_id', productId);
+      const { data, error, count } = await query;
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
   // Admin orders
   
   app.get('/api/admin/orders', requireAuth(), asyncHandler(async (req: any, res) => {
@@ -1111,6 +1318,7 @@ app.get('/api/health', asyncHandler(async (req, res) => {
             if (!storeId) return res.json({ data: [], total: 0, page: 1, pageSize: 20 });
 
             const status = req.query.status as string;
+            const search = (req.query.search as string || '').trim();
             const page = parseInt(req.query.page as string) || 1;
             const pageSize = Math.min(parseInt(req.query.page_size as string) || 20, 100);
 
@@ -1118,6 +1326,9 @@ app.get('/api/health', asyncHandler(async (req, res) => {
             
             if (status && status !== 'all') {
               query = query.eq('status', status);
+            }
+            if (search) {
+              query = query.or(`id.eq.${search},customer_email.ilike.%${search}%,stripe_session_id.ilike.%${search}%`);
             }
             
             query = query.order('created_at', { ascending: false });
@@ -1144,6 +1355,11 @@ app.get('/api/health', asyncHandler(async (req, res) => {
 
             const { data: order, error } = await supabase.from('orders').select('*, order_items(*, products(*))').eq('id', id).eq('store_id', storeId).single();
             if (error) throw error;
+            const { data: timeline } = await supabase
+              .from('order_timeline')
+              .select('*')
+              .eq('order_id', id)
+              .order('created_at', { ascending: false });
             let customerDetails = null;
             let shippingDetails = null;
 
@@ -1157,7 +1373,7 @@ app.get('/api/health', asyncHandler(async (req, res) => {
               }
             }
 
-            res.json({ ...order, customerDetails, shippingDetails });
+            res.json({ ...order, customerDetails, shippingDetails, timeline: timeline || [] });
           } catch (e: any) {
             res.status(500).json({ error: e.message });
           }
@@ -1170,28 +1386,49 @@ app.get('/api/health', asyncHandler(async (req, res) => {
             const { status } = req.body;
             const storeId = await getPrimaryStoreId();
             if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
-            
-            const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).eq('store_id', storeId).select().single();
+            if (!isValidOrderStatus(status)) return res.status(400).json({ error: 'Invalid order status' });
+
+            const { data: currentOrder, error: currentError } = await supabase
+              .from('orders')
+              .select('*')
+              .eq('id', id)
+              .eq('store_id', storeId)
+              .single();
+            if (currentError) throw currentError;
+            if (!canTransitionOrderStatus(currentOrder.status, status)) {
+              return res.status(409).json({ error: `Invalid status transition from ${currentOrder.status} to ${status}` });
+            }
+
+            const updatePayload: any = { status, updated_at: new Date().toISOString() };
+            if (status === 'cancelado') updatePayload.cancelled_at = new Date().toISOString();
+            const { data, error } = await supabase.from('orders').update(updatePayload).eq('id', id).eq('store_id', storeId).select().single();
             if (error) throw error;
+
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_status_updated', entityType: 'order', entityId: id, metadata: { from: currentOrder.status, to: status } });
+            await writeOrderTimeline({ orderId: id, actorUserId: req.auth.userId, eventType: 'status_changed', fromStatus: currentOrder.status, toStatus: status });
             
-            // Send Email Notification on Status Update
-            if (['enviado', 'cancelado'].includes(status)) {
-               let customerEmail = data.customer_email;
-               if (stripe && data.stripe_session_id && !customerEmail) {
-                  try {
-                    const session: any = await stripe.checkout.sessions.retrieve(data.stripe_session_id);
-                    customerEmail = session.customer_details?.email;
-                  } catch(e) {}
-               }
-               
-               if (customerEmail) {
-                 const statusText = status === 'shipped' ? 'has been shipped' : 'has been cancelled';
-                 const trackingInfo = status === 'shipped' && data.tracking_number ? `<p style="margin:0;">Tracking Number: <strong>${data.tracking_number}</strong></p>` : '';
-                 await sendEmail({
-                   to: customerEmail,
-                   subject: `Order Update: #${data.id.split('-')[0]} ${statusText}`,
-                   html: getOrderStatusEmail(data.id, statusText, trackingInfo)
-                 });
+            // Send Email Notification on Status Update. Email failure must not roll back the operational state change.
+            if (['enviado', 'cancelado', 'entregado'].includes(status)) {
+               try {
+                 let customerEmail = data.customer_email;
+                 if (stripe && data.stripe_session_id && !customerEmail) {
+                    try {
+                      const session: any = await stripe.checkout.sessions.retrieve(data.stripe_session_id);
+                      customerEmail = session.customer_details?.email;
+                    } catch(e) {}
+                 }
+                 
+                 if (customerEmail) {
+                   const statusText = status === 'enviado' ? 'has been shipped' : status === 'entregado' ? 'has been delivered' : 'has been cancelled';
+                   const trackingInfo = status === 'enviado' && data.tracking_number ? `<p style="margin:0;">Tracking Number: <strong>${data.tracking_number}</strong></p>` : '';
+                   await sendEmail({
+                     to: customerEmail,
+                     subject: `Order Update: #${data.id.split('-')[0]} ${statusText}`,
+                     html: getOrderStatusEmail(data.id, statusText, trackingInfo)
+                   });
+                 }
+               } catch (emailError) {
+                 logger.error({ err: emailError, orderId: id, status }, 'Order status email failed');
                }
             }
             
@@ -1210,13 +1447,44 @@ app.get('/api/health', asyncHandler(async (req, res) => {
             const storeId = await getPrimaryStoreId();
             if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
             
-            const { data, error } = await supabase.from('orders').update({ tracking_number, notes }).eq('id', id).eq('store_id', storeId).select().single();
+            const { data, error } = await supabase.from('orders').update({ tracking_number, notes, updated_at: new Date().toISOString() }).eq('id', id).eq('store_id', storeId).select().single();
             if (error) throw error;
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_tracking_updated', entityType: 'order', entityId: id, metadata: { tracking_number } });
+            await writeOrderTimeline({ orderId: id, actorUserId: req.auth.userId, eventType: 'tracking_updated', metadata: { tracking_number, has_notes: Boolean(notes) } });
             res.json(data);
           } catch (e: any) {
             res.status(500).json({ error: e.message });
           }
         }));
+
+  app.post('/api/admin/orders/:id/resend-confirmation', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+    try {
+      const { id } = req.params;
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*, products(*))')
+        .eq('id', id)
+        .eq('store_id', storeId)
+        .single();
+      if (error) throw error;
+      if (!order || !['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(order.status)) {
+        return res.status(409).json({ error: 'Only paid or fulfilled orders can receive confirmation email.' });
+      }
+
+      const fakeSession = { id: order.stripe_session_id, customer_details: { email: order.customer_email } };
+      await sendPaidOrderEmails(order, order.order_items || [], fakeSession);
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_confirmation_resent', entityType: 'order', entityId: id });
+      await writeOrderTimeline({ orderId: id, actorUserId: req.auth.userId, eventType: 'confirmation_resent' });
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error({ err: e, orderId: req.params.id }, 'Confirmation resend failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
 
 app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req: any, res) => {
   if (!supabase || !stripe) return res.status(500).json({ error: 'Not configured' });
@@ -1333,11 +1601,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             
             const newProduct = {
               ...parsedBody,
+              variants: normalizeVariantInput(parsedBody.variants),
               store_id: storeId
             };
             // @ts-ignore
             const { data, error } = await supabase.from('products').insert([newProduct] as any[]).select().single();
             if (error) throw error;
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'product_created', entityType: 'product', entityId: data.id, metadata: { name: data.name, stock: data.stock, variants: data.variants } });
             res.json(data);
           } catch (e: any) {
             if (e instanceof z.ZodError) {
@@ -1356,8 +1626,10 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
             
             const updateData: any = { ...parsedBody };
+            updateData.variants = normalizeVariantInput(parsedBody.variants);
             delete updateData.id;
             delete updateData.store_id;
+            updateData.updated_at = new Date().toISOString();
 
             const { data, error } = await supabase.from('products')
               .update(updateData)
@@ -1365,6 +1637,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
               .eq('store_id', storeId)
               .select().single();
             if (error) throw error;
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'product_updated', entityType: 'product', entityId: req.params.id, metadata: { name: data.name, stock: data.stock, variants: data.variants } });
             res.json(data);
           } catch (e: any) {
             if (e instanceof z.ZodError) {
@@ -1616,8 +1889,29 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
 
             const coupon = { ...req.body, store_id: storeId };
+            if (coupon.code) coupon.code = String(coupon.code).trim().toUpperCase();
             const { data, error } = await supabase.from('coupons').insert([coupon] as any[]).select().single();
             if (error) throw error;
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'coupon_created', entityType: 'coupon', entityId: data.id, metadata: { code: data.code, discount_type: data.discount_type, discount_value: data.discount_value } });
+            res.json(data);
+          } catch (e: any) {
+            res.status(500).json({ error: e.message });
+          }
+        }));
+
+  app.put('/api/admin/coupons/:id', requireAuth(), asyncHandler(async (req: any, res) => {
+          if (!supabase) return res.json({ success: true });
+          try {
+            const { id } = req.params;
+            const storeId = await getPrimaryStoreId();
+            if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+            const allowed = ['code', 'discount_type', 'discount_value', 'min_order_amount', 'max_uses', 'expires_at', 'is_active'];
+            const updatePayload = Object.fromEntries(Object.entries(req.body || {}).filter(([key]) => allowed.includes(key)));
+            if (updatePayload.code) updatePayload.code = String(updatePayload.code).trim().toUpperCase();
+            updatePayload.updated_at = new Date().toISOString();
+            const { data, error } = await supabase.from('coupons').update(updatePayload).eq('id', id).eq('store_id', storeId).select().single();
+            if (error) throw error;
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'coupon_updated', entityType: 'coupon', entityId: id, metadata: updatePayload });
             res.json(data);
           } catch (e: any) {
             res.status(500).json({ error: e.message });
@@ -1797,6 +2091,42 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             });
 
             res.json(customersList);
+          } catch (e: any) {
+            res.status(500).json({ error: e.message });
+          }
+        }));
+
+  app.get('/api/admin/customers/:id', requireAuth(), asyncHandler(async (req: any, res) => {
+          if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
+          try {
+            const storeId = await getPrimaryStoreId();
+            if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+            const { id } = req.params;
+            const decodedId = decodeURIComponent(id);
+            const isEmail = decodedId.includes('@');
+
+            let user: any = null;
+            if (!isEmail) {
+              const userResult = await supabase.from('users').select('id, email, full_name, phone, created_at, shipping_address, billing_address').eq('id', decodedId).maybeSingle();
+              if (!userResult.error) user = userResult.data;
+            } else {
+              const userResult = await supabase.from('users').select('id, email, full_name, phone, created_at, shipping_address, billing_address').ilike('email', decodedId).maybeSingle();
+              if (!userResult.error) user = userResult.data;
+            }
+
+            let ordersQuery = supabase.from('orders').select('*, order_items(*, products(name, images))').eq('store_id', storeId).order('created_at', { ascending: false });
+            if (user?.id) ordersQuery = ordersQuery.or(`customer_user_id.eq.${user.id},customer_email.ilike.${user.email}`);
+            else ordersQuery = ordersQuery.ilike('customer_email', decodedId);
+            const { data: orders, error: ordersError } = await ordersQuery;
+            if (ordersError) throw ordersError;
+
+            const paidOrders = (orders || []).filter((order: any) => ['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(order.status));
+            const totalSpent = paidOrders.reduce((sum: number, order: any) => sum + Number(order.total || 0), 0);
+            res.json({
+              customer: user || { id: decodedId, email: decodedId, full_name: 'Invitado' },
+              summary: { orders_count: paidOrders.length, total_spent: totalSpent, last_order_date: paidOrders[0]?.created_at || null },
+              orders: orders || []
+            });
           } catch (e: any) {
             res.status(500).json({ error: e.message });
           }

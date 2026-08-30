@@ -1,6 +1,6 @@
 import React from 'react';
-import { useAdminSales, useTopProducts, useRecentOrders, useCouponsAnalytics } from '../../hooks/useAnalytics';
-import { DollarSign, ShoppingCart, TrendingUp, Users, Tag } from 'lucide-react';
+import { useAdminSales, useTopProducts, useRecentOrders, useCouponsAnalytics, useOperationsSummary } from '../../hooks/useAnalytics';
+import { AlertTriangle, Activity, DollarSign, ShoppingCart, TrendingUp, Users, Tag } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const MetricCard = ({ title, value, icon: Icon, color }: any) => (
@@ -20,8 +20,9 @@ export function AdminDashboard() {
   const { data: topProducts, isLoading: isProductsLoading } = useTopProducts();
   const { data: recentOrders, isLoading: isOrdersLoading } = useRecentOrders();
   const { data: coupons, isLoading: isCouponsLoading } = useCouponsAnalytics();
+  const { data: operations, isLoading: isOperationsLoading } = useOperationsSummary();
 
-  if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading) return <div className="p-4 sm:p-10 flex items-center justify-center text-gray-500">Cargando métricas...</div>;
+  if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading || isOperationsLoading) return <div className="p-4 sm:p-10 flex items-center justify-center text-gray-500">Cargando métricas...</div>;
 
   const formatCurrency = (val: number) => `MXN $${(val || 0).toFixed(2)}`;
 
@@ -30,6 +31,49 @@ export function AdminDashboard() {
       <div>
         <h2 className="font-serif text-3xl text-[var(--color-text)] mb-8">Panel de Control</h2>
         
+        {operations?.alerts?.length > 0 && (
+          <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-3 text-amber-800 font-bold">
+              <AlertTriangle size={20} /> Alertas operativas
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {operations.alerts.map((alert: any) => (
+                <div key={alert.code} className="bg-white/70 border border-amber-100 rounded-xl px-4 py-3 text-sm text-amber-900">
+                  <span className="font-bold uppercase text-[10px] tracking-wider mr-2">{alert.level}</span>
+                  {alert.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard
+            title="Ingresos Hoy"
+            value={formatCurrency(operations?.payments?.revenueToday || 0)}
+            icon={Activity}
+            color="#0EA5E9"
+          />
+          <MetricCard
+            title="Pendientes"
+            value={operations?.orders?.pending || 0}
+            icon={ShoppingCart}
+            color="#F59E0B"
+          />
+          <MetricCard
+            title="Stock Bajo"
+            value={operations?.inventory?.lowStockProducts?.length || 0}
+            icon={AlertTriangle}
+            color="#EF4444"
+          />
+          <MetricCard
+            title="Webhooks con Error"
+            value={operations?.payments?.failedStripeEvents || 0}
+            icon={AlertTriangle}
+            color="#DC2626"
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard 
             title="Ingresos Totales" 
@@ -105,6 +149,50 @@ export function AdminDashboard() {
                 <div className="h-full flex items-center justify-center text-gray-400">Sin datos de ingresos mensuales.</div>
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-red-500"/> Stock bajo</h3>
+            {operations?.inventory?.lowStockProducts?.length > 0 ? (
+              <div className="space-y-3">
+                {operations.inventory.lowStockProducts.slice(0, 6).map((p: any) => (
+                  <div key={p.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                    <span className="text-sm font-medium text-gray-900">{p.name}</span>
+                    <span className="text-xs font-bold text-red-600">{p.stock} disponibles</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-gray-500">Sin productos en bajo stock.</p>}
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Activity size={20} className="text-[var(--color-primary)]"/> Stripe/Webhooks</h3>
+            {operations?.recentStripeEvents?.length > 0 ? (
+              <div className="space-y-3">
+                {operations.recentStripeEvents.slice(0, 5).map((event: any) => (
+                  <div key={event.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <div className="flex justify-between gap-2"><span className="text-xs font-mono text-gray-700 truncate">{event.type}</span><span className={event.processed_at && !event.error_message ? 'text-green-600 text-xs font-bold' : 'text-red-600 text-xs font-bold'}>{event.processed_at && !event.error_message ? 'OK' : 'Revisar'}</span></div>
+                    {event.error_message && <p className="text-xs text-red-600 mt-1 line-clamp-2">{event.error_message}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-gray-500">Sin eventos recientes.</p>}
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Activity size={20} className="text-[var(--color-primary)]"/> Auditoría reciente</h3>
+            {operations?.recentAuditLogs?.length > 0 ? (
+              <div className="space-y-3">
+                {operations.recentAuditLogs.slice(0, 5).map((log: any) => (
+                  <div key={log.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">{log.action}</p>
+                    <p className="text-xs text-gray-500">{log.entity_type} · {new Date(log.created_at).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-gray-500">Sin acciones auditadas todavía.</p>}
           </div>
         </div>
 
