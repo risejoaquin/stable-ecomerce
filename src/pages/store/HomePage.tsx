@@ -12,6 +12,7 @@ import { SEO } from '../../components/SEO';
 import { StarRating } from '../../components/reviews/StarRating';
 import { useProductRating } from '../../hooks/useReviews';
 import { toast } from 'react-hot-toast';
+import { organizationJsonLd, websiteJsonLd, productCanonicalPath } from '../../lib/seo';
 import { ArrowRight, HeartHandshake, PackageCheck, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
@@ -64,7 +65,7 @@ export function HomePage() {
 
   return (
     <>
-      <SEO title={`${currentStore.name || DEFAULT_BRAND} | Skincare consciente`} description={currentStore.description || 'Skincare seleccionado para rutinas simples, seguras y efectivas.'} />
+      <SEO title={`${currentStore.name || DEFAULT_BRAND} | Skincare consciente`} description={currentStore.description || 'Skincare seleccionado para rutinas simples, seguras y efectivas.'} canonicalPath="/" jsonLd={[organizationJsonLd(), websiteJsonLd()]} />
       <div className="min-h-screen flex flex-col" style={{
         backgroundColor,
         color: textColor,
@@ -218,12 +219,12 @@ export const StyledProductCard: React.FC<{ product: any, config: any, themeColor
   return (
     <div className={`group overflow-hidden flex bg-white transition-transform hover:-translate-y-1 relative border ${isList ? 'flex-col sm:flex-row' : 'flex-col'}`} style={{ borderRadius: 'var(--border-radius-base)', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)', borderColor: (config.secondaryColor || '#ccc') + '20' }}>
       {!inStock && <div className="absolute top-3 left-3 bg-red-500 text-white text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full z-10">Agotado</div>}
-      <Link to={`/product/${product.id}`} className={`bg-gray-50 overflow-hidden relative block ${isList ? 'w-full sm:w-1/3 aspect-square sm:aspect-auto' : 'aspect-square'}`}>
+      <Link to={productCanonicalPath(product)} className={`bg-gray-50 overflow-hidden relative block ${isList ? 'w-full sm:w-1/3 aspect-square sm:aspect-auto' : 'aspect-square'}`}>
         {product.images?.[0] ? <img src={product.images[0]} alt={product.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-gray-300">Sin imagen</div>}
       </Link>
       <div className={`p-5 flex flex-col ${isList ? 'w-full sm:w-2/3 justify-center' : 'flex-1'}`}>
         <div className="flex justify-between items-start gap-4">
-          <Link to={`/product/${product.id}`} className="flex-1"><h3 className="font-bold text-lg mb-1 line-clamp-1 hover:underline" style={{ color: textColor }}>{product.name}</h3></Link>
+          <Link to={productCanonicalPath(product)} className="flex-1"><h3 className="font-bold text-lg mb-1 line-clamp-1 hover:underline" style={{ color: textColor }}>{product.name}</h3></Link>
           <WishlistButton productId={product.id} className="flex-shrink-0 -mt-1 -mr-1" />
         </div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -236,7 +237,7 @@ export const StyledProductCard: React.FC<{ product: any, config: any, themeColor
         <div className="flex items-center justify-between mt-auto pt-4 border-t" style={{ borderColor: (config.secondaryColor || '#ccc') + '30' }}>
           <p className="font-semibold text-lg" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
           {hasVariants ? (
-            <Link to={`/product/${product.id}`} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 text-center" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>Ver opciones</Link>
+            <Link to={productCanonicalPath(product)} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 text-center" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>Ver opciones</Link>
           ) : (
             <button disabled={!inStock} onClick={() => { addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] }); toast.success('Agregado al carrito'); }} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>{inStock ? 'Agregar' : 'Agotado'}</button>
           )}

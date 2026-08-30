@@ -16,6 +16,7 @@ import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
 import { SEO } from '../../components/SEO';
 import { ArrowLeft, CheckCircle2, HeartHandshake, PackageCheck, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { productCanonicalPath, productJsonLd, stripHtml } from '../../lib/seo';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -89,7 +90,7 @@ export function ProductDetailPage() {
 
   return (
     <>
-      <SEO title={`${product.seo_title || product.name} | ${currentStore.name}`} description={product.seo_description || product.description} />
+      <SEO title={product.seo_title || product.name} description={stripHtml(product.seo_description || product.description || product.long_description)} image={product.images?.[0]} canonicalPath={productCanonicalPath(product)} type="product" jsonLd={productJsonLd(product, currentStore.name)} />
       <div className="min-h-screen flex flex-col" style={{ backgroundColor, color: textColor, fontFamily }}>
         <StoreHeader backButton />
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full py-8 sm:py-12">

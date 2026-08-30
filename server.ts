@@ -1761,6 +1761,96 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
         }));
 
 
+  // --- SEO / DISCOVERY ROUTES ---
+  const xmlEscape = (value: any) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const slugify = (value: any) => String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'producto';
+
+  const productPublicPath = (product: any) => `/product/${product.id}/${slugify(product.slug || product.name || product.id)}`;
+
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send([
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /admin',
+      'Disallow: /api/',
+      'Disallow: /checkout/',
+      'Disallow: /reset-password',
+      'Disallow: /verify-email',
+      '',
+      `Sitemap: ${APP_URL.replace(/\/$/, '')}/sitemap.xml`,
+      ''
+    ].join('\n'));
+  });
+
+  app.get('/sitemap.xml', asyncHandler(async (_req, res) => {
+    res.type('application/xml');
+    res.set('Cache-Control', 'public, max-age=900');
+    const base = APP_URL.replace(/\/$/, '');
+    const staticPages = ['/', '/faq', '/track', '/contact', '/privacy', '/terms', '/returns'];
+    let productRows: any[] = [];
+
+    if (supabase) {
+      const storeId = await getPrimaryStoreId();
+      if (storeId) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id,name,slug,updated_at,created_at,status')
+          .eq('store_id', storeId)
+          .eq('status', 'active')
+          .order('updated_at', { ascending: false })
+          .limit(500);
+        if (!error) productRows = data || [];
+      }
+    }
+
+    const urls = [
+      ...staticPages.map((pathName) => ({ loc: `${base}${pathName}`, priority: pathName === '/' ? '1.0' : '0.7', changefreq: pathName === '/' ? 'daily' : 'weekly' })),
+      ...productRows.map((product) => ({
+        loc: `${base}${productPublicPath(product)}`,
+        lastmod: product.updated_at || product.created_at,
+        priority: '0.8',
+        changefreq: 'weekly',
+      })),
+    ];
+
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((url: any) => `  <url>\n    <loc>${xmlEscape(url.loc)}</loc>${url.lastmod ? `\n    <lastmod>${xmlEscape(new Date(url.lastmod).toISOString())}</lastmod>` : ''}\n    <changefreq>${url.changefreq}</changefreq>\n    <priority>${url.priority}</priority>\n  </url>`).join('\n')}\n</urlset>`);
+  }));
+
+  app.get('/api/seo/products', asyncHandler(async (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=300');
+    if (!supabase) return res.json({ data: [] });
+    const storeId = await getPrimaryStoreId();
+    if (!storeId) return res.json({ data: [] });
+    const { data, error } = await supabase
+      .from('products')
+      .select('id,name,slug,seo_title,seo_description,description,images,price,stock,updated_at,status')
+      .eq('store_id', storeId)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({
+      data: (data || []).map((product: any) => ({
+        ...product,
+        canonical_path: productPublicPath(product),
+      }))
+    });
+  }));
+
+
   // Products route for Tanstack Query hook (GET /api/products?store_slug=...)
   
   app.get('/api/products/:id', asyncHandler(async (req: any, res) => {

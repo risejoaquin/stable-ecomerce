@@ -127,3 +127,21 @@ Validates commercial home, product detail, cart UX, FAQ, public order tracking w
 ## Hotfix D.1 — Public Order Tracking Resilience
 
 Fixes `/api/orders/track` so invalid/missing email matches return 404 instead of PostgREST single-object 500 errors. Legacy manually finalized orders may need `customer_email` backfill for public tracking.
+
+## Production checkpoint — SUPERFASE E
+
+SEO, performance, accessibility and production polish included.
+
+Required DB migration:
+
+```sql
+scripts/db/006_seo_performance_accessibility_polish.sql
+```
+
+Post-deploy validation:
+
+- `GET /robots.txt` → 200
+- `GET /sitemap.xml` → 200 XML
+- `GET /api/seo/products` → 200
+- Home/Product/FAQ render canonical, Open Graph and JSON-LD metadata.
+- PWA manifest shows Selfcare Sinners branding.

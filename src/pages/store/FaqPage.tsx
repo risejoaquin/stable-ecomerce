@@ -12,12 +12,22 @@ const faqs = [
   ['¿Qué hago si mi pago fue aceptado pero no veo el pedido?', 'Contáctanos con tu correo, ID de orden o comprobante. El panel operativo registra eventos Stripe, auditoría e inventario para reconciliar rápido.'],
 ];
 
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(([question, answer]) => ({
+    '@type': 'Question',
+    name: question,
+    acceptedAnswer: { '@type': 'Answer', text: answer },
+  })),
+};
+
 export function FaqPage() {
   const { data: store } = useStoreConfig();
   const themeColor = store?.config?.themeColor || '#6B705C';
   return (
     <div className="min-h-screen bg-[var(--color-background)] flex flex-col">
-      <SEO title="FAQ | Selfcare Sinners" description="Preguntas frecuentes de compra, pagos, pedidos, rastreo y devoluciones." />
+      <SEO title="FAQ" description="Preguntas frecuentes de compra, pagos, pedidos, rastreo y devoluciones." canonicalPath="/faq" jsonLd={faqJsonLd} />
       <StoreHeader />
       <main className="max-w-4xl mx-auto w-full px-4 sm:px-8 py-12">
         <p className="text-xs uppercase tracking-[0.25em] font-black opacity-50 mb-3">Ayuda</p>

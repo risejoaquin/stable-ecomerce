@@ -398,6 +398,7 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/product/:id/:slug" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/track" element={<TrackOrderPage />} />
