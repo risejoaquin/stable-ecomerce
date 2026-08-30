@@ -522,7 +522,7 @@ async function startServer() {
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
         "img-src": ["'self'", "data:", "blob:", "https:"],
-        "connect-src": ["'self'", APP_URL, API_URL, "https://*.supabase.co", "https://api.stripe.com", "https://*.sentry.io"],
+        "connect-src": ["'self'", APP_URL, API_URL, "https://*.supabase.co", "https://api.stripe.com", "https://*.sentry.io", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "frame-src": ["https://js.stripe.com", "https://hooks.stripe.com"],
         "frame-ancestors": ["'none'"]
       }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'selfcare-sinners-static-v1';
+const CACHE_NAME = 'selfcare-sinners-static-v2';
 const STATIC_ASSETS = [
   '/',
   '/faq',
@@ -24,6 +24,10 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET') return;
+  // Do not proxy or cache cross-origin assets (Google Fonts, Stripe, Supabase, etc.).
+  // Cross-origin fetches from inside a service worker are governed by connect-src CSP,
+  // which can block otherwise-valid font stylesheet requests. Let the browser handle them.
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) return;
 
   event.respondWith(
