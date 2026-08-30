@@ -110,3 +110,15 @@ GET /api/admin/inventory/movements = 200
 Order status update creates audit/timeline records
 Tracking update creates audit/timeline records
 ```
+
+## Phase D checkpoint
+
+SUPERFASE D — Storefront Completion & Customer Experience.
+
+Required migration before validation:
+
+```sql
+scripts/db/005_storefront_customer_experience_and_timeline.sql
+```
+
+Validates commercial home, product detail, cart UX, FAQ, public order tracking with timeline, Selfcare Sinners branding, and D.0 real order status timeline trigger.

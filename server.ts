@@ -416,7 +416,9 @@ function normalizeVariantInput(variants: any[] | undefined) {
 const OrderItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.number().int().positive(),
-  name: z.string().optional()
+  name: z.string().optional(),
+  variantName: z.string().optional().nullable(),
+  sku: z.string().optional().nullable()
 });
 
 const OrderInputSchema = z.object({
@@ -618,15 +620,29 @@ async function startServer() {
   app.get('/api/orders/track', asyncHandler(async (req, res) => {
           if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
           try {
-            const email = req.query.email as string;
-            const orderId = req.query.order_id as string;
+            const email = String(req.query.email || '').trim();
+            const orderId = String(req.query.order_id || '').trim();
             if (!email || !orderId) return res.status(400).json({ error: 'Email and order_id required' });
 
-            const { data, error } = await supabase.from('orders').select('*, order_items(*, products(name, images))').eq('id', orderId).ilike('customer_email', email).single();
+            const { data, error } = await supabase
+              .from('orders')
+              .select('*, order_items(*, products(name, images, sku))')
+              .eq('id', orderId)
+              .ilike('customer_email', email)
+              .single();
             if (error) throw error;
             if (!data) return res.status(404).json({ error: 'Order not found' });
-            
-            res.json(data);
+
+            const timelineResult = await supabase
+              .from('order_timeline')
+              .select('*')
+              .eq('order_id', orderId)
+              .order('created_at', { ascending: true });
+
+            res.json({
+              ...data,
+              timeline: timelineResult.error ? [] : (timelineResult.data || [])
+            });
           } catch (e: any) {
             res.status(500).json({ error: e.message });
           }
@@ -886,28 +902,31 @@ app.get('/api/health', asyncHandler(async (req, res) => {
               const { data: product } = await supabase.from('products').select('*').eq('id', actualProductId).single();
               if (!product) throw new Error(`Product ${item.productId} not found`);
               
-              let stockToCheck = product.stock;
-              if (product.variants && Array.isArray(product.variants) && (item as any).name) {
-                 const variantMatch = product.variants.find(v => (item as any).name.includes(v.name));
-                 if (variantMatch) {
-                   stockToCheck = variantMatch.stock;
-                 }
-              }
+              const variants = Array.isArray(product.variants) ? product.variants : [];
+              const variantMatch = variants.find((v: any) =>
+                ((item as any).variantName && String(v.name).toLowerCase() === String((item as any).variantName).toLowerCase()) ||
+                ((item as any).name && String((item as any).name).toLowerCase().includes(String(v.name).toLowerCase())) ||
+                ((item as any).sku && v.sku && String(v.sku).toLowerCase() === String((item as any).sku).toLowerCase())
+              );
+              const selectedPrice = Number(variantMatch?.price || product.price);
+              const selectedSku = variantMatch?.sku || product.sku || null;
+              const stockToCheck = Number(variantMatch ? variantMatch.stock : product.stock);
               
               if (stockToCheck < item.quantity) throw new Error(`Not enough stock for ${(item as any).name || product.name}`);
               
-              total += product.price * item.quantity;
+              total += selectedPrice * item.quantity;
               orderItems.push({
                 product_id: product.id,
                 quantity: item.quantity,
-                unit_price: product.price,
+                unit_price: selectedPrice,
                 name: (item as any).name || product.name,
                 product_snapshot: {
                   id: product.id,
                   name: (item as any).name || product.name,
                   baseName: product.name,
-                  price: product.price,
-                  sku: product.sku || null,
+                  variantName: variantMatch?.name || (item as any).variantName || null,
+                  price: selectedPrice,
+                  sku: selectedSku,
                   images: product.images || []
                 }
               });
@@ -1443,14 +1462,14 @@ app.get('/api/health', asyncHandler(async (req, res) => {
           if (!supabase) return res.status(404).json({ error: 'Supabase not configured' });
           try {
             const { id } = req.params;
-            const { tracking_number, notes } = req.body;
+            const { tracking_number, tracking_url, notes } = req.body;
             const storeId = await getPrimaryStoreId();
             if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
             
-            const { data, error } = await supabase.from('orders').update({ tracking_number, notes, updated_at: new Date().toISOString() }).eq('id', id).eq('store_id', storeId).select().single();
+            const { data, error } = await supabase.from('orders').update({ tracking_number, tracking_url: tracking_url || null, notes, updated_at: new Date().toISOString() }).eq('id', id).eq('store_id', storeId).select().single();
             if (error) throw error;
-            await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_tracking_updated', entityType: 'order', entityId: id, metadata: { tracking_number } });
-            await writeOrderTimeline({ orderId: id, actorUserId: req.auth.userId, eventType: 'tracking_updated', metadata: { tracking_number, has_notes: Boolean(notes) } });
+            await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_tracking_updated', entityType: 'order', entityId: id, metadata: { tracking_number, tracking_url: tracking_url || null } });
+            await writeOrderTimeline({ orderId: id, actorUserId: req.auth.userId, eventType: 'tracking_updated', metadata: { tracking_number, tracking_url: tracking_url || null, has_notes: Boolean(notes) } });
             res.json(data);
           } catch (e: any) {
             res.status(500).json({ error: e.message });

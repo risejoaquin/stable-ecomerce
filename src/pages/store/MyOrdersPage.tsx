@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useApiClient } from '../../api/useApiClient';
 import { SEO } from '../../components/SEO';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
-import { Package } from 'lucide-react';
+import { Package, Search } from 'lucide-react';
 
 export function MyOrdersPage() {
   const apiClient = useApiClient();
@@ -42,18 +42,18 @@ export function MyOrdersPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] flex flex-col font-sans">
-      <SEO title="My Orders" />
+      <SEO title="Mis pedidos | Selfcare Sinners" />
       <StoreHeader />
       
       <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 flex flex-col">
         <h1 className="font-serif text-3xl mb-8 text-[var(--color-text)]">Mis Pedidos</h1>
         
-        {isLoading ? <p className="text-gray-500">Loading your orders...</p> : (
+        {isLoading ? <p className="text-gray-500">Cargando tus pedidos...</p> : (
           orders?.length === 0 ? (
             <div className="text-center py-20">
               <Package size={48} className="mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500 text-lg">No has realizado ningún pedido todavía.</p>
-              <a href="/" className="mt-4 inline-block text-[var(--color-primary)] hover:underline font-medium">Continue Shopping</a>
+              <a href="/" className="mt-4 inline-block text-[var(--color-primary)] hover:underline font-medium">Seguir comprando</a>
             </div>
           ) : (
             <div className="grid gap-6">
@@ -99,9 +99,16 @@ export function MyOrdersPage() {
                         disabled={resumeCheckout.isPending && resumeCheckout.variables === order.id}
                         className="bg-black text-white px-6 py-2 rounded-xl text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
                       >
-                        {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Processing...' : 'Complete Payment'}
+                        {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Procesando...' : 'Completar pago'}
                       </button>
-                    ) : <div />}
+                    ) : (
+                      <a
+                        href={`/track?order_id=${order.id}`}
+                        className="inline-flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                      >
+                        <Search size={15} /> Rastrear
+                      </a>
+                    )}
                     <div className="flex gap-6">
                       <span className="text-gray-500">Total</span>
                       <span>MXN ${Number(order.total).toFixed(2)}</span>

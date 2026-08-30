@@ -1,6 +1,6 @@
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useCart, CartDrawer } from '../../App';
@@ -14,19 +14,19 @@ import { StarRating } from '../../components/reviews/StarRating';
 import { useProductRating } from '../../hooks/useReviews';
 import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
 import { SEO } from '../../components/SEO';
-import { ShoppingBag, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, HeartHandshake, PackageCheck, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export function ProductDetailPage() {
   const { id } = useParams();
   const apiClient = useApiClient();
-  const { items, setIsCartOpen, addItem } = useCart();
+  const { setIsCartOpen, addItem } = useCart();
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
   const { data: ratingData } = useProductRating(id || '');
   const { isSignedIn } = useAuth();
-
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
+  const [quantity, setQuantity] = useState(1);
 
   const { data: product, isLoading: isProductLoading } = useQuery({
     queryKey: ['product', id],
@@ -34,195 +34,170 @@ export function ProductDetailPage() {
     enabled: !!id
   });
 
-  const { data: similarProductsResult, isLoading: isSimilarLoading } = useSearchProducts(
+  const { data: similarProductsResult } = useSearchProducts(
     store?.slug,
     { category: (product?.categories && product.categories.length > 0) ? product.categories[0] : (product?.category || ''), pageSize: 4 },
   );
-  
   const similarProducts = similarProductsResult?.data?.filter((p: any) => p.id !== product?.id).slice(0, 3) || [];
 
-  if (isStoreLoading || isProductLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Loading...</div>;
-  if (!product) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Product not found</div>;
+  if (isStoreLoading || isProductLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Cargando producto...</div>;
+  if (!product) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Producto no encontrado</div>;
 
-  const currentStore = store || { name: 'My Store', config: {}, description: '' };
+  const currentStore = store || { name: 'Selfcare Sinners', config: {}, description: '' };
   const config = currentStore.config || {};
   const themeColor = config.themeColor || '#6B705C';
   const secondaryColor = config.secondaryColor || '#A5A58D';
   const backgroundColor = config.backgroundColor || '#FDFCFB';
   const textColor = config.textColor || '#333333';
   const buttonColor = config.buttonColor || themeColor;
-  const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' :
-                      config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' :
-                      '"Inter", sans-serif';
+  const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' : config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' : '"Inter", sans-serif';
 
-  const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-
-  const hasVariants = product.variants && product.variants.length > 0;
-  const inStock = hasVariants 
-    ? (selectedVariant ? product.variants.find((v: any) => v.name === selectedVariant)?.stock > 0 : product.variants.some((v: any) => v.stock > 0))
-    : product.stock > 0;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const hasVariants = variants.length > 0;
+  const activeVariant = selectedVariant || variants.find((v: any) => Number(v.stock) > 0) || null;
+  const availableStock = hasVariants ? Number(activeVariant?.stock || 0) : Number(product.stock || 0);
+  const inStock = availableStock > 0;
+  const price = Number(activeVariant?.price || product.price || 0);
+  const sku = activeVariant?.sku || product.sku;
+  const ingredients = product.ingredients || product.config?.ingredients || [];
 
   const handleAddToCart = () => {
-    if (hasVariants && !selectedVariant) {
-      toast.error('Please select an option first');
+    if (hasVariants && !activeVariant) {
+      toast.error('Selecciona una opción disponible primero');
       return;
     }
-    const itemName = hasVariants ? `${product.name} - ${selectedVariant}` : product.name;
-    addItem({ id: hasVariants ? `${product.id}-${selectedVariant}` : product.id, productId: product.id, name: itemName, price: product.price, quantity: 1, image: product.images?.[0] });
-    toast.success('Added to cart');
+    if (!inStock) {
+      toast.error('Producto agotado');
+      return;
+    }
+    const variantSuffix = hasVariants ? ` - ${activeVariant.name}` : '';
+    for (let i = 0; i < quantity; i++) {
+      addItem({
+        id: hasVariants ? `${product.id}-${activeVariant.name}` : product.id,
+        productId: product.id,
+        name: `${product.name}${variantSuffix}`,
+        price,
+        quantity: 1,
+        image: product.images?.[0],
+        variant: activeVariant?.name,
+        sku
+      });
+    }
+    toast.success('Agregado al carrito');
+    setIsCartOpen(true);
   };
 
   return (
     <>
-      <SEO title={`${product.name} - ${currentStore.name}`} description={product.description} />
+      <SEO title={`${product.seo_title || product.name} | ${currentStore.name}`} description={product.seo_description || product.description} />
       <div className="min-h-screen flex flex-col" style={{ backgroundColor, color: textColor, fontFamily }}>
-        
-        {/* Header */}
         <StoreHeader backButton />
-
-        {/* Main Content */}
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full py-8 sm:py-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-            
-            {/* Image Gallery */}
+          <Link to="/" className="inline-flex items-center gap-2 text-sm font-bold mb-6 opacity-70 hover:opacity-100"><ArrowLeft size={16} /> Volver al catálogo</Link>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-8 md:gap-12">
             <div className="flex flex-col gap-4">
-              <div className="bg-gray-50 aspect-square rounded-2xl overflow-hidden flex items-center justify-center relative">
+              <div className="bg-gray-50 aspect-square rounded-[2rem] overflow-hidden flex items-center justify-center relative border" style={{ borderColor: secondaryColor + '25' }}>
                 <WishlistButton productId={product.id} className="absolute top-4 right-4 z-10 p-3 shadow-md border border-gray-100" />
-                {product.images && product.images[selectedImageIndex] ? (
-                  <img src={product.images[selectedImageIndex]} alt={product.name} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
-                ) : (
-                  <div className="text-gray-400">No Image</div>
-                )}
+                {product.images?.[selectedImageIndex] ? <img src={product.images[selectedImageIndex]} alt={product.name} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" /> : <div className="text-gray-400">Sin imagen</div>}
               </div>
-              
-              {/* Thumbnails */}
-              {product.images && product.images.length > 1 && (
-                <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+              {product.images?.length > 1 && (
+                <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                   {product.images.map((img: string, idx: number) => (
-                    <button 
-                      key={idx}
-                      onClick={() => setSelectedImageIndex(idx)}
-                      className={`flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 transition-colors ${selectedImageIndex === idx ? 'border-black' : 'border-transparent'}`}
-                      style={{ borderColor: selectedImageIndex === idx ? themeColor : 'transparent' }}
-                    >
-                      <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover opacity-80 hover:opacity-100" />
+                    <button key={idx} onClick={() => setSelectedImageIndex(idx)} className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 transition-colors" style={{ borderColor: selectedImageIndex === idx ? themeColor : 'transparent' }}>
+                      <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover opacity-80 hover:opacity-100" />
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Product Details */}
-            <div className="flex flex-col justify-start pt-4">
-              <div className="mb-2 flex items-center gap-2">
-                {product.brand && (
-                  <span className="text-sm font-bold uppercase tracking-wider" style={{ color: secondaryColor }}>{product.brand}</span>
-                )}
-                {product.category && (
-                  <>
-                    <span className="text-gray-300">•</span>
-                    <span className="text-sm" style={{ color: secondaryColor }}>{product.category}</span>
-                  </>
-                )}
-                {product.subcategory && (
-                  <>
-                    <span className="text-gray-300">•</span>
-                    <span className="text-sm" style={{ color: secondaryColor }}>{product.subcategory}</span>
-                  </>
-                )}
+            <section className="bg-white rounded-[2rem] p-5 sm:p-8 border h-fit" style={{ borderColor: secondaryColor + '30' }}>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest" style={{ color: themeColor }}><Sparkles size={14} /> Selfcare Sinners</span>
+                {product.brand && <span className="text-xs font-bold uppercase tracking-wider opacity-50">{product.brand}</span>}
+                {product.category && <span className="text-xs opacity-50">{product.category}</span>}
               </div>
-              
-              <h1 className="text-4xl font-bold mb-4 leading-tight">{product.name}</h1>
-              
-              {ratingData && ratingData.count > 0 && (
-                <div className="flex items-center gap-3 mb-6">
-                  <StarRating rating={ratingData.average} color={themeColor} size={20} />
-                  <span className="text-sm font-medium" style={{ color: secondaryColor }}>{ratingData.average.toFixed(1)} ({ratingData.count} reviews)</span>
-                </div>
-              )}
+              <h1 className="text-3xl sm:text-5xl font-black mb-4 leading-tight">{product.name}</h1>
+              {ratingData && ratingData.count > 0 ? (
+                <div className="flex items-center gap-3 mb-5"><StarRating rating={ratingData.average} color={themeColor} size={20} /><span className="text-sm font-medium opacity-65">{ratingData.average.toFixed(1)} · {ratingData.count} reseñas</span></div>
+              ) : <p className="text-sm opacity-55 mb-5">Sé la primera persona en dejar una reseña.</p>}
+              <p className="text-3xl font-black mb-2" style={{ color: themeColor }}>MXN ${price.toFixed(2)}</p>
+              {sku && <p className="text-xs uppercase tracking-widest opacity-50 mb-6">SKU {sku}</p>}
+              <p className="opacity-80 leading-relaxed mb-8">{product.description}</p>
 
-              <p className="text-2xl font-semibold mb-6" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
-              
-              <div className="prose prose-sm md:prose-base mb-8">
-                <p className="opacity-80 leading-relaxed" style={{ color: textColor }}>{product.description}</p>
-              </div>
-              
-              {/* Variants Selector */}
               {hasVariants && (
                 <div className="mb-8">
-                  <label className="block text-sm font-medium mb-3 uppercase tracking-wider text-gray-500">Select Option</label>
-                  <div className="flex flex-wrap gap-3">
-                    {product.variants.map((v: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedVariant(v.name)}
-                        disabled={v.stock <= 0}
-                        className={`px-5 py-2.5 rounded-lg border-2 text-sm font-medium transition-all
-                          ${selectedVariant === v.name ? 'border-current shadow-sm' : 'border-gray-200 hover:border-gray-300 text-gray-600'}
-                          ${v.stock <= 0 ? 'opacity-40 cursor-not-allowed line-through' : 'cursor-pointer'}
-                        `}
-                        style={{ 
-                          borderColor: selectedVariant === v.name ? buttonColor : '',
-                          color: selectedVariant === v.name ? buttonColor : '' 
-                        }}
-                      >
-                        {v.name}
-                      </button>
-                    ))}
+                  <label className="block text-xs font-black mb-3 uppercase tracking-[0.2em] opacity-50">Elige presentación</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {variants.map((v: any, idx: number) => {
+                      const selected = activeVariant?.name === v.name;
+                      return <button key={`${v.name}-${idx}`} onClick={() => setSelectedVariant(v)} disabled={Number(v.stock) <= 0} className="text-left px-4 py-3 rounded-2xl border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed" style={{ borderColor: selected ? buttonColor : '#E5E5E1', backgroundColor: selected ? buttonColor + '10' : 'white' }}>
+                        <span className="block font-bold">{v.name}</span>
+                        <span className="text-xs opacity-60">{Number(v.stock) > 0 ? `${v.stock} disponibles` : 'Agotado'}</span>
+                      </button>;
+                    })}
                   </div>
                 </div>
               )}
-              
-              {!inStock && (
-                <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl font-medium border border-red-100">
-                  Agotado
+
+              <div className="grid sm:grid-cols-[130px_1fr] gap-3 mb-5">
+                <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: secondaryColor + '35' }}>
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="font-black text-xl">-</button>
+                  <span className="font-bold">{quantity}</span>
+                  <button onClick={() => setQuantity(Math.min(Math.max(availableStock, 1), quantity + 1))} className="font-black text-xl">+</button>
                 </div>
-              )}
-              
-              <button 
-                onClick={handleAddToCart}
-                disabled={!inStock}
-                className="px-8 py-4 text-white text-lg font-medium rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
-                style={{ backgroundColor: buttonColor }}
-              >
-                {inStock ? 'Añadir al Carrito' : 'Sold Out'}
-              </button>
-            </div>
+                <button onClick={handleAddToCart} disabled={!inStock} className="px-8 py-4 text-white text-base font-black rounded-2xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: buttonColor }}>
+                  {inStock ? 'Agregar al carrito' : 'Agotado'}
+                </button>
+              </div>
+              <p className="text-xs opacity-55 mb-8">Stock disponible: {availableStock}. El inventario se confirma al completar el pago.</p>
+
+              <div className="grid sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-gray-50"><ShieldCheck size={18} className="mb-2" />Pago seguro</div>
+                <div className="p-4 rounded-2xl bg-gray-50"><Truck size={18} className="mb-2" />Rastreo público</div>
+                <div className="p-4 rounded-2xl bg-gray-50"><HeartHandshake size={18} className="mb-2" />Soporte claro</div>
+              </div>
+            </section>
           </div>
 
-          {/* Productos Similares Section */}
-          {similarProducts.length > 0 && (
-            <div className="mt-24 border-t pt-16" style={{ borderColor: secondaryColor + '30' }}>
-              <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Productos Similares</h2>
-              <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {similarProducts.map((p: any) => (
-                  <StyledProductCard key={p.id} product={p} config={config} themeColor={themeColor} textColor={textColor} />
-                ))}
+          <section className="mt-14 grid md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 bg-white rounded-3xl p-6 border" style={{ borderColor: secondaryColor + '30' }}>
+              <h2 className="text-2xl font-black mb-4">Detalles de uso</h2>
+              <div className="prose prose-sm max-w-none opacity-80">
+                <p>{product.long_description || product.description || 'Producto seleccionado para complementar una rutina de skincare consciente.'}</p>
+                {Array.isArray(ingredients) && ingredients.length > 0 && <p><strong>Ingredientes destacados:</strong> {ingredients.join(', ')}</p>}
+                <p><strong>Recomendación:</strong> prueba de parche, uso consistente y protección solar cuando aplique.</p>
               </div>
             </div>
+            <div className="bg-white rounded-3xl p-6 border" style={{ borderColor: secondaryColor + '30' }}>
+              <h2 className="text-2xl font-black mb-4">Compra con claridad</h2>
+              <ul className="space-y-3 text-sm opacity-75">
+                <li className="flex gap-2"><CheckCircle2 size={16} /> Total visible antes del pago.</li>
+                <li className="flex gap-2"><CheckCircle2 size={16} /> Confirmación por correo.</li>
+                <li className="flex gap-2"><CheckCircle2 size={16} /> Políticas siempre disponibles.</li>
+              </ul>
+            </div>
+          </section>
+
+          {similarProducts.length > 0 && (
+            <section className="mt-20 border-t pt-14" style={{ borderColor: secondaryColor + '30' }}>
+              <h2 className="text-3xl font-black mb-8">También te puede interesar</h2>
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {similarProducts.map((p: any) => <StyledProductCard key={p.id} product={p} config={config} themeColor={themeColor} textColor={textColor} />)}
+              </div>
+            </section>
           )}
 
-          {/* Reseñas Section */}
-          <div className="mt-24 border-t pt-16" style={{ borderColor: secondaryColor + '30' }}>
-            <h2 className="text-3xl font-bold mb-10" style={{ color: textColor }}>Customer Reseñas</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-              <div className="lg:col-span-2">
-                <ReviewList productId={product.id} themeColor={buttonColor} />
-              </div>
-              <div>
-                {isSignedIn ? (
-                  <ReviewForm productId={product.id} themeColor={buttonColor} />
-                ) : (
-                  <div className="p-8 rounded-2xl border bg-gray-50 text-center">
-                    <p className="text-gray-600 mb-4">Inicia sesión para escribir una reseña.</p>
-                  </div>
-                )}
-              </div>
+          <section className="mt-20 border-t pt-14" style={{ borderColor: secondaryColor + '30' }}>
+            <h2 className="text-3xl font-black mb-8">Reseñas</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              <div className="lg:col-span-2"><ReviewList productId={product.id} themeColor={buttonColor} /></div>
+              <div>{isSignedIn ? <ReviewForm productId={product.id} themeColor={buttonColor} /> : <div className="p-8 rounded-2xl border bg-gray-50 text-center"><p className="text-gray-600 mb-4">Inicia sesión para escribir una reseña.</p></div>}</div>
             </div>
-          </div>
+          </section>
         </main>
-        
-        <CartDrawer storeId={currentStore?.id} themeColor={themeColor} />
+        <CartDrawer storeId={currentStore?.id} themeColor={themeColor} buttonColor={buttonColor} />
       </div>
     </>
   );
