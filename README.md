@@ -1,297 +1,44 @@
 # Selfcare Sinners Ecommerce
 
-**Owner técnico:** SolidBit  
-**Estado:** Launch Readiness cerrado + Post-launch 02–08 validados + PL09 preparado  
-**Deploy:** Railway  
-**DB:** Supabase PostgreSQL  
-**Pagos:** Stripe Checkout + Webhooks  
-**Emails:** Resend  
+Estado: producción activa hasta POST-LAUNCH 15 PASS. Esta entrega incluye:
 
----
+1. HOTFIX / CONSOLIDACIÓN — PL14.1 + PL15 Baseline Cleanup
+2. POST-LAUNCH 16 — Marketplace Expansion, Multi-Channel Sales & External Integrations
 
-## Estado del proyecto
+## Aplicación recomendada
 
-Selfcare Sinners es un ecommerce productivo orientado a skincare/autocuidado. El sistema ya cuenta con checkout real, webhooks Stripe, admin operativo, tracking público, SEO/PWA, diagnósticos, revenue operations, paid traffic readiness, catálogo/merchandising y fulfillment/support foundation.
+```powershell
+cd C:\Users\Joaquin\OneDrive\Documentos\Stable-Ecomerce\stable-ecomerce
 
-### Fases cerradas
-
-- Launch Readiness: CLOSED
-- Post-launch stabilization: CLOSED
-- POST-LAUNCH 02 — Commercial Operations & Growth Readiness: PASS
-- POST-LAUNCH 03 — Brand, Catalog & Conversion Optimization: PASS
-- POST-LAUNCH 04 — Content, Email, Reviews & Retention: PASS
-- POST-LAUNCH 05 — Analytics, Ads, Automation & Revenue Operations: PASS
-- POST-LAUNCH 06 — Paid Traffic Readiness & Conversion Hardening: PASS
-- POST-LAUNCH 07 — Real Catalog Import, Merchandising & Sales Enablement: PASS
-- POST-LAUNCH 08 — Fulfillment, Support Operations & Customer Service Hardening: PASS
-
-### Fase actual
-
-- POST-LAUNCH 09 — Finance, Accounting, Reconciliation & Admin Reporting
-
----
-
-## Stack
-
-- Frontend: React + Vite + TypeScript
-- Backend: Express + TypeScript
-- DB: Supabase PostgreSQL
-- Auth: JWT + admin RBAC
-- Payments: Stripe Checkout + webhooks idempotentes
-- Email: Resend
-- Deploy: Railway
-- Observability: health/readiness, diagnostics admin, operational events, smoke tests
-
----
-
-## Variables de entorno principales
-
-Nunca commitear secretos reales. Usar Railway/Supabase dashboard.
-
-```env
-NODE_ENV=production
-PORT=3000
-VITE_APP_URL=https://selfcaresinners.com
-VITE_API_URL=https://selfcaresinners.com
-ALLOWED_ORIGINS=https://selfcaresinners.com,https://www.selfcaresinners.com
-PRIMARY_STORE_SLUG=selfcare-sinners
-JWT_SECRET=...
-ADMIN_EMAIL=...
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
-SUPABASE_ANON_KEY=...
-STRIPE_SECRET_KEY=...
-STRIPE_WEBHOOK_SECRET=...
-RESEND_API_KEY=...
-EMAIL_FROM=...
+git add .
+git commit -m "PL14.1 consolidation and PL16 multichannel marketplace readiness"
+git push origin main
 ```
-
----
-
-## Comandos locales
-
-```bash
-npm install
-npm run build
-npm start
-```
-
----
 
 ## Migraciones
 
-Las migraciones están en:
-
-```txt
-scripts/db/
-```
-
-Para PL09 aplicar:
-
-```txt
-scripts/db/015_post_launch_09_finance_accounting_reconciliation_reporting.sql
-```
-
-Después ejecutar:
+Ejecutar en Supabase, en orden:
 
 ```sql
+scripts/db/020b_post_launch_14_1_mobile_pwa_schema_contract_consolidation.sql
+scripts/db/022_post_launch_16_marketplace_multichannel_external_integrations.sql
 NOTIFY pgrst, 'reload schema';
 ```
-
----
 
 ## Smoke tests
 
 ```powershell
-.\scripts\qa\smoke-production.ps1 -BaseUrl "https://selfcaresinners.com"
-
-.\scripts\qa\smoke-admin.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "ADMIN_EMAIL" `
-  -Password "ADMIN_PASSWORD"
-
-.\scripts\qa\smoke-finance.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "ADMIN_EMAIL" `
-  -Password "ADMIN_PASSWORD"
-```
-
----
-
-## Endpoints de salud
-
-```txt
-GET /api/health
-GET /api/readiness
-GET /api/admin/diagnostics
-GET /api/admin/diagnostics/stripe
-GET /api/admin/diagnostics/supabase
-GET /api/admin/diagnostics/orders
-GET /api/admin/diagnostics/security
-```
-
----
-
-## PL09 — Finance endpoints
-
-```txt
-GET  /api/admin/finance/summary
-GET  /api/admin/finance/reconciliation
-GET  /api/admin/finance/sales
-GET  /api/admin/finance/margins
-GET  /api/admin/finance/refunds
-GET  /api/admin/finance/inventory-valuation
-GET  /api/admin/finance/daily-close
-POST /api/admin/finance/daily-close
-GET  /api/admin/finance/export/orders.csv
-```
-
----
-
-## Seguridad
-
-- No subir `.env`, secretos, tokens, exports privados, backups ni credenciales.
-- Rotar credenciales si se exponen en logs/chat.
-- Mantener `ADMIN_EMAIL`, `JWT_SECRET`, Stripe y Supabase solo en Railway.
-- Probar smoke admin después de cada rotación.
-
----
-
-## Operación diaria recomendada
-
-1. Revisar `/api/admin/diagnostics`.
-2. Revisar eventos Stripe sin resolver.
-3. Revisar pedidos pendientes/listos para enviar.
-4. Revisar inventario negativo/bajo.
-5. Ejecutar cierre diario financiero.
-6. Exportar CSV de órdenes para respaldo operativo.
-
----
-
-## Documentación
-
-Ver carpeta:
-
-```txt
-docs/production/
-```
-
-## POST-LAUNCH 11 — Scale, Multi-Operator Workflows & Advanced Admin UX
-
-Estado esperado: pendiente de validación.
-
-Incluye workflows multi-operador, roles/permisos granulares, colas de trabajo, asignaciones, notificaciones internas, acciones masivas y auditoría avanzada.
-
-Migración:
-
-```sql
-scripts/db/017_post_launch_11_scale_multi_operator_advanced_admin_ux.sql
-```
-
-Smoke:
-
-```powershell
-.\scripts\qa\smoke-scale-admin.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "TU_ADMIN_EMAIL" `
-  -Password "TU_PASSWORD"
-```
-
-## POST-LAUNCH 12 — Customer Account, Loyalty, Subscriptions & Personalization
-
-Estado objetivo: perfil avanzado de cliente, preferencias, historial de compras enriquecido, loyalty points, wallet, recompra, recomendaciones, suscripciones base, notificaciones personalizadas y dashboard admin de customer experience.
-
-Migración:
-
-```sql
-scripts/db/018_post_launch_12_customer_loyalty_subscriptions_personalization.sql
-```
-
-Smoke test:
-
-```powershell
-.\scripts\qa\smoke-customer-loyalty.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "TU_ADMIN_EMAIL" `
-  -Password "TU_PASSWORD"
-```
-
-## POST-LAUNCH 12.1 — Customer loyalty smoke security hotfix
-
-The PL12 smoke script was adjusted so `/api/customer/*` is not validated anonymously or with only an email query parameter. The default validation now checks the admin customer-experience surface. Customer-owned endpoints can be tested only with `-IncludeCustomerEndpoints` plus a real `-CustomerToken`.
-
-## POST-LAUNCH 13 — Marketplace Readiness, Supplier Operations & Purchase Planning
-
-Incluye gestión de proveedores, costos por proveedor, órdenes de compra, planeación de inventario, reposición sugerida, lead times, márgenes por proveedor/producto, catálogo proveedor y alertas de stock proyectado.
-
-Archivos principales:
-
-```txt
-scripts/db/019_post_launch_13_marketplace_supplier_purchase_planning.sql
-scripts/qa/smoke-supplier-ops.ps1
-docs/production/POST_LAUNCH_13_MARKETPLACE_SUPPLIER_PURCHASE_PLANNING.md
-```
-
-Validación:
-
-```powershell
-.\scripts\qa\smoke-supplier-ops.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "TU_ADMIN_EMAIL" `
-  -Password "TU_PASSWORD"
-```
-
-## POST-LAUNCH 14 — Mobile Experience, PWA Hardening & App-Like Commerce
-
-Entrega PL14 agrega PWA/mobile hardening:
-
-- Experiencia móvil avanzada.
-- PWA installable más robusta.
-- Offline-lite para catálogo.
-- Mejor checkout móvil.
-- Notificaciones web push base.
-- Home screen app experience.
-- Optimización táctil.
-- Performance mobile.
-- Retención desde móvil.
-- Preparación para app futura.
-
-### Migración
-
-Ejecutar en Supabase:
-
-```sql
-scripts/db/020_post_launch_14_mobile_pwa_app_like_commerce.sql
-NOTIFY pgrst, 'reload schema';
-```
-
-### Smoke
-
-```powershell
 Unblock-File .\scripts\qa\smoke-mobile-pwa.ps1
+Unblock-File .\scripts\qa\smoke-ai-commerce.ps1
+Unblock-File .\scripts\qa\smoke-channels.ps1
 
-.\scripts\qa\smoke-mobile-pwa.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "TU_ADMIN_EMAIL" `
-  -Password "TU_PASSWORD"
+.\scripts\qa\smoke-mobile-pwa.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
+.\scripts\qa\smoke-ai-commerce.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
+.\scripts\qa\smoke-channels.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
 ```
 
-## POST-LAUNCH 15 — AI Commerce Assistant, Smart Search & Product Discovery
+## Resultado esperado
 
-Incluye búsqueda inteligente, asistente de compra base, FAQ asistido, sinónimos de skincare, scoring de intención de compra, descubrimiento guiado de productos e insights admin de búsqueda.
-
-Migración:
-
-```sql
-scripts/db/021_post_launch_15_ai_commerce_assistant_smart_search_product_discovery.sql
-NOTIFY pgrst, 'reload schema';
-```
-
-Smoke:
-
-```powershell
-.\scripts\qa\smoke-ai-commerce.ps1 `
-  -BaseUrl "https://selfcaresinners.com" `
-  -Email "TU_ADMIN_EMAIL" `
-  -Password "TU_PASSWORD"
-```
+- `PASS mobile PWA smoke checks`
+- `PASS AI commerce smoke checks`
+- `PASS channels smoke checks`

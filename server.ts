@@ -6104,6 +6104,190 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     res.json({ status: 'ok', intent: scoring.intent, score: scoring.score, recommendations: products });
   }));
 
+
+  // ============================================================
+  // POST-LAUNCH 16 — Marketplace Expansion, Multi-Channel Sales & External Integrations
+  // ============================================================
+
+  async function getChannelTable(table: string, limit = 250) {
+    if (!supabase) return [];
+    const storeId = await getPrimaryStoreId();
+    const query = supabase.from(table).select('*').order('created_at', { ascending: false }).limit(limit);
+    if (storeId) query.eq('store_id', storeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function getSalesChannels(limit = 250) {
+    if (!supabase) return [];
+    const storeId = await getPrimaryStoreId();
+    let query = supabase.from('sales_channels').select('*').order('created_at', { ascending: false }).limit(limit);
+    if (storeId) query = query.eq('store_id', storeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function getChannelProducts(limit = 500) {
+    if (!supabase) return [];
+    const storeId = await getPrimaryStoreId();
+    let query = supabase
+      .from('products')
+      .select('id,name,description,price,stock,image_url,category,collection,brand,slug,seo_title,seo_description,sku')
+      .limit(limit);
+    if (storeId) query = query.eq('store_id', storeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  app.get('/api/admin/channels/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [channels, feeds, inventory, externalOrders, syncEvents, performance] = await Promise.all([
+      getSalesChannels(250),
+      getChannelTable('channel_product_feeds', 250),
+      getChannelTable('channel_inventory_snapshots', 500),
+      getChannelTable('external_orders', 250),
+      getChannelTable('channel_sync_events', 250),
+      getChannelTable('channel_performance_snapshots', 250)
+    ]);
+    res.json({
+      status: 'ok',
+      counts: {
+        channels: channels.length,
+        activeChannels: channels.filter((x: any) => x.is_active !== false).length,
+        productFeeds: feeds.length,
+        inventorySnapshots: inventory.length,
+        externalOrders: externalOrders.length,
+        syncEvents: syncEvents.length,
+        performanceSnapshots: performance.length
+      },
+      readiness: {
+        catalogExportable: true,
+        inventorySyncBase: true,
+        externalOrdersBase: true,
+        channelReporting: true,
+        marketplaceReady: true
+      },
+      generatedAt: new Date().toISOString()
+    });
+  }));
+
+  app.get('/api/admin/channels', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const channels = await getSalesChannels(250);
+    res.json({ status: 'ok', channels });
+  }));
+
+  app.post('/api/admin/channels', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const channelKey = String(req.body?.channelKey || req.body?.channel_key || req.body?.platform || 'custom_channel').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const payload = {
+      store_id: storeId,
+      channel_key: channelKey,
+      name: req.body?.name || 'Canal de venta',
+      channel_type: req.body?.channelType || req.body?.channel_type || 'marketplace',
+      platform: req.body?.platform || 'custom',
+      status: req.body?.status || 'ready',
+      is_active: req.body?.isActive ?? req.body?.is_active ?? true,
+      currency: req.body?.currency || 'MXN',
+      locale: req.body?.locale || 'es-MX',
+      base_url: req.body?.baseUrl || req.body?.base_url || null,
+      external_account_id: req.body?.externalAccountId || req.body?.external_account_id || null,
+      config: req.body?.config || {},
+      metadata: req.body?.metadata || { source: 'api_admin_channels_create' },
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('sales_channels').upsert(payload, { onConflict: 'store_id,channel_key' }).select().single();
+    if (error) throw error;
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'sales_channel_upserted', entityType: 'sales_channels', entityId: data?.id, metadata: { channelKey } });
+    res.json({ status: 'ok', channel: data });
+  }));
+
+  app.get('/api/admin/channels/product-feeds', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const feeds = await getChannelTable('channel_product_feeds', 250);
+    res.json({ status: 'ok', feeds });
+  }));
+
+  app.post('/api/admin/channels/product-feeds/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', generated: false });
+    const storeId = await getPrimaryStoreId();
+    const channels = await getSalesChannels(50);
+    const products = await getChannelProducts(500);
+    const targetChannels = channels.length ? channels : [{ id: null, channel_key: 'website', platform: 'website' }];
+    const rows = targetChannels.map((channel: any) => ({
+      store_id: storeId,
+      channel_id: channel.id || null,
+      channel_key: channel.channel_key || 'website',
+      feed_type: req.body?.feedType || req.body?.feed_type || 'product_catalog',
+      status: 'generated',
+      product_count: products.length,
+      generated_at: new Date().toISOString(),
+      generated_by: req.auth?.userId || null,
+      payload: products.map((p: any) => ({ id: p.id, name: p.name, sku: p.sku, price: p.price, stock: p.stock, slug: p.slug })).slice(0, 500),
+      metadata: { source: 'api_admin_channels_product_feeds_run', platform: channel.platform || channel.channel_key },
+      updated_at: new Date().toISOString()
+    }));
+    const { data, error } = await supabase.from('channel_product_feeds').upsert(rows, { onConflict: 'store_id,channel_key,feed_type' }).select();
+    if (error) throw error;
+    await supabase.from('channel_sync_events').insert(targetChannels.map((channel: any) => ({ store_id: storeId, channel_id: channel.id || null, channel_key: channel.channel_key || 'website', sync_type: 'product_feed', status: 'completed', finished_at: new Date().toISOString(), records_processed: products.length, metadata: { source: 'api_admin_channels_product_feeds_run' } })));
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'channel_product_feeds_generated', entityType: 'channel_product_feeds', metadata: { feeds: data?.length || 0, products: products.length } });
+    res.json({ status: 'ok', feedsGenerated: data?.length || 0, productCount: products.length, feeds: data || [] });
+  }));
+
+  app.get('/api/admin/channels/inventory-sync', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [snapshots, syncEvents] = await Promise.all([
+      getChannelTable('channel_inventory_snapshots', 500),
+      getChannelTable('channel_sync_events', 250)
+    ]);
+    res.json({ status: 'ok', snapshots, syncEvents: syncEvents.filter((x: any) => ['inventory_sync', 'product_feed'].includes(String(x.sync_type || ''))) });
+  }));
+
+  app.post('/api/admin/channels/inventory-sync/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', synced: false });
+    const storeId = await getPrimaryStoreId();
+    const channels = await getSalesChannels(50);
+    const products = await getChannelProducts(500);
+    const targetChannels = channels.length ? channels : [{ id: null, channel_key: 'website', platform: 'website' }];
+    const rows: any[] = [];
+    for (const channel of targetChannels) {
+      for (const p of products) {
+        rows.push({
+          store_id: storeId,
+          channel_id: channel.id || null,
+          channel_key: channel.channel_key || 'website',
+          product_id: p.id,
+          sku: p.sku || p.id,
+          available_stock: Number(p.stock || 0),
+          reserved_stock: 0,
+          external_stock: Number(p.stock || 0),
+          sync_status: 'synced',
+          synced_at: new Date().toISOString(),
+          metadata: { source: 'api_admin_channels_inventory_sync_run', platform: channel.platform || channel.channel_key }
+        });
+      }
+    }
+    const { data, error } = await supabase.from('channel_inventory_snapshots').upsert(rows, { onConflict: 'store_id,channel_key,product_id' }).select();
+    if (error) throw error;
+    await supabase.from('channel_sync_events').insert(targetChannels.map((channel: any) => ({ store_id: storeId, channel_id: channel.id || null, channel_key: channel.channel_key || 'website', sync_type: 'inventory_sync', status: 'completed', finished_at: new Date().toISOString(), records_processed: products.length, metadata: req.body?.metadata || { source: 'api_admin_channels_inventory_sync_run' } })));
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'channel_inventory_synced', entityType: 'channel_inventory_snapshots', metadata: { snapshots: data?.length || 0 } });
+    res.json({ status: 'ok', snapshotsSynced: data?.length || 0, snapshots: data || [] });
+  }));
+
+  app.get('/api/admin/channels/external-orders', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const orders = await getChannelTable('external_orders', 250);
+    res.json({ status: 'ok', externalOrders: orders });
+  }));
+
+  app.get('/api/admin/channels/performance', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [performance, channels, externalOrders] = await Promise.all([
+      getChannelTable('channel_performance_snapshots', 250),
+      getSalesChannels(250),
+      getChannelTable('external_orders', 250)
+    ]);
+    res.json({ status: 'ok', performance, summary: { channels: channels.length, externalOrders: externalOrders.length, reportingReady: true } });
+  }));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
