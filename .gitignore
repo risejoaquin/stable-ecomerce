@@ -1,73 +1,23 @@
-# Dependencies
 node_modules/
-.pnpm-store/
-.yarn/
-
-# Build outputs
 dist/
 build/
-.cache/
-.vite/
-
-# Environment / secrets
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*.crt
-secrets.*
-
-# Logs
-logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Coverage / tests
+logs/
 coverage/
-playwright-report/
-test-results/
-.nyc_output/
-
-# OS / editor
 .DS_Store
-Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
-
-# Local databases / dumps / backups
-*.sqlite
-*.sqlite3
-*.db
-*.dump
-*.backup
-*.bak
-*.sql.gz
-backups/
-exports/private/
-
-# Upload/temp artifacts
 *.zip
-*.tar
-*.tar.gz
-tmp/
-temp/
-uploads/tmp/
-
-# Railway / deployment local artifacts
+*.tmp
+*.bak
+.cache/
 .railway/
-railway.env
-
-# Supabase local artifacts
 .supabase/
-supabase/.branches/
-supabase/.temp/
-
-# Keep docs and scripts tracked
-!docs/**
-!scripts/**
-!public/**
+exports/private/
+backups/private/
+playwright-report/
+test-results/

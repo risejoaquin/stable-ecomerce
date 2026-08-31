@@ -175,3 +175,24 @@ Ver carpeta:
 ```txt
 docs/production/
 ```
+
+## POST-LAUNCH 11 — Scale, Multi-Operator Workflows & Advanced Admin UX
+
+Estado esperado: pendiente de validación.
+
+Incluye workflows multi-operador, roles/permisos granulares, colas de trabajo, asignaciones, notificaciones internas, acciones masivas y auditoría avanzada.
+
+Migración:
+
+```sql
+scripts/db/017_post_launch_11_scale_multi_operator_advanced_admin_ux.sql
+```
+
+Smoke:
+
+```powershell
+.\scripts\qa\smoke-scale-admin.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
