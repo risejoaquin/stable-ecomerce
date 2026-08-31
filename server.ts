@@ -5864,6 +5864,246 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+
+  // ============================================================
+  // POST-LAUNCH 15 — AI Commerce Assistant, Smart Search & Product Discovery
+  // ============================================================
+
+  function normalizeAiQuery(value: any) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function scoreAiCommerceIntent(query: string) {
+    const q = normalizeAiQuery(query);
+    const buyTerms = ['comprar', 'quiero', 'necesito', 'busco', 'recomienda', 'recomendacion', 'recomendación', 'precio', 'producto'];
+    const skincareTerms = ['piel', 'crema', 'hidratante', 'acné', 'acne', 'sensible', 'limpiador', 'spf', 'protector', 'manchas', 'skincare'];
+    const supportTerms = ['envio', 'envío', 'pedido', 'devolucion', 'devolución', 'pago', 'factura', 'seguimiento'];
+    let score = 0;
+    for (const t of buyTerms) if (q.includes(t)) score += 0.18;
+    for (const t of skincareTerms) if (q.includes(t)) score += 0.12;
+    for (const t of supportTerms) if (q.includes(t)) score += 0.08;
+    score = Math.min(1, Number(score.toFixed(4)));
+    let intent = 'browse';
+    if (supportTerms.some((t) => q.includes(t))) intent = 'support_or_faq';
+    if (buyTerms.some((t) => q.includes(t)) && skincareTerms.some((t) => q.includes(t))) intent = 'high_purchase_intent';
+    else if (skincareTerms.some((t) => q.includes(t))) intent = 'product_discovery';
+    return { intent, score, signals: { buyTerms, skincareTerms, supportTerms, query: q } };
+  }
+
+  async function getAiTable(table: string, limit = 100) {
+    if (!supabase) return [];
+    const storeId = await getPrimaryStoreId();
+    const query = supabase.from(table).select('*').order('created_at', { ascending: false }).limit(limit);
+    if (storeId) query.eq('store_id', storeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function getSmartSearchProducts(queryText: string, limit = 12) {
+    if (!supabase) return [];
+    const storeId = await getPrimaryStoreId();
+    const q = normalizeAiQuery(queryText);
+    let query = supabase
+      .from('products')
+      .select('id,name,description,price,stock,image_url,category,collection,brand,slug,seo_title,seo_description,ai_summary,search_keywords,discovery_tags,recommendation_score')
+      .limit(limit);
+    if (storeId) query = query.eq('store_id', storeId);
+    if (q) query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%,category.ilike.%${q}%,brand.ilike.%${q}%,collection.ilike.%${q}%`);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  app.get('/api/search/smart', asyncHandler(async (req: any, res) => {
+    const q = normalizeAiQuery(req.query.q || req.query.query || '');
+    const requestedIntent = normalizeAiQuery(req.query.intent || '');
+    const storeId = await getPrimaryStoreId();
+    const scoring = scoreAiCommerceIntent(`${q} ${requestedIntent}`);
+    const products = await getSmartSearchProducts(q, 12);
+    if (supabase && q) {
+      await supabase.from('ai_search_queries').insert({
+        store_id: storeId,
+        query: q,
+        normalized_query: q,
+        intent: requestedIntent || scoring.intent,
+        intent_score: scoring.score,
+        result_count: products.length,
+        source: 'smart_search',
+        metadata: { endpoint: '/api/search/smart' }
+      });
+    }
+    res.json({
+      status: 'ok',
+      query: q,
+      intent: requestedIntent || scoring.intent,
+      intentScore: scoring.score,
+      results: products,
+      suggestions: products.slice(0, 4).map((p: any) => ({ productId: p.id, name: p.name, reason: 'Coincidencia por búsqueda inteligente' }))
+    });
+  }));
+
+  app.post('/api/ai/commerce-assistant/message', asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const message = String(req.body?.message || '').trim();
+    const sessionId = String(req.body?.sessionId || req.body?.session_id || crypto.randomUUID());
+    const customerEmail = normalizeEmail(req.body?.customerEmail || req.body?.customer_email || null);
+    const scoring = scoreAiCommerceIntent(message);
+    const products = await getSmartSearchProducts(message, 5);
+    const answer = products.length > 0
+      ? `Encontré ${products.length} producto(s) que pueden ayudarte. Revisa las recomendaciones y confirma ingredientes/uso según tu rutina.`
+      : 'Puedo ayudarte a encontrar productos por necesidad de skincare, tipo de piel o intención de compra. Prueba con hidratante, piel sensible, acné o protector solar.';
+
+    let assistantSession: any = null;
+    if (supabase) {
+      const { data: existing } = await supabase.from('ai_assistant_sessions').select('*').eq('session_id', sessionId).maybeSingle();
+      if (existing) {
+        assistantSession = existing;
+        await supabase.from('ai_assistant_sessions').update({ last_message_at: new Date().toISOString(), intent: scoring.intent, conversion_score: scoring.score }).eq('id', existing.id);
+      } else {
+        const { data, error } = await supabase.from('ai_assistant_sessions').insert({ store_id: storeId, session_id: sessionId, customer_email: customerEmail || null, intent: scoring.intent, conversion_score: scoring.score }).select().single();
+        if (error) throw error;
+        assistantSession = data;
+      }
+      await supabase.from('ai_assistant_messages').insert({
+        session_id: assistantSession?.id,
+        store_id: storeId,
+        role: 'user',
+        message,
+        response: answer,
+        detected_intent: scoring.intent,
+        intent_score: scoring.score,
+        recommended_product_ids: products.map((p: any) => p.id),
+        metadata: { endpoint: '/api/ai/commerce-assistant/message' }
+      });
+    }
+
+    res.json({ status: 'ok', sessionId, intent: scoring.intent, intentScore: scoring.score, answer, recommendations: products });
+  }));
+
+  app.get('/api/ai/product-discovery', asyncHandler(async (req: any, res) => {
+    const q = normalizeAiQuery(req.query.q || req.query.query || '');
+    const storeId = await getPrimaryStoreId();
+    const scoring = scoreAiCommerceIntent(q);
+    const products = await getSmartSearchProducts(q, 12);
+    if (supabase) {
+      for (const p of products.slice(0, 5)) {
+        await supabase.from('ai_product_discovery_events').insert({ store_id: storeId, query: q, product_id: p.id, score: scoring.score, reason: 'smart_discovery_match', metadata: { intent: scoring.intent } });
+      }
+    }
+    res.json({ status: 'ok', query: q, intent: scoring.intent, products, discovery: { guided: true, total: products.length } });
+  }));
+
+  app.get('/api/ai/faq', asyncHandler(async (req: any, res) => {
+    const q = normalizeAiQuery(req.query.q || req.query.query || '');
+    const storeId = await getPrimaryStoreId();
+    let entries: any[] = [];
+    if (supabase) {
+      let query = supabase.from('ai_faq_entries').select('*').eq('is_active', true).order('sort_order', { ascending: true }).limit(10);
+      if (storeId) query = query.eq('store_id', storeId);
+      if (q) query = query.or(`question.ilike.%${q}%,answer.ilike.%${q}%,topic.ilike.%${q}%`);
+      const { data, error } = await query;
+      if (error) throw error;
+      entries = data || [];
+      await supabase.from('ai_faq_interactions').insert({ store_id: storeId, query: q, matched: entries.length > 0, faq_entry_id: entries[0]?.id || null, source: 'api_ai_faq' });
+    }
+    res.json({ status: 'ok', query: q, entries, answer: entries[0]?.answer || 'No encontré una FAQ exacta. Puedes contactar soporte o intentar con otra pregunta.' });
+  }));
+
+  app.post('/api/ai/intent-score', asyncHandler(async (req: any, res) => {
+    const queryText = String(req.body?.query || req.body?.message || '').trim();
+    const scoring = scoreAiCommerceIntent(queryText);
+    const storeId = await getPrimaryStoreId();
+    if (supabase) {
+      await supabase.from('ai_intent_scores').insert({ store_id: storeId, query: queryText || 'empty query', intent: scoring.intent, score: scoring.score, signals: scoring.signals, source: req.body?.source || 'api' });
+    }
+    res.json({ status: 'ok', query: queryText, intent: scoring.intent, score: scoring.score, signals: scoring.signals });
+  }));
+
+  app.get('/api/ai/skincare-synonyms', asyncHandler(async (_req: any, res) => {
+    const synonyms = await getAiTable('skincare_synonyms', 250);
+    res.json({ status: 'ok', synonyms });
+  }));
+
+  app.get('/api/admin/ai-commerce/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [searches, sessions, messages, discovery, faqs, synonyms] = await Promise.all([
+      getAiTable('ai_search_queries', 500),
+      getAiTable('ai_assistant_sessions', 500),
+      getAiTable('ai_assistant_messages', 500),
+      getAiTable('ai_product_discovery_events', 500),
+      getAiTable('ai_faq_entries', 500),
+      getAiTable('skincare_synonyms', 500)
+    ]);
+    res.json({ status: 'ok', counts: { searches: searches.length, sessions: sessions.length, messages: messages.length, discoveryEvents: discovery.length, faqEntries: faqs.length, synonyms: synonyms.length }, readiness: { smartSearch: true, assistantBase: true, faqAssisted: true, futureAiProviderReady: true } });
+  }));
+
+  app.get('/api/admin/ai-commerce/search-insights', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const searches = await getAiTable('ai_search_queries', 500);
+    const zeroResults = searches.filter((x: any) => Number(x.result_count || 0) === 0);
+    res.json({ status: 'ok', searches, insights: { totalQueries: searches.length, zeroResultQueries: zeroResults.length, topIntents: Array.from(new Set(searches.map((x: any) => x.intent).filter(Boolean))).slice(0, 10) } });
+  }));
+
+  app.get('/api/admin/ai-commerce/assistant-sessions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const sessions = await getAiTable('ai_assistant_sessions', 250);
+    res.json({ status: 'ok', sessions });
+  }));
+
+  app.get('/api/admin/ai-commerce/product-discovery', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const events = await getAiTable('ai_product_discovery_events', 250);
+    res.json({ status: 'ok', discoveryEvents: events });
+  }));
+
+  app.get('/api/admin/ai-commerce/faq-insights', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [entries, interactions] = await Promise.all([getAiTable('ai_faq_entries', 250), getAiTable('ai_faq_interactions', 250)]);
+    res.json({ status: 'ok', entries, interactions, insights: { faqCount: entries.length, interactionCount: interactions.length } });
+  }));
+
+  app.post('/api/admin/ai-commerce/synonyms', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const term = String(req.body?.term || '').trim().toLowerCase();
+    const synonyms = Array.isArray(req.body?.synonyms) ? req.body.synonyms : [];
+    const { data, error } = await supabase.from('skincare_synonyms').upsert({ store_id: storeId, term: term || 'general', synonyms, category: req.body?.category || 'skincare', language: req.body?.language || 'es', is_active: true, metadata: { source: 'admin_ai_commerce_synonyms' } }, { onConflict: 'store_id,term,language' }).select().single();
+    if (error) throw error;
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'ai_commerce_synonym_upserted', entityType: 'skincare_synonyms', entityId: data?.id, metadata: { term } });
+    res.json({ status: 'ok', synonym: data });
+  }));
+
+  app.post('/api/admin/ai-commerce/faq', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const { data, error } = await supabase.from('ai_faq_entries').insert({ store_id: storeId, question: req.body?.question || 'Pregunta frecuente', answer: req.body?.answer || 'Respuesta pendiente.', topic: req.body?.topic || 'general', keywords: Array.isArray(req.body?.keywords) ? req.body.keywords : [], metadata: { source: 'admin_ai_commerce_faq' } }).select().single();
+    if (error) throw error;
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'ai_commerce_faq_created', entityType: 'ai_faq_entries', entityId: data?.id, metadata: { topic: data?.topic } });
+    res.json({ status: 'ok', faq: data });
+  }));
+
+  app.post('/api/admin/ai-commerce/recommendations/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const q = String(req.body?.query || '').trim();
+    const scoring = scoreAiCommerceIntent(q);
+    const products = await getSmartSearchProducts(q, 10);
+    if (supabase) {
+      for (const p of products.slice(0, 5)) {
+        await supabase.from('ai_recommendation_events').insert({ store_id: storeId, query: q, product_id: p.id, recommendation_type: 'admin_run', score: scoring.score, metadata: { source: req.body?.source || 'admin' } });
+      }
+      await supabase.from('ai_search_insight_snapshots').upsert({
+        store_id: storeId,
+        period: new Date().toISOString().slice(0, 7),
+        total_queries: 1,
+        zero_result_queries: products.length === 0 ? 1 : 0,
+        assisted_sessions: 1,
+        conversion_intent_queries: scoring.intent === 'high_purchase_intent' ? 1 : 0,
+        top_queries: [{ query: q, count: 1 }],
+        top_intents: [{ intent: scoring.intent, score: scoring.score }],
+        recommendations: products.slice(0, 5).map((p: any) => ({ productId: p.id, name: p.name, score: scoring.score })),
+        generated_at: new Date().toISOString()
+      }, { onConflict: 'store_id,period' });
+    }
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'ai_commerce_recommendations_run', entityType: 'ai_commerce', metadata: { query: q, results: products.length } });
+    res.json({ status: 'ok', intent: scoring.intent, score: scoring.score, recommendations: products });
+  }));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

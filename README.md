@@ -275,3 +275,23 @@ Unblock-File .\scripts\qa\smoke-mobile-pwa.ps1
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 15 — AI Commerce Assistant, Smart Search & Product Discovery
+
+Incluye búsqueda inteligente, asistente de compra base, FAQ asistido, sinónimos de skincare, scoring de intención de compra, descubrimiento guiado de productos e insights admin de búsqueda.
+
+Migración:
+
+```sql
+scripts/db/021_post_launch_15_ai_commerce_assistant_smart_search_product_discovery.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+Smoke:
+
+```powershell
+.\scripts\qa\smoke-ai-commerce.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
