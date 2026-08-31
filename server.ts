@@ -1902,6 +1902,34 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
     }
   }));
 
+  // Hotfix PL07.1: register catalog import validation before the legacy catalog block
+  // so production always exposes the smoke-test route even when later route sections change.
+  app.post('/api/admin/catalog/validate-import', requireAuth(), asyncHandler(async (req: any, res) => {
+    try {
+      const rows = Array.isArray(req.body?.products) ? req.body.products : parseCatalogCsvPL07(req.body?.csv || '');
+      const results = rows.map((row: any, index: number) => {
+        const validation = validateCatalogRowPL07(row);
+        return {
+          rowNumber: row.row_number || index + 1,
+          name: row.name || null,
+          slug: slugify(row.slug || row.name || `row-${index + 1}`),
+          ...validation
+        };
+      });
+      const validRows = results.filter((r) => r.valid).length;
+      res.json({
+        status: 'ok',
+        source: 'hotfix_pl07_1_catalog_validate_import_route',
+        totalRows: rows.length,
+        validRows,
+        invalidRows: rows.length - validRows,
+        results
+      });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  }));
+
   app.get('/api/admin/catalog/export-template', requireAuth(), asyncHandler(async (_req: any, res) => {
     const headers = [
       'name','slug','description','short_marketing_copy','price','compare_at_price','stock','category','brand','supplier','sku','image_url','image_alt_text','seo_title','seo_description','commercial_status','is_featured','sort_priority','low_stock_threshold'
