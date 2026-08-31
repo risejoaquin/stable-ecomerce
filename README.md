@@ -163,3 +163,25 @@ Production readiness package added:
 - production runbooks under `docs/production/`
 
 Apply the DB migration before validating diagnostics.
+
+## POST-LAUNCH 02 — Commercial Operations & Growth Readiness
+
+Added commercial growth readiness layer:
+
+- `scripts/db/008_post_launch_commercial_growth_readiness.sql`
+- `/api/admin/commercial/summary`
+- `/api/admin/product-readiness`
+- `/api/admin/campaigns`
+- `/api/admin/reviews`
+- `/api/public/policies`
+- `/admin/commercial`
+- `scripts/qa/smoke-commercial.ps1`
+
+Validation target:
+
+```powershell
+.\scripts\qa\smoke-commercial.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

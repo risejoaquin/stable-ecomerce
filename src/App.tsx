@@ -30,6 +30,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { ProductsPage } from './pages/admin/ProductsPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
+import { AdminCommercialPage } from './pages/admin/AdminCommercialPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { HomePage } from './pages/store/HomePage';
@@ -342,6 +343,7 @@ function AdminLayout() {
           <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
           <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
           <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
+          <Link to="/admin/commercial" className={navItemClass('/admin/commercial')}>Comercial</Link>
           <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
         </nav>
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
@@ -423,6 +425,7 @@ export default function App() {
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
+            <Route path="commercial" element={<AdminCommercialPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
         </Routes>

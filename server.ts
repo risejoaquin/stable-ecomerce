@@ -487,7 +487,18 @@ const ProductInputSchema = z.object({
   images: z.array(z.string()).optional(),
   status: z.string().optional(),
   variants: z.array(z.any()).optional(),
-  categories: z.array(z.string()).optional()
+  categories: z.array(z.string()).optional(),
+  sku: z.string().optional().nullable(),
+  seo_title: z.string().optional().nullable(),
+  seo_description: z.string().optional().nullable(),
+  long_description: z.string().optional().nullable(),
+  ingredients: z.any().optional().nullable(),
+  compare_at_price: z.number().nonnegative().optional().nullable(),
+  cost: z.number().nonnegative().optional().nullable(),
+  supplier: z.string().optional().nullable(),
+  low_stock_threshold: z.number().int().nonnegative().optional().nullable(),
+  commercial_status: z.string().optional().nullable(),
+  image_alt_text: z.string().optional().nullable()
 });
 
 
@@ -717,6 +728,34 @@ async function startServer() {
 
 // API Routes
   
+
+  app.get('/api/public/policies', asyncHandler(async (_req, res) => {
+    if (!supabase) {
+      return res.json({
+        shipping: 'Envíos preparados por Selfcare Sinners. El tiempo puede variar según paquetería.',
+        returns: 'Cambios y devoluciones sujetos a condición del producto y políticas publicadas.',
+        privacy: 'Protegemos tus datos personales y solo los usamos para operar tu compra.',
+        contact: 'Contacto disponible desde /contact.'
+      });
+    }
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
+      const { data: store, error } = await supabase.from('stores').select('config').eq('id', storeId).maybeSingle();
+      if (error) throw error;
+      const config = store?.config || {};
+      const policies = config.policies || {};
+      res.json({
+        shipping: policies.shipping || 'Procesamos pedidos confirmados y compartimos seguimiento cuando esté disponible.',
+        returns: policies.returns || 'Aceptamos solicitudes de cambio o devolución conforme al estado del producto y políticas publicadas.',
+        privacy: policies.privacy || 'Usamos tus datos únicamente para procesar tu compra, atención al cliente y obligaciones operativas.',
+        contact: policies.contact || 'Contáctanos desde /contact para soporte comercial.'
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
   app.post('/api/contact', contactLimiter, asyncHandler(async (req, res) => {
           try {
             const { name, email, message } = req.body;
@@ -1501,6 +1540,200 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
     }
   }));
 
+
+  // Commercial operations dashboard: catalog readiness, campaigns, reviews and growth indicators.
+  app.get('/api/admin/commercial/summary', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ catalog: {}, campaigns: {}, reviews: {}, customers: {}, readiness: [], alerts: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const paidStatuses = ['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'];
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [productsResult, ordersResult, couponsResult, reviewsResult, campaignsResult] = await Promise.all([
+        supabase.from('products').select('id,name,status,stock,images,variants,seo_title,seo_description,long_description,category,categories,commercial_status,low_stock_threshold').eq('store_id', storeId).order('updated_at', { ascending: false }),
+        supabase.from('orders').select('id,status,total,customer_email,customer_user_id,created_at').eq('store_id', storeId).gte('created_at', thirtyDaysAgo),
+        supabase.from('coupons').select('id,code,is_active,current_uses,max_uses,expires_at').eq('store_id', storeId).order('created_at', { ascending: false }),
+        supabase.from('reviews').select('id,product_id,rating,moderation_status,created_at').order('created_at', { ascending: false }).limit(100),
+        supabase.from('commercial_campaigns').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(20)
+      ]);
+      if (productsResult.error) throw productsResult.error;
+      if (ordersResult.error) throw ordersResult.error;
+      if (couponsResult.error) throw couponsResult.error;
+      if (reviewsResult.error && !String(reviewsResult.error.message || '').includes('moderation_status')) throw reviewsResult.error;
+      if (campaignsResult.error) throw campaignsResult.error;
+
+      const products = productsResult.data || [];
+      const orders = ordersResult.data || [];
+      const coupons = couponsResult.data || [];
+      const reviews = reviewsResult.data || [];
+      const campaigns = campaignsResult.data || [];
+      const activeProducts = products.filter((p: any) => p.status === 'active');
+      const incompleteProducts = activeProducts.filter((p: any) => {
+        const hasImage = Array.isArray(p.images) && p.images.length > 0;
+        const hasSeo = Boolean(p.seo_title && p.seo_description);
+        const hasDescription = Boolean(p.long_description || p.description);
+        const hasCategory = Boolean(p.category || (Array.isArray(p.categories) && p.categories.length > 0));
+        return !(hasImage && hasSeo && hasDescription && hasCategory);
+      });
+      const uniqueCustomers = new Set<string>();
+      const revenue30d = orders.filter((o: any) => paidStatuses.includes(o.status)).reduce((sum: number, o: any) => {
+        if (o.customer_email) uniqueCustomers.add(String(o.customer_email).toLowerCase());
+        if (o.customer_user_id) uniqueCustomers.add(String(o.customer_user_id));
+        return sum + Number(o.total || 0);
+      }, 0);
+      const pendingReviews = reviews.filter((r: any) => (r.moderation_status || 'approved') === 'pending').length;
+      const averageRating = reviews.length ? reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0) / reviews.length : 0;
+      const lowStockProducts = activeProducts.filter((p: any) => Number(p.stock || 0) <= Number(p.low_stock_threshold || 5));
+      const activeCampaigns = campaigns.filter((c: any) => c.status === 'active');
+      const activeCoupons = coupons.filter((c: any) => c.is_active);
+      const alerts = [
+        ...(incompleteProducts.length ? [{ level: 'warning', code: 'catalog_readiness', message: `${incompleteProducts.length} active product(s) need SEO, category, description or image completion.` }] : []),
+        ...(lowStockProducts.length ? [{ level: 'warning', code: 'commercial_stock', message: `${lowStockProducts.length} active product(s) are at or below their commercial stock threshold.` }] : []),
+        ...(pendingReviews ? [{ level: 'info', code: 'reviews_pending', message: `${pendingReviews} review(s) need moderation.` }] : []),
+        ...(activeCampaigns.length === 0 ? [{ level: 'info', code: 'no_active_campaign', message: 'No active commercial campaign is configured.' }] : [])
+      ];
+      res.json({
+        catalog: {
+          totalProducts: products.length,
+          activeProducts: activeProducts.length,
+          incompleteProducts: incompleteProducts.length,
+          lowStockProducts: lowStockProducts.length,
+          categories: Array.from(new Set(products.flatMap((p: any) => [p.category, ...(Array.isArray(p.categories) ? p.categories : [])].filter(Boolean))))
+        },
+        campaigns: { total: campaigns.length, active: activeCampaigns.length, items: campaigns.slice(0, 5) },
+        coupons: { total: coupons.length, active: activeCoupons.length, items: coupons.slice(0, 5) },
+        reviews: { total: reviews.length, pending: pendingReviews, averageRating: Number(averageRating.toFixed(2)) },
+        customers: { unique30d: uniqueCustomers.size, revenue30d, orders30d: orders.length },
+        readiness: incompleteProducts.slice(0, 10).map((p: any) => ({ id: p.id, name: p.name, missing: [
+          ...(!(Array.isArray(p.images) && p.images.length > 0) ? ['image'] : []),
+          ...(!(p.seo_title && p.seo_description) ? ['seo'] : []),
+          ...(!(p.long_description || p.description) ? ['description'] : []),
+          ...(!(p.category || (Array.isArray(p.categories) && p.categories.length > 0)) ? ['category'] : [])
+        ] })),
+        alerts
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Admin commercial summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/product-readiness', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('products').select('*').eq('store_id', storeId).order('updated_at', { ascending: false });
+      if (error) throw error;
+      const rows = (data || []).map((p: any) => {
+        const checks = {
+          active: p.status === 'active',
+          images: Array.isArray(p.images) && p.images.length > 0,
+          seo: Boolean(p.seo_title && p.seo_description),
+          description: Boolean(p.long_description || p.description),
+          category: Boolean(p.category || (Array.isArray(p.categories) && p.categories.length > 0)),
+          stock: Number(p.stock || 0) > 0,
+          variants: Array.isArray(p.variants) ? p.variants.length : 0
+        };
+        const score = Object.entries(checks).reduce((acc: number, [key, value]: [string, any]) => {
+          if (key === 'variants') return acc + (value > 0 ? 10 : 0);
+          return acc + (value ? 15 : 0);
+        }, 0);
+        return { id: p.id, name: p.name, status: p.status, stock: p.stock, score: Math.min(score, 100), checks };
+      });
+      res.json({ data: rows });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/campaigns', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json([]);
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('commercial_campaigns').select('*').eq('store_id', storeId).order('created_at', { ascending: false });
+      if (error) throw error;
+      res.json(data || []);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/campaigns', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const payload = {
+        store_id: storeId,
+        name: String(req.body?.name || '').trim(),
+        type: String(req.body?.type || 'promotion'),
+        status: String(req.body?.status || 'draft'),
+        starts_at: req.body?.starts_at || null,
+        ends_at: req.body?.ends_at || null,
+        budget: req.body?.budget || null,
+        target_audience: req.body?.target_audience || null,
+        channel: req.body?.channel || null,
+        notes: req.body?.notes || null,
+        metadata: req.body?.metadata || {}
+      };
+      if (!payload.name) return res.status(400).json({ error: 'Campaign name is required' });
+      const { data, error } = await supabase.from('commercial_campaigns').insert(payload).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'commercial_campaign_created', entityType: 'commercial_campaign', entityId: data.id, metadata: { name: data.name, status: data.status } });
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.put('/api/admin/campaigns/:id', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const allowed = ['name', 'type', 'status', 'starts_at', 'ends_at', 'budget', 'target_audience', 'channel', 'notes', 'metadata'];
+      const updatePayload: any = Object.fromEntries(Object.entries(req.body || {}).filter(([key]) => allowed.includes(key)));
+      updatePayload.updated_at = new Date().toISOString();
+      const { data, error } = await supabase.from('commercial_campaigns').update(updatePayload).eq('id', req.params.id).eq('store_id', storeId).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'commercial_campaign_updated', entityType: 'commercial_campaign', entityId: data.id, metadata: updatePayload });
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/reviews', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const status = String(req.query.status || 'all');
+      let query = supabase.from('reviews').select('*, products(name, images)', { count: 'exact' }).order('created_at', { ascending: false }).limit(100);
+      if (status !== 'all') query = query.eq('moderation_status', status);
+      const { data, error, count } = await query;
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.put('/api/admin/reviews/:id/moderation', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const moderationStatus = String(req.body?.moderation_status || '').trim();
+      if (!['pending', 'approved', 'rejected'].includes(moderationStatus)) return res.status(400).json({ error: 'Invalid moderation status' });
+      const { data, error } = await supabase.from('reviews').update({ moderation_status: moderationStatus, moderated_at: new Date().toISOString(), moderated_by: req.auth.userId }).eq('id', req.params.id).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'review_moderated', entityType: 'review', entityId: req.params.id, metadata: { moderation_status: moderationStatus } });
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
   // Admin orders
   
   app.get('/api/admin/orders', requireAuth(), asyncHandler(async (req: any, res) => {
@@ -2092,6 +2325,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
               .from('reviews')
               .select('*', { count: 'exact' })
               .eq('product_id', productId)
+              .eq('moderation_status', 'approved')
               .order('created_at', { ascending: false })
               .range(from, to);
             
@@ -2109,7 +2343,8 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             const { data, count, error } = await supabase
               .from('reviews')
               .select('rating', { count: 'exact' })
-              .eq('product_id', productId);
+              .eq('product_id', productId)
+              .eq('moderation_status', 'approved');
             
             if (error) throw error;
             
@@ -2139,7 +2374,8 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
               product_id: productId,
               user_id: req.auth.userId,
               rating,
-              comment
+              comment,
+              moderation_status: 'pending'
             }] as any[]).select().single();
             
             if (error) throw error;
