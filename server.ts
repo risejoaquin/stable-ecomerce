@@ -4407,6 +4407,257 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     }
   }));
 
+  // POST-LAUNCH 08 — Fulfillment, Support Operations & Customer Service Hardening
+  app.get('/api/admin/fulfillment/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', readyToShip: 0, lateOrders: 0, openTickets: 0, openIncidents: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const now = new Date();
+      const lateCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+      const [ready, late, tickets, incidents, returns, templates] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pagado','empacado']),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pagado','empacado']).lt('updated_at', lateCutoff),
+        supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['open','pending','waiting_customer']),
+        supabase.from('order_incidents').select('id', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['open','investigating']),
+        supabase.from('returns_requests').select('id', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['requested','approved','received']),
+        supabase.from('support_response_templates').select('id,title,category,is_active').eq('store_id', storeId).eq('is_active', true).order('sort_order', { ascending: true }).limit(8)
+      ]);
+      const errors = [ready.error, late.error, tickets.error, incidents.error, returns.error, templates.error].filter(Boolean);
+      if (errors.length) throw errors[0];
+      res.json({
+        status: 'ok',
+        readyToShip: ready.count || 0,
+        lateOrders: late.count || 0,
+        openTickets: tickets.count || 0,
+        openIncidents: incidents.count || 0,
+        activeReturns: returns.count || 0,
+        templates: templates.data || [],
+        generatedAt: new Date().toISOString()
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Fulfillment summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/fulfillment/ready-to-ship', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ orders: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id,status,total,customer_email,tracking_number,tracking_url,created_at,updated_at,paid_at')
+        .eq('store_id', storeId)
+        .in('status', ['pagado','empacado'])
+        .order('updated_at', { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      res.json({ orders: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Ready-to-ship report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/fulfillment/late-orders', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ orders: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id,status,total,customer_email,tracking_number,tracking_url,created_at,updated_at,paid_at')
+        .eq('store_id', storeId)
+        .in('status', ['pagado','empacado'])
+        .lt('updated_at', cutoff)
+        .order('updated_at', { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      res.json({ cutoff, orders: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Late orders report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/fulfillment/orders/:id/mark-shipped', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const orderId = req.params.id;
+      const trackingNumber = req.body?.tracking_number || req.body?.trackingNumber || null;
+      const trackingUrl = req.body?.tracking_url || req.body?.trackingUrl || null;
+      const { data: current, error: readError } = await supabase.from('orders').select('id,status').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+      if (readError) throw readError;
+      if (!current) return res.status(404).json({ error: 'Order not found' });
+      if (!canTransitionOrderStatus(current.status, 'enviado') && current.status !== 'enviado') {
+        return res.status(400).json({ error: 'Invalid fulfillment transition', from: current.status, to: 'enviado' });
+      }
+      const updatePayload: any = {
+        status: 'enviado',
+        tracking_number: trackingNumber,
+        tracking_url: trackingUrl,
+        shipped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { data, error } = await supabase.from('orders').update(updatePayload).eq('id', orderId).eq('store_id', storeId).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_marked_shipped', entityType: 'order', entityId: orderId, metadata: { trackingNumber, trackingUrl } });
+      await writeOrderTimeline({ orderId, actorUserId: req.auth.userId, eventType: 'fulfillment_shipped', fromStatus: current.status, toStatus: 'enviado', metadata: { trackingNumber, trackingUrl } });
+      res.json({ success: true, order: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Mark shipped failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/support/tickets', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ tickets: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('support_tickets').select('*').eq('store_id', storeId).order('updated_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ tickets: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Support tickets list failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/support/tickets/:id/reply', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const ticketId = req.params.id;
+      const body = String(req.body?.message || req.body?.body || '').trim();
+      if (!body) return res.status(400).json({ error: 'Message is required' });
+      const { data: ticket, error: ticketError } = await supabase.from('support_tickets').select('id').eq('id', ticketId).eq('store_id', storeId).maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+      const { data, error } = await supabase.from('support_ticket_messages').insert({
+        ticket_id: ticketId,
+        actor_user_id: req.auth.userId,
+        direction: 'outbound',
+        body,
+        metadata: req.body?.metadata || {}
+      }).select().single();
+      if (error) throw error;
+      await supabase.from('support_tickets').update({ status: req.body?.status || 'waiting_customer', updated_at: new Date().toISOString() }).eq('id', ticketId);
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'support_ticket_replied', entityType: 'support_ticket', entityId: ticketId, metadata: {} });
+      res.json({ success: true, message: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Support ticket reply failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/support/sla', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ policies: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('support_sla_policies').select('*').eq('store_id', storeId).eq('is_active', true).order('priority', { ascending: true });
+      if (error) throw error;
+      res.json({ policies: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Support SLA failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/support/templates', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ templates: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('support_response_templates').select('*').eq('store_id', storeId).eq('is_active', true).order('sort_order', { ascending: true });
+      if (error) throw error;
+      res.json({ templates: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Support templates failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/orders/:id/incident', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const orderId = req.params.id;
+      const incidentType = String(req.body?.incident_type || req.body?.type || 'order_issue');
+      const description = String(req.body?.description || req.body?.message || 'Order incident created from admin.');
+      const { data: order, error: orderError } = await supabase.from('orders').select('id, customer_email').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+      if (orderError) throw orderError;
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      const { data, error } = await supabase.from('order_incidents').insert({
+        store_id: storeId,
+        order_id: orderId,
+        incident_type: incidentType,
+        severity: req.body?.severity || 'medium',
+        status: 'open',
+        description,
+        metadata: req.body?.metadata || {}
+      }).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'order_incident_created', entityType: 'order_incident', entityId: data.id, metadata: { orderId, incidentType } });
+      await writeOrderTimeline({ orderId, actorUserId: req.auth.userId, eventType: 'incident_created', metadata: { incidentId: data.id, incidentType } });
+      res.json({ success: true, incident: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Order incident create failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/orders/:id/service-history', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ order: null, incidents: [], returns: [], timeline: [], tickets: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const orderId = req.params.id;
+      const { data: order, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+      if (orderError) throw orderError;
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      const [incidents, returns, timeline, tickets] = await Promise.all([
+        supabase.from('order_incidents').select('*').eq('order_id', orderId).order('created_at', { ascending: false }),
+        supabase.from('returns_requests').select('*').eq('order_id', orderId).order('created_at', { ascending: false }),
+        supabase.from('order_timeline').select('*').eq('order_id', orderId).order('created_at', { ascending: false }).limit(100),
+        supabase.from('support_tickets').select('*').eq('order_id', orderId).order('created_at', { ascending: false })
+      ]);
+      const errors = [incidents.error, returns.error, timeline.error, tickets.error].filter(Boolean);
+      if (errors.length) throw errors[0];
+      res.json({ order, incidents: incidents.data || [], returns: returns.data || [], timeline: timeline.data || [], tickets: tickets.data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Order service history failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/returns', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const orderId = req.body?.order_id || req.body?.orderId;
+      if (!orderId) return res.status(400).json({ error: 'order_id is required' });
+      const { data: order, error: orderError } = await supabase.from('orders').select('id,customer_email,total').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+      if (orderError) throw orderError;
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      const { data, error } = await supabase.from('returns_requests').insert({
+        store_id: storeId,
+        order_id: orderId,
+        customer_email: req.body?.customer_email || req.body?.customerEmail || order.customer_email,
+        reason: req.body?.reason || 'customer_request',
+        status: 'requested',
+        requested_amount: req.body?.requested_amount || req.body?.requestedAmount || null,
+        metadata: req.body?.metadata || {}
+      }).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'return_request_created', entityType: 'return_request', entityId: data.id, metadata: { orderId } });
+      await writeOrderTimeline({ orderId, actorUserId: req.auth.userId, eventType: 'return_requested', metadata: { returnRequestId: data.id } });
+      res.json({ success: true, returnRequest: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Return request create failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

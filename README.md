@@ -286,3 +286,26 @@ Smoke test:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 08 — Fulfillment, Support Operations & Customer Service Hardening
+
+Entrega enfocada en operación diaria: fulfillment, tracking avanzado, SLA de soporte, tickets, incidencias, cambios/devoluciones, plantillas de respuesta e historial de servicio por pedido.
+
+### Migración
+
+Ejecutar en Supabase:
+
+```sql
+scripts/db/014_post_launch_08_fulfillment_support_customer_service.sql
+```
+
+### Smoke
+
+```powershell
+Unblock-File .\scripts\qa\smoke-fulfillment-support.ps1
+
+.\scripts\qa\smoke-fulfillment-support.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
