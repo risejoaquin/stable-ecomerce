@@ -215,3 +215,7 @@ Smoke test:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 12.1 — Customer loyalty smoke security hotfix
+
+The PL12 smoke script was adjusted so `/api/customer/*` is not validated anonymously or with only an email query parameter. The default validation now checks the admin customer-experience surface. Customer-owned endpoints can be tested only with `-IncludeCustomerEndpoints` plus a real `-CustomerToken`.
