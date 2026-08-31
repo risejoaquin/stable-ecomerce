@@ -3495,6 +3495,222 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // Post-launch 05: analytics, ads, automation and revenue operations.
+  function normalizeRevenueEmail(value: any) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function percent(part: number, total: number) {
+    if (!total) return 0;
+    return Math.round((part / total) * 10000) / 100;
+  }
+
+  async function getRevenueWindow(storeId: string) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [orders, conversions, utm, campaigns, customers, automations] = await Promise.all([
+      supabase.from('orders').select('id,total,status,customer_email,created_at,paid_at').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('conversion_events').select('*').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('utm_sessions').select('*').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('campaign_attribution').select('*').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('customer_metrics').select('*').eq('store_id', storeId).limit(5000),
+      supabase.from('automation_runs').select('*').eq('store_id', storeId).gte('created_at', since).limit(1000)
+    ]);
+    for (const r of [orders, conversions, utm, campaigns, customers, automations]) if (r.error) throw r.error;
+    return { since, orders: orders.data || [], conversions: conversions.data || [], utm: utm.data || [], campaigns: campaigns.data || [], customers: customers.data || [], automations: automations.data || [] };
+  }
+
+  app.post('/api/analytics/utm', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, stored: false });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const sessionId = String(req.body?.sessionId || req.body?.session_id || req.headers['x-request-id'] || '').slice(0, 128);
+      const payload = {
+        store_id: storeId,
+        session_id: sessionId || null,
+        user_id: req.auth?.userId || null,
+        email: normalizeRevenueEmail(req.body?.email) || null,
+        utm_source: req.body?.utm_source || req.body?.source || null,
+        utm_medium: req.body?.utm_medium || req.body?.medium || null,
+        utm_campaign: req.body?.utm_campaign || req.body?.campaign || null,
+        utm_term: req.body?.utm_term || null,
+        utm_content: req.body?.utm_content || null,
+        landing_path: req.body?.landing_path || req.body?.landingPath || req.headers.referer || null,
+        referrer: req.body?.referrer || req.headers.referer || null,
+        metadata: req.body?.metadata || {},
+        last_seen_at: new Date().toISOString()
+      };
+      const { data, error } = await supabase.from('utm_sessions').upsert(payload, { onConflict: 'store_id,session_id' }).select().single();
+      if (error) throw error;
+      res.json({ success: true, session: data });
+    } catch (e: any) {
+      logger.warn({ err: e }, 'UTM tracking failed');
+      res.status(202).json({ success: false, error: e.message });
+    }
+  }));
+
+  app.post('/api/analytics/conversion', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, stored: false });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const eventType = String(req.body?.eventType || req.body?.event_type || 'page_view');
+      const allowed = new Set(['page_view','product_view','add_to_cart','cart_open','checkout_started','checkout_completed','purchase','coupon_applied','wishlist_add','lead','newsletter_subscribed','campaign_click','search']);
+      const payload = {
+        store_id: storeId,
+        session_id: String(req.body?.sessionId || req.body?.session_id || '').slice(0, 128) || null,
+        user_id: req.auth?.userId || null,
+        email: normalizeRevenueEmail(req.body?.email) || null,
+        event_type: allowed.has(eventType) ? eventType : 'page_view',
+        product_id: req.body?.productId || req.body?.product_id || null,
+        order_id: req.body?.orderId || req.body?.order_id || null,
+        campaign_id: req.body?.campaignId || req.body?.campaign_id || null,
+        value: Number(req.body?.value || req.body?.total || 0),
+        currency: req.body?.currency || 'MXN',
+        utm_source: req.body?.utm_source || null,
+        utm_medium: req.body?.utm_medium || null,
+        utm_campaign: req.body?.utm_campaign || null,
+        source_path: req.body?.sourcePath || req.body?.source_path || null,
+        metadata: req.body?.metadata || {}
+      };
+      const { data, error } = await supabase.from('conversion_events').insert(payload).select().single();
+      if (error) throw error;
+      res.json({ success: true, event: data });
+    } catch (e: any) {
+      logger.warn({ err: e }, 'Conversion event capture failed');
+      res.status(202).json({ success: false, error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/revenue/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', revenue: {} });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const data = await getRevenueWindow(storeId);
+      const paid = data.orders.filter((o: any) => ['pagado','empacado','enviado','entregado'].includes(o.status));
+      const revenue = paid.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+      const customers = new Set(paid.map((o: any) => normalizeRevenueEmail(o.customer_email)).filter(Boolean));
+      res.json({
+        status: 'ok',
+        windowDays: 30,
+        revenue: {
+          total: revenue,
+          paidOrders: paid.length,
+          averageOrderValue: paid.length ? Math.round((revenue / paid.length) * 100) / 100 : 0,
+          uniqueCustomers: customers.size
+        },
+        funnel: {
+          pageViews: data.conversions.filter((e: any) => e.event_type === 'page_view').length,
+          productViews: data.conversions.filter((e: any) => e.event_type === 'product_view').length,
+          addToCart: data.conversions.filter((e: any) => e.event_type === 'add_to_cart').length,
+          checkoutStarted: data.conversions.filter((e: any) => e.event_type === 'checkout_started').length,
+          purchases: paid.length
+        },
+        automation: {
+          runs30d: data.automations.length,
+          successfulRuns: data.automations.filter((r: any) => r.status === 'completed').length,
+          failedRuns: data.automations.filter((r: any) => r.status === 'failed').length
+        }
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Revenue summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/revenue/funnel', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', steps: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const data = await getRevenueWindow(storeId);
+      const paid = data.orders.filter((o: any) => ['pagado','empacado','enviado','entregado'].includes(o.status)).length;
+      const steps = [
+        { key: 'page_view', label: 'Page views', count: data.conversions.filter((e: any) => e.event_type === 'page_view').length },
+        { key: 'product_view', label: 'Product views', count: data.conversions.filter((e: any) => e.event_type === 'product_view').length },
+        { key: 'add_to_cart', label: 'Add to cart', count: data.conversions.filter((e: any) => e.event_type === 'add_to_cart').length },
+        { key: 'checkout_started', label: 'Checkout started', count: data.conversions.filter((e: any) => e.event_type === 'checkout_started').length },
+        { key: 'purchase', label: 'Purchases', count: paid }
+      ];
+      res.json({ status: 'ok', windowDays: 30, steps: steps.map((s, i) => ({ ...s, conversionFromPrevious: i === 0 ? 100 : percent(s.count, steps[i - 1].count) })) });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Revenue funnel failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/revenue/campaigns', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', campaigns: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('campaign_attribution').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ status: 'ok', campaigns: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Revenue campaigns failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/revenue/customers', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', customers: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('customer_metrics').select('*').eq('store_id', storeId).order('last_order_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ status: 'ok', customers: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Revenue customers failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/revenue/automation', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', jobs: [], runs: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const [jobs, runs] = await Promise.all([
+        supabase.from('automation_jobs').select('*').eq('store_id', storeId).order('created_at', { ascending: true }),
+        supabase.from('automation_runs').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(50)
+      ]);
+      if (jobs.error) throw jobs.error;
+      if (runs.error) throw runs.error;
+      res.json({ status: 'ok', jobs: jobs.data || [], runs: runs.data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Revenue automation failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/automation/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, simulated: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const jobType = String(req.body?.jobType || req.body?.job_type || 'manual_revenue_check');
+      const { data: job } = await supabase.from('automation_jobs').select('*').eq('store_id', storeId).eq('job_type', jobType).maybeSingle();
+      const { data, error } = await supabase.from('automation_runs').insert({
+        store_id: storeId,
+        job_id: job?.id || null,
+        job_type: jobType,
+        status: 'completed',
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        result: { message: 'Automation dry-run completed from admin.', input: req.body || {} }
+      }).select().single();
+      if (error) throw error;
+      await supabase.from('operational_events').insert({ store_id: storeId, event_type: 'automation_run_manual', severity: 'info', message: `Automation ${jobType} executed manually.`, metadata: { runId: data.id } });
+      res.json({ success: true, run: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Automation run failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -224,3 +224,37 @@ Smoke test:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 05 — Analytics, Ads, Automation & Revenue Operations
+
+Entrega enfocada en tracking de conversión, UTM attribution, dashboard revenue ops, funnels, automatizaciones base y preparación para tráfico pagado.
+
+### Migración
+
+Ejecutar en Supabase:
+
+```sql
+scripts/db/011_post_launch_05_analytics_ads_automation_revenue_ops.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+### Smoke test
+
+```powershell
+Unblock-File .\scripts\qa\smoke-revenue.ps1
+.\scripts\qa\smoke-revenue.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
+
+### Endpoints principales
+
+- POST `/api/analytics/conversion`
+- POST `/api/analytics/utm`
+- GET `/api/admin/revenue/summary`
+- GET `/api/admin/revenue/funnel`
+- GET `/api/admin/revenue/campaigns`
+- GET `/api/admin/revenue/customers`
+- GET `/api/admin/revenue/automation`
+- POST `/api/admin/automation/run`
