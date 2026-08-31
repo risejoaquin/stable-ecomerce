@@ -267,3 +267,22 @@ Incluye landing pages por campaña, product feed readiness, Meta/Google Ads inte
 Migración: `scripts/db/012_post_launch_06_paid_traffic_conversion_hardening.sql`
 
 Smoke: `scripts/qa/smoke-paid-traffic.ps1`
+
+## POST-LAUNCH 07 — Real Catalog Import, Merchandising & Sales Enablement
+
+Adds real catalog import, catalog QA, merchandising rules, product media assets and sales enablement readiness.
+
+Required DB migration:
+
+```sql
+scripts/db/013_post_launch_07_real_catalog_merchandising_sales_enablement.sql
+```
+
+Smoke test:
+
+```powershell
+.\scripts\qa\smoke-catalog-sales.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

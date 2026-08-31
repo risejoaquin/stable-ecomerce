@@ -4058,6 +4058,327 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // Post-launch 07: real catalog import, merchandising and sales enablement.
+  const catalogHeadersPL07 = [
+    'name','slug','description','short_marketing_copy','price','compare_at_price','cost','stock','category','collection','brand','supplier','sku','image_url','image_alt_text','seo_title','seo_description','commercial_status','is_featured','sort_priority','low_stock_threshold','promo_badge','merchandising_priority','status'
+  ];
+
+  function parseCatalogCsvLinePL07(line: string): string[] {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (char === '"' && inQuotes && next === '"') {
+        current += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  }
+
+  function parseCatalogCsvPL07(csv: string): any[] {
+    const lines = String(csv || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length < 2) return [];
+    const headers = parseCatalogCsvLinePL07(lines[0]).map((h) => h.trim());
+    return lines.slice(1).map((line, index) => {
+      const values = parseCatalogCsvLinePL07(line);
+      const row: any = { row_number: index + 2 };
+      headers.forEach((header, i) => { row[header] = values[i] ?? ''; });
+      return row;
+    });
+  }
+
+  function validateCatalogRowPL07(row: any): { valid: boolean; issues: string[]; score: number } {
+    const issues: string[] = [];
+    const price = Number(row.price || 0);
+    const stock = Number(row.stock || 0);
+    const cost = row.cost === undefined || row.cost === '' ? null : Number(row.cost);
+    if (!String(row.name || '').trim()) issues.push('name_required');
+    if (!price || price <= 0) issues.push('price_required');
+    if (Number.isNaN(stock) || stock < 0) issues.push('stock_invalid');
+    if (!String(row.category || '').trim()) issues.push('category_required');
+    if (!String(row.image_url || row.imageUrl || '').trim()) issues.push('image_required');
+    if (!String(row.image_alt_text || '').trim()) issues.push('image_alt_text_required');
+    if (!String(row.seo_title || '').trim()) issues.push('seo_title_required');
+    if (!String(row.seo_description || '').trim()) issues.push('seo_description_required');
+    if (cost !== null && !Number.isNaN(cost) && cost > price) issues.push('cost_above_price');
+    const score = Math.max(0, 100 - issues.length * 12);
+    return { valid: issues.length === 0, issues, score };
+  }
+
+  function normalizeCatalogRowPL07(row: any, storeId: string): any {
+    const name = String(row.name || '').trim();
+    const imageUrl = row.image_url || row.imageUrl || null;
+    const category = row.category || null;
+    const price = Number(row.price || 0);
+    const cost = row.cost === undefined || row.cost === '' ? null : Number(row.cost);
+    const margin = cost !== null && price > 0 ? Number((((price - cost) / price) * 100).toFixed(2)) : null;
+    return {
+      store_id: storeId,
+      name,
+      slug: slugify(row.slug || name),
+      description: row.description || row.short_marketing_copy || null,
+      short_marketing_copy: row.short_marketing_copy || null,
+      price,
+      compare_at_price: row.compare_at_price === undefined || row.compare_at_price === '' ? null : Number(row.compare_at_price),
+      cost,
+      margin_percent: margin,
+      stock: Number(row.stock || 0),
+      category,
+      categories: category ? [category] : [],
+      collection: row.collection || category || null,
+      brand: row.brand || 'Selfcare Sinners',
+      supplier: row.supplier || null,
+      sku: row.sku || null,
+      image_url: imageUrl,
+      images: imageUrl ? [imageUrl] : [],
+      image_alt_text: row.image_alt_text || `${name} en Selfcare Sinners`,
+      seo_title: row.seo_title || `${name} | Selfcare Sinners`,
+      seo_description: row.seo_description || row.description || row.short_marketing_copy || `Compra ${name} en Selfcare Sinners.`,
+      commercial_status: row.commercial_status || 'ready',
+      is_featured: ['true','1','yes','si','sí'].includes(String(row.is_featured || '').toLowerCase()),
+      sort_priority: Number(row.sort_priority || row.merchandising_priority || 100),
+      merchandising_priority: Number(row.merchandising_priority || row.sort_priority || 100),
+      low_stock_threshold: Number(row.low_stock_threshold || 5),
+      promo_badge: row.promo_badge || row.hero_badge || null,
+      hero_badge: row.promo_badge || row.hero_badge || null,
+      status: row.status || 'draft',
+      launch_ready_at: row.status === 'active' || row.commercial_status === 'ready' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    };
+  }
+
+  app.get('/api/admin/catalog/import-template', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="selfcare-real-catalog-import-template.csv"');
+    const sample = [
+      'Crema hidratante ejemplo','crema-hidratante-ejemplo','Crema hidratante para rutina diaria','Hidratación diaria con textura ligera','299','349','160','25','Hidratantes','Skincare diario','Selfcare Sinners','Proveedor ejemplo','SKU-001','https://example.com/product.jpg','Crema hidratante Selfcare Sinners','Crema hidratante ejemplo | Selfcare Sinners','Compra crema hidratante con checkout seguro y seguimiento de pedido.','ready','true','10','5','Nuevo','10','draft'
+    ];
+    const csv = catalogHeadersPL07.join(',') + '\n' + sample.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',') + '\n';
+    res.send(csv);
+  }));
+
+  app.post('/api/admin/catalog/validate-import', requireAuth(), asyncHandler(async (req: any, res) => {
+    try {
+      const rows = Array.isArray(req.body?.products) ? req.body.products : parseCatalogCsvPL07(req.body?.csv || '');
+      const results = rows.map((row: any, index: number) => {
+        const validation = validateCatalogRowPL07(row);
+        return { rowNumber: row.row_number || index + 1, name: row.name || null, slug: slugify(row.slug || row.name || `row-${index + 1}`), ...validation };
+      });
+      const validRows = results.filter((r) => r.valid).length;
+      res.json({ status: 'ok', totalRows: rows.length, validRows, invalidRows: rows.length - validRows, results });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/catalog/bulk-import', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, imported: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const rows = Array.isArray(req.body?.products) ? req.body.products : parseCatalogCsvPL07(req.body?.csv || '');
+      if (!rows.length) return res.status(400).json({ error: 'products array or csv payload is required' });
+      if (rows.length > 500) return res.status(400).json({ error: 'Bulk import is limited to 500 products per request' });
+      const validations = rows.map((row: any) => ({ row, validation: validateCatalogRowPL07(row) }));
+      const invalid = validations.filter((r) => !r.validation.valid);
+      const { data: batch, error: batchError } = await supabase.from('catalog_import_batches').insert({
+        store_id: storeId,
+        file_name: req.body?.fileName || 'api-bulk-import.csv',
+        status: invalid.length ? 'validated_with_errors' : 'ready_to_publish',
+        total_rows: rows.length,
+        valid_rows: rows.length - invalid.length,
+        invalid_rows: invalid.length,
+        created_by: req.auth.userId,
+        metadata: { source: 'post_launch_07' }
+      }).select().single();
+      if (batchError) throw batchError;
+      const rowPayloads = validations.map((entry: any, index: number) => ({
+        batch_id: batch.id,
+        row_number: entry.row.row_number || index + 1,
+        payload: entry.row,
+        validation_status: entry.validation.valid ? 'valid' : 'invalid',
+        errors: entry.validation.issues
+      }));
+      await supabase.from('catalog_import_rows').insert(rowPayloads);
+      if (invalid.length && !req.body?.publishValidRows) {
+        return res.status(422).json({ success: false, batch, validRows: rows.length - invalid.length, invalidRows: invalid.length, errors: invalid.map((i) => ({ name: i.row.name, issues: i.validation.issues })) });
+      }
+      const validRows = validations.filter((r) => r.validation.valid).map((r) => normalizeCatalogRowPL07(r.row, storeId));
+      const { data, error } = await supabase.from('products').upsert(validRows, { onConflict: 'store_id,slug' }).select('id,name,slug,status,commercial_status');
+      if (error) throw error;
+      await supabase.from('catalog_import_batches').update({ status: 'imported', published_at: new Date().toISOString() }).eq('id', batch.id);
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'catalog_real_bulk_import', entityType: 'product', metadata: { batchId: batch.id, imported: data?.length || 0, invalidRows: invalid.length } });
+      res.json({ success: true, batchId: batch.id, imported: data?.length || 0, invalidRows: invalid.length, products: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Catalog bulk import failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/catalog/qa', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', products: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data: products, error } = await supabase.from('products').select('id,name,slug,status,price,compare_at_price,cost,margin_percent,stock,category,categories,collection,brand,sku,image_url,images,image_alt_text,seo_title,seo_description,commercial_status,is_featured,sort_priority,merchandising_priority,promo_badge,launch_ready_at,updated_at').eq('store_id', storeId).order('sort_priority', { ascending: true }).limit(1000);
+      if (error) throw error;
+      const scored = (products || []).map((p: any) => {
+        const issues = [] as string[];
+        if (!p.name) issues.push('name');
+        if (!p.slug) issues.push('slug');
+        if (!Number(p.price || 0)) issues.push('price');
+        if (Number(p.stock || 0) <= 0) issues.push('stock');
+        if (!(p.category || (Array.isArray(p.categories) && p.categories.length))) issues.push('category');
+        if (!(p.image_url || (Array.isArray(p.images) && p.images.length))) issues.push('image');
+        if (!p.image_alt_text) issues.push('image_alt_text');
+        if (!p.seo_title) issues.push('seo_title');
+        if (!p.seo_description) issues.push('seo_description');
+        if (!p.short_marketing_copy && !p.description) issues.push('copy');
+        const score = Math.max(0, 100 - issues.length * 10);
+        return { ...p, catalogScore: score, issues, launchReady: score >= 80 && p.status === 'active' };
+      });
+      const ready = scored.filter((p: any) => p.launchReady).length;
+      res.json({ status: 'ok', totalProducts: scored.length, launchReadyProducts: ready, averageScore: scored.length ? Math.round(scored.reduce((s: number, p: any) => s + p.catalogScore, 0) / scored.length) : 0, products: scored });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Catalog QA failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/merchandising/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', summary: {} });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const [productsResult, collectionsResult, mediaResult, rulesResult] = await Promise.all([
+        supabase.from('products').select('id,status,stock,is_featured,commercial_status,sort_priority,merchandising_priority,promo_badge,margin_percent').eq('store_id', storeId).limit(1000),
+        supabase.from('category_collections').select('*').eq('store_id', storeId).order('sort_order', { ascending: true }),
+        supabase.from('product_media_assets').select('id,product_id,is_primary,media_type,created_at').limit(1000),
+        supabase.from('merchandising_rules').select('*').eq('store_id', storeId).order('priority', { ascending: true }).limit(100)
+      ]);
+      if (productsResult.error) throw productsResult.error;
+      if (collectionsResult.error) throw collectionsResult.error;
+      if (mediaResult.error) throw mediaResult.error;
+      if (rulesResult.error) throw rulesResult.error;
+      const products = productsResult.data || [];
+      res.json({
+        status: 'ok',
+        summary: {
+          products: products.length,
+          activeProducts: products.filter((p: any) => p.status === 'active').length,
+          featuredProducts: products.filter((p: any) => p.is_featured).length,
+          readyProducts: products.filter((p: any) => p.commercial_status === 'ready').length,
+          productsWithPromoBadges: products.filter((p: any) => p.promo_badge).length,
+          collections: collectionsResult.data?.length || 0,
+          mediaAssets: mediaResult.data?.length || 0,
+          primaryImages: (mediaResult.data || []).filter((m: any) => m.is_primary).length,
+          activeRules: (rulesResult.data || []).filter((r: any) => r.is_active).length
+        },
+        collections: collectionsResult.data || [],
+        rules: rulesResult.data || []
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Merchandising summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/merchandising/rules', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const ruleKey = slugify(req.body?.ruleKey || req.body?.rule_key || req.body?.title || 'featured-products');
+      const { data, error } = await supabase.from('merchandising_rules').upsert({
+        store_id: storeId,
+        rule_key: ruleKey,
+        title: req.body?.title || 'Featured products',
+        priority: Number(req.body?.priority || 100),
+        conditions: req.body?.conditions || {},
+        actions: req.body?.actions || { sort: 'featured_first' },
+        is_active: req.body?.is_active !== false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'store_id,rule_key' }).select().single();
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'merchandising_rule_upserted', entityType: 'merchandising_rule', entityId: data.id, metadata: { ruleKey } });
+      res.json({ success: true, rule: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Merchandising rule upsert failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/media/assets', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', assets: [] });
+    try {
+      const { data, error } = await supabase.from('product_media_assets').select('*, products(id,name,slug,store_id)').order('created_at', { ascending: false }).limit(500);
+      if (error) throw error;
+      res.json({ status: 'ok', assets: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Media assets failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/media/assets', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const productId = req.body?.productId || req.body?.product_id;
+      const url = req.body?.url;
+      if (!productId || !url) return res.status(400).json({ error: 'productId and url are required' });
+      const { data, error } = await supabase.from('product_media_assets').insert({
+        product_id: productId,
+        url,
+        alt_text: req.body?.altText || req.body?.alt_text || null,
+        media_type: req.body?.mediaType || req.body?.media_type || 'image',
+        sort_order: Number(req.body?.sort_order || req.body?.sortOrder || 100),
+        is_primary: Boolean(req.body?.is_primary || req.body?.isPrimary),
+        metadata: req.body?.metadata || {}
+      }).select().single();
+      if (error) throw error;
+      if (data.is_primary) {
+        await supabase.from('products').update({ image_url: data.url, image_alt_text: data.alt_text, updated_at: new Date().toISOString() }).eq('id', productId);
+      }
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'product_media_asset_created', entityType: 'product_media_asset', entityId: data.id, metadata: { productId } });
+      res.json({ success: true, asset: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Media asset create failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/public/merchandising/home', asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', featuredProducts: [], collections: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Store not found' });
+      const [productsResult, collectionsResult, badgesResult] = await Promise.all([
+        supabase.from('products').select('id,name,slug,description,short_marketing_copy,price,compare_at_price,stock,image_url,images,image_alt_text,category,collection,brand,is_featured,sort_priority,merchandising_priority,promo_badge,hero_badge,commercial_status').eq('store_id', storeId).eq('status', 'active').order('is_featured', { ascending: false }).order('sort_priority', { ascending: true }).limit(24),
+        supabase.from('category_collections').select('*').eq('store_id', storeId).eq('is_visible', true).order('sort_order', { ascending: true }).limit(12),
+        supabase.from('trust_badges').select('*').eq('store_id', storeId).eq('is_active', true).order('sort_order', { ascending: true }).limit(12)
+      ]);
+      if (productsResult.error) throw productsResult.error;
+      if (collectionsResult.error) throw collectionsResult.error;
+      if (badgesResult.error) throw badgesResult.error;
+      res.setHeader('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+      res.json({ status: 'ok', featuredProducts: productsResult.data || [], collections: collectionsResult.data || [], trustBadges: badgesResult.data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Public merchandising home failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
