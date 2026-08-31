@@ -145,3 +145,21 @@ Post-deploy validation:
 - `GET /api/seo/products` → 200
 - Home/Product/FAQ render canonical, Open Graph and JSON-LD metadata.
 - PWA manifest shows Selfcare Sinners branding.
+
+## SUPERFASE F — DevOps, Observability, QA, Backup & Launch Readiness
+
+Production readiness package added:
+
+- `/api/health`
+- `/api/readiness`
+- `/api/admin/diagnostics`
+- `/api/admin/diagnostics/stripe`
+- `/api/admin/diagnostics/supabase`
+- `/api/admin/diagnostics/orders`
+- `/api/admin/diagnostics/security`
+- `scripts/db/007_devops_observability_qa_launch_readiness.sql`
+- `scripts/qa/smoke-production.ps1`
+- `scripts/qa/smoke-admin.ps1`
+- production runbooks under `docs/production/`
+
+Apply the DB migration before validating diagnostics.

@@ -223,6 +223,54 @@ async function recordStripeEventFailed(eventId: string, errorMessage: string) {
   if (error) logger.warn({ err: error, eventId }, 'Unable to mark Stripe event as failed');
 }
 
+
+async function recordOperationalEvent(eventType: string, severity: 'info' | 'warning' | 'error', message: string, metadata: Record<string, any> = {}) {
+  if (!supabase) return;
+  try {
+    await supabase.from('operational_events').insert({
+      event_type: eventType,
+      severity,
+      message,
+      metadata
+    });
+  } catch (err) {
+    logger.warn({ err, eventType }, 'Unable to write operational event');
+  }
+}
+
+async function getDiagnosticCounts(storeId: string | null) {
+  if (!supabase) return {
+    pendingOrders: 0,
+    unresolvedStripeEvents: 0,
+    negativeStockProducts: 0,
+    lowStockProducts: 0,
+    recentOperationalErrors: 0
+  };
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const pendingOrdersQuery = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pendiente');
+  if (storeId) pendingOrdersQuery.eq('store_id', storeId);
+
+  const lowStockQuery = supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5).eq('status', 'active');
+  if (storeId) lowStockQuery.eq('store_id', storeId);
+
+  const [pendingOrders, unresolvedStripeEvents, negativeStockProducts, lowStockProducts, recentOperationalErrors] = await Promise.all([
+    pendingOrdersQuery,
+    supabase.from('stripe_events').select('id', { count: 'exact', head: true }).not('error_message', 'is', null),
+    supabase.from('products').select('id', { count: 'exact', head: true }).lt('stock', 0),
+    lowStockQuery,
+    supabase.from('operational_events').select('id', { count: 'exact', head: true }).eq('severity', 'error').gte('created_at', since)
+  ]);
+
+  return {
+    pendingOrders: pendingOrders.count || 0,
+    unresolvedStripeEvents: unresolvedStripeEvents.count || 0,
+    negativeStockProducts: negativeStockProducts.count || 0,
+    lowStockProducts: lowStockProducts.count || 0,
+    recentOperationalErrors: recentOperationalErrors.count || 0
+  };
+}
+
 async function sendPaidOrderEmails(order: any, orderItems: any[], session: any) {
   if (!order) return;
   const customerEmail = session?.customer_details?.email || order.customer_email;
@@ -501,8 +549,18 @@ const upload = multer({
 
 async function startServer() {
   const app = express();
+
+  app.use((req, res, next) => {
+    const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+    (req as any).requestId = requestId;
+    res.setHeader('x-request-id', String(requestId));
+    next();
+  });
   
-  app.use(pinoHttp({ logger }));
+  app.use(pinoHttp({
+    logger,
+    customProps: (req) => ({ requestId: (req as any).requestId })
+  }));
 
   app.use(cors({
     origin(origin, callback) {
@@ -870,21 +928,48 @@ async function startServer() {
 });
 
 app.get('/api/health', asyncHandler(async (req, res) => {
-    if (req.query.error) {
-      console.error('FRONTEND ERROR LOGGED:', req.query.error);
-    }
+    const uptimeSeconds = Math.round(process.uptime());
+    res.json({
+      status: 'ok',
+      service: 'selfcare-sinners-web',
+      environment: process.env.NODE_ENV || 'development',
+      version: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.npm_package_version || 'local',
+      uptimeSeconds,
+      timestamp: new Date().toISOString(),
+      requestId: (req as any).requestId
+    });
+  }));
 
-    // Check Supabase connection if configured
-    let dbStatus = 'unconfigured';
+app.get('/api/readiness', asyncHandler(async (req, res) => {
+    const checks: any = {
+      env: {
+        ok: requiredProductionEnv.every((key) => Boolean(process.env[key])),
+        missing: isProduction ? requiredProductionEnv.filter((key) => !process.env[key]) : []
+      },
+      supabase: { ok: false },
+      stripe: { ok: Boolean(stripe && STRIPE_WEBHOOK_SECRET) },
+      email: { ok: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM) }
+    };
+
     if (supabase) {
+      const started = Date.now();
       try {
         const { error } = await supabase.from('stores').select('id').limit(1);
-        dbStatus = error ? 'error' : 'connected';
-      } catch (e) {
-        dbStatus = 'error';
+        checks.supabase = { ok: !error, latencyMs: Date.now() - started, error: error?.message || null };
+      } catch (err: any) {
+        checks.supabase = { ok: false, latencyMs: Date.now() - started, error: err?.message || 'Supabase check failed' };
       }
+    } else {
+      checks.supabase = { ok: false, error: 'Supabase client is not configured' };
     }
-    res.json({ status: 'ok', database: dbStatus });
+
+    const ready = Object.values(checks).every((check: any) => check.ok === true);
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'degraded',
+      checks,
+      timestamp: new Date().toISOString(),
+      requestId: (req as any).requestId
+    });
   }));
 
   app.post('/api/orders', optionalAuth(), orderLimiter, asyncHandler(async (req: any, res) => {
@@ -1209,6 +1294,85 @@ app.get('/api/health', asyncHandler(async (req, res) => {
   });
 
   app.use('/api/admin', requireAuth(), requireAdmin());
+
+  app.get('/api/admin/diagnostics', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ status: 'degraded', error: 'Supabase not configured' });
+    const storeId = await getPrimaryStoreId();
+    const counts = await getDiagnosticCounts(storeId);
+    const status = counts.unresolvedStripeEvents > 0 || counts.negativeStockProducts > 0 || counts.recentOperationalErrors > 0 ? 'attention_required' : 'ok';
+    res.json({
+      status,
+      service: 'Selfcare Sinners ecommerce',
+      generatedAt: new Date().toISOString(),
+      requestId: req.requestId,
+      counts,
+      links: {
+        readiness: '/api/readiness',
+        stripe: '/api/admin/diagnostics/stripe',
+        supabase: '/api/admin/diagnostics/supabase',
+        orders: '/api/admin/diagnostics/orders',
+        security: '/api/admin/diagnostics/security'
+      }
+    });
+  }));
+
+  app.get('/api/admin/diagnostics/stripe', asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.status(503).json({ configured: Boolean(stripe), events: [] });
+    const { data: events, error } = await supabase
+      .from('stripe_events')
+      .select('id,type,processed_at,error_message,created_at')
+      .order('created_at', { ascending: false })
+      .limit(25);
+    if (error) throw error;
+    const unresolved = (events || []).filter((event: any) => event.error_message || !event.processed_at);
+    res.json({
+      configured: Boolean(stripe && STRIPE_WEBHOOK_SECRET),
+      status: unresolved.length ? 'attention_required' : 'ok',
+      unresolvedCount: unresolved.length,
+      events: events || []
+    });
+  }));
+
+  app.get('/api/admin/diagnostics/supabase', asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.status(503).json({ status: 'not_configured' });
+    const started = Date.now();
+    const { data: stores, error: storesError } = await supabase.from('stores').select('id,slug,name').limit(3);
+    const { data: operationalEvents } = await supabase.from('operational_events').select('event_type,severity,message,created_at').order('created_at', { ascending: false }).limit(10);
+    res.status(storesError ? 503 : 200).json({
+      status: storesError ? 'degraded' : 'ok',
+      latencyMs: Date.now() - started,
+      stores: stores || [],
+      recentOperationalEvents: operationalEvents || [],
+      error: storesError?.message || null
+    });
+  }));
+
+  app.get('/api/admin/diagnostics/orders', asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.status(503).json({ status: 'not_configured' });
+    const { data: pending } = await supabase.from('orders').select('id,status,total,created_at,updated_at').eq('status', 'pendiente').order('created_at', { ascending: false }).limit(20);
+    const { data: inventoryExceptions } = await supabase.from('orders').select('id,status,total,notes,created_at,updated_at').eq('status', 'inventory_exception').order('updated_at', { ascending: false }).limit(20);
+    const { data: negativeStock } = await supabase.from('products').select('id,name,stock,status,updated_at').lt('stock', 0).order('updated_at', { ascending: false }).limit(20);
+    res.json({
+      status: (inventoryExceptions?.length || negativeStock?.length) ? 'attention_required' : 'ok',
+      pendingOrders: pending || [],
+      inventoryExceptions: inventoryExceptions || [],
+      negativeStockProducts: negativeStock || []
+    });
+  }));
+
+  app.get('/api/admin/diagnostics/security', asyncHandler(async (_req: any, res) => {
+    const allowedOrigins = getAllowedOrigins();
+    res.json({
+      status: 'ok',
+      production: isProduction,
+      corsOrigins: allowedOrigins,
+      jwtConfigured: Boolean(JWT_SECRET),
+      adminEmailConfigured: Boolean(ADMIN_EMAIL),
+      cspEnabled: isProduction,
+      stripeWebhookSecretConfigured: Boolean(STRIPE_WEBHOOK_SECRET),
+      serviceWorkerPolicy: 'same-origin app shell only; no cross-origin API/font interception'
+    });
+  }));
 
   // Admin operations dashboard: operational health, exceptions and audit visibility.
   app.get('/api/admin/operations/summary', asyncHandler(async (req: any, res) => {
