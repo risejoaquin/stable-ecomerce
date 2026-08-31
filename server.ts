@@ -3712,6 +3712,353 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // POST-LAUNCH 06: paid traffic readiness and conversion hardening.
+  function normalizePaidTrafficSlug(value: any) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120) || 'campaign';
+  }
+
+  function paidStatusesList() {
+    return ['pagado', 'empacado', 'enviado', 'entregado'];
+  }
+
+  async function getPaidTrafficWindow(storeId: string) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [campaigns, landingPages, adEvents, conversions, orders, experiments, productFeeds] = await Promise.all([
+      supabase.from('paid_traffic_campaigns').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(500),
+      supabase.from('campaign_landing_pages').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(500),
+      supabase.from('ad_platform_events').select('*').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('conversion_events').select('*').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('orders').select('id,total,status,customer_email,created_at,paid_at').eq('store_id', storeId).gte('created_at', since).limit(5000),
+      supabase.from('ab_tests').select('*, ab_test_variants(*)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100),
+      supabase.from('product_feeds').select('*').eq('store_id', storeId).order('generated_at', { ascending: false }).limit(20)
+    ]);
+    for (const r of [campaigns, landingPages, adEvents, conversions, orders, experiments, productFeeds]) if (r.error) throw r.error;
+    return {
+      since,
+      campaigns: campaigns.data || [],
+      landingPages: landingPages.data || [],
+      adEvents: adEvents.data || [],
+      conversions: conversions.data || [],
+      orders: orders.data || [],
+      experiments: experiments.data || [],
+      productFeeds: productFeeds.data || []
+    };
+  }
+
+  app.get('/api/public/campaigns/:slug/landing', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', campaign: null, landingPage: null, products: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Store not found' });
+      const slug = normalizePaidTrafficSlug(req.params.slug);
+      const { data: landingPage, error } = await supabase
+        .from('campaign_landing_pages')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .maybeSingle();
+      if (error) throw error;
+      if (!landingPage) return res.status(404).json({ error: 'Campaign landing page not found' });
+      const { data: campaign } = landingPage.campaign_id
+        ? await supabase.from('paid_traffic_campaigns').select('*').eq('id', landingPage.campaign_id).maybeSingle()
+        : { data: null } as any;
+      const { data: products } = await supabase
+        .from('products')
+        .select('id,name,slug,price,compare_at_price,image_url,image_alt_text,short_marketing_copy,hero_badge,stock,status,is_featured,sort_priority')
+        .eq('store_id', storeId)
+        .eq('status', 'active')
+        .order('is_featured', { ascending: false })
+        .order('sort_priority', { ascending: true })
+        .limit(12);
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      res.json({ status: 'ok', campaign, landingPage, products: products || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Campaign landing page failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/public/product-feed', asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', products: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Store not found' });
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('id,name,slug,description,seo_title,seo_description,price,compare_at_price,currency,image_url,image_alt_text,brand,stock,status,updated_at')
+        .eq('store_id', storeId)
+        .eq('status', 'active')
+        .gt('stock', 0)
+        .order('updated_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const feed = (products || []).map((p: any) => ({
+        id: p.id,
+        title: p.seo_title || p.name,
+        description: p.seo_description || p.description || p.name,
+        availability: Number(p.stock || 0) > 0 ? 'in stock' : 'out of stock',
+        condition: 'new',
+        price: `${Number(p.price || 0).toFixed(2)} ${p.currency || 'MXN'}`,
+        sale_price: p.compare_at_price && Number(p.compare_at_price) > Number(p.price || 0) ? `${Number(p.price || 0).toFixed(2)} ${p.currency || 'MXN'}` : null,
+        link: `${APP_URL}/product/${p.id}/${p.slug || normalizePaidTrafficSlug(p.name)}`,
+        image_link: p.image_url,
+        brand: p.brand || 'Selfcare Sinners',
+        google_product_category: 'Health & Beauty > Personal Care',
+        custom_label_0: p.brand || 'Selfcare Sinners',
+        updated_at: p.updated_at
+      }));
+      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+      res.json({ status: 'ok', generatedAt: new Date().toISOString(), products: feed });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Product feed failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/ads/events', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, stored: false });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const payload = {
+        store_id: storeId,
+        session_id: String(req.body?.sessionId || req.body?.session_id || '').slice(0, 128) || null,
+        platform: String(req.body?.platform || 'internal').toLowerCase(),
+        event_name: String(req.body?.eventName || req.body?.event_name || 'PageView'),
+        event_id: String(req.body?.eventId || req.body?.event_id || crypto.randomUUID()).slice(0, 128),
+        order_id: req.body?.orderId || req.body?.order_id || null,
+        product_id: req.body?.productId || req.body?.product_id || null,
+        value: Number(req.body?.value || 0),
+        currency: req.body?.currency || 'MXN',
+        utm_source: req.body?.utm_source || null,
+        utm_medium: req.body?.utm_medium || null,
+        utm_campaign: req.body?.utm_campaign || null,
+        metadata: req.body?.metadata || {},
+        status: 'captured'
+      };
+      const { data, error } = await supabase.from('ad_platform_events').insert(payload).select().single();
+      if (error) throw error;
+      res.json({ success: true, event: data });
+    } catch (e: any) {
+      logger.warn({ err: e }, 'Ads event capture failed');
+      res.status(202).json({ success: false, error: e.message });
+    }
+  }));
+
+  app.post('/api/experiments/assign', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', assignment: null });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const experimentKey = String(req.body?.experimentKey || req.body?.experiment_key || 'home_hero_v1');
+      const sessionId = String(req.body?.sessionId || req.body?.session_id || crypto.randomUUID()).slice(0, 128);
+      const { data: test, error: testError } = await supabase.from('ab_tests').select('*').eq('store_id', storeId).eq('experiment_key', experimentKey).eq('status', 'active').maybeSingle();
+      if (testError) throw testError;
+      if (!test) return res.json({ status: 'ok', assignment: { experimentKey, variantKey: 'control', active: false } });
+      const { data: variants, error: variantsError } = await supabase.from('ab_test_variants').select('*').eq('test_id', test.id).order('sort_order', { ascending: true });
+      if (variantsError) throw variantsError;
+      const options = variants && variants.length ? variants : [{ variant_key: 'control', name: 'Control' }];
+      const hash = crypto.createHash('sha256').update(`${experimentKey}:${sessionId}`).digest('hex');
+      const index = parseInt(hash.slice(0, 8), 16) % options.length;
+      const variant = options[index];
+      await supabase.from('conversion_events').insert({
+        store_id: storeId,
+        session_id: sessionId,
+        event_type: 'experiment_assigned',
+        metadata: { experimentKey, testId: test.id, variantKey: variant.variant_key }
+      });
+      res.json({ status: 'ok', assignment: { experimentKey, testId: test.id, variantKey: variant.variant_key, name: variant.name, active: true } });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Experiment assignment failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/paid-traffic/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', summary: {} });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const data = await getPaidTrafficWindow(storeId);
+      const paidOrders = data.orders.filter((o: any) => paidStatusesList().includes(o.status));
+      const revenue = paidOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+      res.json({
+        status: 'ok',
+        windowDays: 30,
+        summary: {
+          activeCampaigns: data.campaigns.filter((c: any) => c.status === 'active').length,
+          publishedLandingPages: data.landingPages.filter((p: any) => p.status === 'published').length,
+          adEvents: data.adEvents.length,
+          conversionEvents: data.conversions.length,
+          paidOrders: paidOrders.length,
+          attributedRevenue: revenue,
+          productFeeds: data.productFeeds.length,
+          activeExperiments: data.experiments.filter((e: any) => e.status === 'active').length
+        },
+        alerts: {
+          missingPixelIds: !process.env.VITE_META_PIXEL_ID && !process.env.VITE_GA_MEASUREMENT_ID,
+          noPublishedLandingPages: !data.landingPages.some((p: any) => p.status === 'published'),
+          noActiveCampaigns: !data.campaigns.some((c: any) => c.status === 'active')
+        }
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Paid traffic summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/paid-traffic/campaigns', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', campaigns: [], landingPages: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const [campaigns, landingPages] = await Promise.all([
+        supabase.from('paid_traffic_campaigns').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(200),
+        supabase.from('campaign_landing_pages').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(200)
+      ]);
+      if (campaigns.error) throw campaigns.error;
+      if (landingPages.error) throw landingPages.error;
+      res.json({ status: 'ok', campaigns: campaigns.data || [], landingPages: landingPages.data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Paid traffic campaigns failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/paid-traffic/campaigns', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const name = String(req.body?.name || 'Paid traffic campaign').trim();
+      const slug = normalizePaidTrafficSlug(req.body?.slug || name);
+      const { data: campaign, error } = await supabase.from('paid_traffic_campaigns').upsert({
+        store_id: storeId,
+        name,
+        slug,
+        channel: req.body?.channel || 'meta',
+        objective: req.body?.objective || 'conversions',
+        status: req.body?.status || 'draft',
+        budget_daily: Number(req.body?.budget_daily || req.body?.budgetDaily || 0),
+        utm_source: req.body?.utm_source || req.body?.channel || 'meta',
+        utm_medium: req.body?.utm_medium || 'paid_social',
+        utm_campaign: req.body?.utm_campaign || slug,
+        coupon_code: req.body?.coupon_code || null,
+        target_audience: req.body?.target_audience || {},
+        metadata: req.body?.metadata || {}
+      }, { onConflict: 'store_id,slug' }).select().single();
+      if (error) throw error;
+      const landingPayload = {
+        store_id: storeId,
+        campaign_id: campaign.id,
+        slug,
+        title: req.body?.landing_title || `${name} | Selfcare Sinners`,
+        subtitle: req.body?.landing_subtitle || 'Skincare y autocuidado con checkout seguro y seguimiento de pedido.',
+        hero_image_url: req.body?.hero_image_url || null,
+        primary_cta: req.body?.primary_cta || 'Comprar ahora',
+        status: req.body?.landing_status || 'published',
+        content: req.body?.content || { trustBadges: ['Pago seguro', 'Seguimiento de pedido', 'Soporte humano'], sections: [] }
+      };
+      await supabase.from('campaign_landing_pages').upsert(landingPayload, { onConflict: 'store_id,slug' });
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'paid_traffic_campaign_upserted', entityType: 'campaign', entityId: campaign.id, metadata: { slug, channel: campaign.channel } });
+      res.json({ success: true, campaign, landingPath: `/campaign/${slug}` });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Paid traffic campaign upsert failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/paid-traffic/feed', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', feed: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data: products, error } = await supabase.from('products').select('id,name,slug,price,compare_at_price,stock,status,image_url,image_alt_text,brand,seo_title,seo_description').eq('store_id', storeId).eq('status', 'active').limit(500);
+      if (error) throw error;
+      const invalid = (products || []).filter((p: any) => !p.image_url || !p.image_alt_text || Number(p.stock || 0) <= 0 || !p.slug);
+      res.json({ status: 'ok', totalProducts: products?.length || 0, invalidCount: invalid.length, invalidProducts: invalid, feedUrl: `${APP_URL}/api/public/product-feed` });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Paid traffic feed diagnostics failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/paid-traffic/experiments', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', experiments: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('ab_tests').select('*, ab_test_variants(*)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ status: 'ok', experiments: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Paid traffic experiments failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/experiments', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const experimentKey = normalizePaidTrafficSlug(req.body?.experiment_key || req.body?.experimentKey || req.body?.name || 'home-hero-v1').replace(/-/g, '_');
+      const { data: test, error } = await supabase.from('ab_tests').upsert({
+        store_id: storeId,
+        experiment_key: experimentKey,
+        name: req.body?.name || 'Home hero test',
+        hypothesis: req.body?.hypothesis || 'A trust-focused hero improves paid traffic conversion.',
+        status: req.body?.status || 'active',
+        target_path: req.body?.target_path || '/',
+        primary_metric: req.body?.primary_metric || 'checkout_started'
+      }, { onConflict: 'store_id,experiment_key' }).select().single();
+      if (error) throw error;
+      const variants = req.body?.variants || [
+        { variant_key: 'control', name: 'Control', weight: 50, config: { headline: 'Selfcare Sinners' } },
+        { variant_key: 'trust', name: 'Trust hero', weight: 50, config: { headline: 'Skincare con compra segura' } }
+      ];
+      for (const [index, variant] of variants.entries()) {
+        await supabase.from('ab_test_variants').upsert({ test_id: test.id, variant_key: variant.variant_key, name: variant.name, weight: Number(variant.weight || 50), config: variant.config || {}, sort_order: index }, { onConflict: 'test_id,variant_key' });
+      }
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'ab_test_upserted', entityType: 'ab_test', entityId: test.id, metadata: { experimentKey } });
+      res.json({ success: true, experiment: test });
+    } catch (e: any) {
+      logger.error({ err: e }, 'AB test upsert failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/paid-traffic/conversion-api', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', events: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('ad_platform_events').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({
+        status: 'ok',
+        readiness: {
+          metaPixelConfigured: Boolean(process.env.VITE_META_PIXEL_ID || process.env.META_PIXEL_ID),
+          googleAdsConfigured: Boolean(process.env.VITE_GA_MEASUREMENT_ID || process.env.GOOGLE_ADS_CONVERSION_ID),
+          conversionApiTokenConfigured: Boolean(process.env.META_CONVERSIONS_API_TOKEN || process.env.GOOGLE_ADS_API_SECRET),
+          serverSideEventsCaptured: data?.length || 0
+        },
+        events: data || []
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Conversion API readiness failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

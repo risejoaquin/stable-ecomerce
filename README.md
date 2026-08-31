@@ -258,3 +258,12 @@ Unblock-File .\scripts\qa\smoke-revenue.ps1
 - GET `/api/admin/revenue/customers`
 - GET `/api/admin/revenue/automation`
 - POST `/api/admin/automation/run`
+
+
+## POST-LAUNCH 06 — Paid Traffic Readiness & Conversion Hardening
+
+Incluye landing pages por campaña, product feed readiness, Meta/Google Ads integration points, conversion API readiness, A/B testing foundation, trust badges y smoke test de paid traffic.
+
+Migración: `scripts/db/012_post_launch_06_paid_traffic_conversion_hardening.sql`
+
+Smoke: `scripts/qa/smoke-paid-traffic.ps1`
