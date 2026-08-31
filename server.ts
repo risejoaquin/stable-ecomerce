@@ -756,6 +756,124 @@ async function startServer() {
     }
   }));
 
+
+
+  // Post-launch 03: public commercial landing APIs.
+  app.get('/api/public/categories', asyncHandler(async (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=120');
+    if (!supabase) return res.json({ data: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase
+        .from('products')
+        .select('id,category,categories,status,stock,updated_at')
+        .eq('store_id', storeId)
+        .eq('status', 'active');
+      if (error) throw error;
+      const map = new Map<string, any>();
+      for (const product of data || []) {
+        const values = [product.category, ...(Array.isArray(product.categories) ? product.categories : [])]
+          .filter(Boolean)
+          .map((v: any) => String(v).trim())
+          .filter(Boolean);
+        for (const name of values.length ? values : ['Sin categoría']) {
+          const key = name.toLowerCase();
+          const current = map.get(key) || { name, slug: slugify(name), productCount: 0, inStockCount: 0 };
+          current.productCount += 1;
+          if (Number(product.stock || 0) > 0) current.inStockCount += 1;
+          map.set(key, current);
+        }
+      }
+      res.json({ data: Array.from(map.values()).sort((a, b) => b.productCount - a.productCount) });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Public categories failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/public/home', asyncHandler(async (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=120');
+    if (!supabase) return res.json({ banners: [], categories: [], featuredProducts: [], campaigns: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
+      const now = new Date().toISOString();
+      const [storeResult, productResult, campaignResult] = await Promise.all([
+        supabase.from('stores').select('id,name,slug,description,config').eq('id', storeId).maybeSingle(),
+        supabase.from('products')
+          .select('id,name,slug,description,short_marketing_copy,price,compare_at_price,images,image_alt_text,category,categories,stock,brand,is_featured,sort_priority,commercial_status,variants')
+          .eq('store_id', storeId)
+          .eq('status', 'active')
+          .order('is_featured', { ascending: false })
+          .order('sort_priority', { ascending: true })
+          .order('updated_at', { ascending: false })
+          .limit(12),
+        supabase.from('commercial_campaigns')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('status', 'active')
+          .or(`starts_at.is.null,starts_at.lte.${now}`)
+          .or(`ends_at.is.null,ends_at.gte.${now}`)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ]);
+      if (storeResult.error) throw storeResult.error;
+      if (productResult.error) throw productResult.error;
+      if (campaignResult.error) throw campaignResult.error;
+      const products = productResult.data || [];
+      const categories = Array.from(new Set(products.flatMap((p: any) => [p.category, ...(Array.isArray(p.categories) ? p.categories : [])].filter(Boolean))));
+      const campaigns = campaignResult.data || [];
+      const banners = campaigns.map((campaign: any) => ({
+        id: campaign.id,
+        name: campaign.name,
+        type: campaign.type,
+        channel: campaign.channel,
+        headline: campaign.metadata?.headline || campaign.name,
+        body: campaign.metadata?.body || campaign.notes || 'Campaña activa Selfcare Sinners.',
+        cta: campaign.metadata?.cta || 'Comprar ahora',
+        href: campaign.metadata?.href || '/#catalogo'
+      }));
+      res.json({
+        store: storeResult.data,
+        banners,
+        categories: categories.map((name: any) => ({ name, slug: slugify(name) })),
+        featuredProducts: products.map((product: any) => ({ ...product, canonical_path: productPublicPath(product) })),
+        campaigns
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Public home payload failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/analytics/events', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, stored: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const incoming = Array.isArray(req.body?.events) ? req.body.events : [req.body];
+      const allowed = new Set(['page_view', 'product_view', 'add_to_cart', 'wishlist_add', 'cart_open', 'checkout_started', 'coupon_applied', 'search', 'campaign_click']);
+      const events = incoming.slice(0, 20).map((event: any) => ({
+        store_id: storeId,
+        session_id: String(event.session_id || event.sessionId || req.headers['x-request-id'] || '').slice(0, 128) || null,
+        user_id: req.auth?.userId || null,
+        event_type: allowed.has(String(event.event_type || event.type)) ? String(event.event_type || event.type) : 'page_view',
+        product_id: event.product_id || event.productId || null,
+        campaign_id: event.campaign_id || event.campaignId || null,
+        order_id: event.order_id || event.orderId || null,
+        source: String(event.source || 'storefront').slice(0, 80),
+        metadata: event.metadata || {}
+      }));
+      if (events.length === 0) return res.json({ success: true, stored: 0 });
+      const { error } = await supabase.from('marketing_events').insert(events);
+      if (error) throw error;
+      res.json({ success: true, stored: events.length });
+    } catch (e: any) {
+      logger.warn({ err: e }, 'Marketing event capture failed');
+      res.status(202).json({ success: false, stored: 0 });
+    }
+  }));
+
   app.post('/api/contact', contactLimiter, asyncHandler(async (req, res) => {
           try {
             const { name, email, message } = req.body;
@@ -1731,6 +1849,111 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
       res.json(data);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  }));
+
+
+
+  // Post-launch 03: conversion, catalog and traffic readiness operations.
+  app.get('/api/admin/conversion/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', events: {}, funnel: {}, topProducts: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [eventsResult, ordersResult] = await Promise.all([
+        supabase.from('marketing_events').select('event_type,product_id,created_at,metadata').eq('store_id', storeId).gte('created_at', since).limit(5000),
+        supabase.from('orders').select('id,status,total,created_at').eq('store_id', storeId).gte('created_at', since)
+      ]);
+      if (eventsResult.error) throw eventsResult.error;
+      if (ordersResult.error) throw ordersResult.error;
+      const events = eventsResult.data || [];
+      const orders = ordersResult.data || [];
+      const counts = events.reduce((acc: any, e: any) => {
+        acc[e.event_type] = (acc[e.event_type] || 0) + 1;
+        return acc;
+      }, {});
+      const paidStatuses = ['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'];
+      const paidOrders = orders.filter((o: any) => paidStatuses.includes(o.status));
+      const revenue = paidOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+      const productViews = new Map<string, number>();
+      events.filter((e: any) => e.product_id).forEach((e: any) => productViews.set(e.product_id, (productViews.get(e.product_id) || 0) + 1));
+      res.json({
+        status: 'ok',
+        windowDays: 30,
+        events: counts,
+        funnel: {
+          productViews: counts.product_view || 0,
+          addToCart: counts.add_to_cart || 0,
+          checkoutStarted: counts.checkout_started || 0,
+          paidOrders: paidOrders.length,
+          revenue,
+          cartToCheckoutRate: counts.add_to_cart ? Number((((counts.checkout_started || 0) / counts.add_to_cart) * 100).toFixed(2)) : 0,
+          checkoutToPaidRate: counts.checkout_started ? Number(((paidOrders.length / counts.checkout_started) * 100).toFixed(2)) : 0
+        },
+        topProducts: Array.from(productViews.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([productId, views]) => ({ productId, views }))
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Admin conversion summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/catalog/export-template', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const headers = [
+      'name','slug','description','short_marketing_copy','price','compare_at_price','stock','category','brand','supplier','sku','image_url','image_alt_text','seo_title','seo_description','commercial_status','is_featured','sort_priority','low_stock_threshold'
+    ];
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="selfcare-catalog-template.csv"');
+    res.send(headers.join(',') + '\n');
+  }));
+
+  app.post('/api/admin/catalog/bulk-upsert', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, upserted: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const products = Array.isArray(req.body?.products) ? req.body.products : [];
+      if (products.length === 0) return res.status(400).json({ error: 'products array is required' });
+      if (products.length > 100) return res.status(400).json({ error: 'Bulk upsert is limited to 100 products per request' });
+      const rows = products.map((p: any) => {
+        const name = String(p.name || '').trim();
+        if (!name) throw new AppError('Every product requires a name', 400);
+        const imageUrl = p.image_url || p.imageUrl || null;
+        return {
+          id: p.id || undefined,
+          store_id: storeId,
+          name,
+          slug: slugify(p.slug || name),
+          description: p.description || p.short_marketing_copy || null,
+          short_marketing_copy: p.short_marketing_copy || null,
+          price: Number(p.price || 0),
+          compare_at_price: p.compare_at_price || null,
+          stock: Number(p.stock || 0),
+          category: p.category || null,
+          categories: p.category ? [p.category] : (Array.isArray(p.categories) ? p.categories : []),
+          brand: p.brand || null,
+          supplier: p.supplier || null,
+          sku: p.sku || null,
+          images: imageUrl ? [imageUrl] : (Array.isArray(p.images) ? p.images : []),
+          image_alt_text: p.image_alt_text || name,
+          seo_title: p.seo_title || `${name} | Selfcare Sinners`,
+          seo_description: p.seo_description || p.description || p.short_marketing_copy || null,
+          commercial_status: p.commercial_status || 'ready',
+          is_featured: Boolean(p.is_featured),
+          sort_priority: Number(p.sort_priority || 100),
+          low_stock_threshold: Number(p.low_stock_threshold || 5),
+          status: p.status || 'active',
+          updated_at: new Date().toISOString()
+        };
+      });
+      const { data, error } = await supabase.from('products').upsert(rows, { onConflict: 'id' }).select('id,name,slug');
+      if (error) throw error;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'catalog_bulk_upsert', entityType: 'product', metadata: { count: rows.length } });
+      res.json({ success: true, upserted: data?.length || 0, data: data || [] });
+    } catch (e: any) {
+      const statusCode = e.statusCode || 500;
+      res.status(statusCode).json({ error: e.message });
     }
   }));
 

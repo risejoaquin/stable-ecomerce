@@ -57,3 +57,12 @@ export function useModerateReview() {
     }
   });
 }
+
+export function useConversionSummary() {
+  const apiClient = useApiClient();
+  return useQuery({
+    queryKey: ['admin-conversion-summary'],
+    queryFn: () => apiClient.get('/admin/conversion/summary'),
+    refetchInterval: 120_000
+  });
+}

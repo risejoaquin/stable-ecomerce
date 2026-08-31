@@ -1,6 +1,6 @@
 import React from 'react';
 import { BarChart3, Boxes, Megaphone, MessageSquare, Plus, ShieldCheck, Star, TrendingUp } from 'lucide-react';
-import { useAdminCampaigns, useAdminReviews, useCommercialSummary, useCreateCampaign, useModerateReview, useProductReadiness } from '../../hooks/useCommercial';
+import { useAdminCampaigns, useAdminReviews, useCommercialSummary, useCreateCampaign, useModerateReview, useProductReadiness, useConversionSummary } from '../../hooks/useCommercial';
 
 function MetricCard({ title, value, helper, icon: Icon }: { title: string; value: React.ReactNode; helper?: string; icon: any }) {
   return (
@@ -22,6 +22,7 @@ export function AdminCommercialPage() {
   const { data: readiness } = useProductReadiness();
   const { data: campaigns } = useAdminCampaigns();
   const { data: reviews } = useAdminReviews('pending');
+  const { data: conversion } = useConversionSummary();
   const createCampaign = useCreateCampaign();
   const moderateReview = useModerateReview();
   const [campaignName, setCampaignName] = React.useState('');
@@ -59,12 +60,31 @@ export function AdminCommercialPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <MetricCard title="Productos activos" value={summary?.catalog?.activeProducts || 0} helper={`${summary?.catalog?.incompleteProducts || 0} por completar`} icon={Boxes} />
         <MetricCard title="Ingresos 30 días" value={`MXN $${Number(summary?.customers?.revenue30d || 0).toFixed(2)}`} helper={`${summary?.customers?.orders30d || 0} órdenes recientes`} icon={TrendingUp} />
         <MetricCard title="Campañas activas" value={summary?.campaigns?.active || 0} helper={`${summary?.campaigns?.total || 0} campañas totales`} icon={Megaphone} />
         <MetricCard title="Reviews" value={summary?.reviews?.total || 0} helper={`${summary?.reviews?.pending || 0} pendientes · ${summary?.reviews?.averageRating || 0}★ promedio`} icon={Star} />
+        <MetricCard title="Conversión 30 días" value={`${conversion?.funnel?.checkoutToPaidRate || 0}%`} helper={`${conversion?.funnel?.checkoutStarted || 0} checkouts · ${conversion?.funnel?.paidOrders || 0} pagados`} icon={TrendingUp} />
       </div>
+
+
+
+      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-bold text-gray-900">Funnel de conversión</h3>
+            <p className="text-xs text-gray-500">Eventos de producto, carrito y checkout de los últimos 30 días.</p>
+          </div>
+          <BarChart3 size={20} className="text-gray-400" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Product views</p><p className="font-bold text-xl">{conversion?.funnel?.productViews || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Add to cart</p><p className="font-bold text-xl">{conversion?.funnel?.addToCart || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Checkout started</p><p className="font-bold text-xl">{conversion?.funnel?.checkoutStarted || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Revenue</p><p className="font-bold text-xl">MXN ${Number(conversion?.funnel?.revenue || 0).toFixed(2)}</p></div>
+        </div>
+      </section>
 
       {summary?.alerts?.length > 0 && (
         <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-5">

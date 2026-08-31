@@ -9,7 +9,7 @@ $base = $BaseUrl.TrimEnd('/')
 
 function Check-Public($Name, $Path) {
   $url = "$base$Path"
-  Write-Host "Checking $Name: $url"
+  Write-Host "Checking ${Name}: $url"
   $res = Invoke-WebRequest -Method Get -Uri $url -UseBasicParsing
   if ($res.StatusCode -ne 200) { throw "$Name failed with $($res.StatusCode)" }
   Write-Host "PASS $Name -> $($res.StatusCode)"

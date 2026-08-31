@@ -1,6 +1,6 @@
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useCart, CartDrawer } from '../../App';
@@ -18,6 +18,24 @@ import { ArrowLeft, CheckCircle2, HeartHandshake, PackageCheck, ShieldCheck, Spa
 import { toast } from 'react-hot-toast';
 import { productCanonicalPath, productJsonLd, stripHtml } from '../../lib/seo';
 
+function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
+  try {
+    const sessionKey = 'ss_marketing_session_id';
+    let sessionId = localStorage.getItem(sessionKey);
+    if (!sessionId) {
+      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(sessionKey, sessionId);
+    }
+    fetch('/api/analytics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'product_detail', product_id: metadata.product_id, metadata })
+    }).catch(() => undefined);
+  } catch (_) {
+    // Analytics must never block product browsing.
+  }
+}
+
 export function ProductDetailPage() {
   const { id } = useParams();
   const apiClient = useApiClient();
@@ -34,6 +52,10 @@ export function ProductDetailPage() {
     queryFn: () => apiClient.get(`/products/${id}`),
     enabled: !!id
   });
+
+  useEffect(() => {
+    if (id) trackMarketingEvent('product_view', { product_id: id });
+  }, [id]);
 
   const { data: similarProductsResult } = useSearchProducts(
     store?.slug,
@@ -84,6 +106,7 @@ export function ProductDetailPage() {
         sku
       });
     }
+    trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price, quantity, variant: activeVariant?.name });
     toast.success('Agregado al carrito');
     setIsCartOpen(true);
   };

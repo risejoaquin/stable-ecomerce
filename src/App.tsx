@@ -44,6 +44,25 @@ import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
 
+
+function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
+  try {
+    const sessionKey = 'ss_marketing_session_id';
+    let sessionId = localStorage.getItem(sessionKey);
+    if (!sessionId) {
+      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(sessionKey, sessionId);
+    }
+    fetch('/api/analytics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'cart', metadata })
+    }).catch(() => undefined);
+  } catch (_) {
+    // Analytics must not interrupt checkout.
+  }
+}
+
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error: any) => toast.error(error.message || 'Something went wrong'),
@@ -227,6 +246,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
       } else {
         setAppliedCoupon(data.coupon);
         setCouponCode(data.coupon.code);
+        trackMarketingEvent('coupon_applied', { code: data.coupon.code, discount_type: data.coupon.discount_type, discount_value: data.coupon.discount_value });
       }
     } catch (e) {
       setCouponError('No pudimos validar el cupón. Intenta de nuevo.');
@@ -241,6 +261,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
         return;
       }
       localStorage.setItem('guest_email', email);
+      trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: true });
       fetch('/api/cart/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +269,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
       }).finally(() => checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined }));
       return;
     }
+    trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: false });
     checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined });
   };
 

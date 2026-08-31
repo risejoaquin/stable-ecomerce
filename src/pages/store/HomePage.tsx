@@ -17,10 +17,32 @@ import { ArrowRight, HeartHandshake, PackageCheck, ShieldCheck, Sparkles, Truck 
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
 
+function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
+  try {
+    const sessionKey = 'ss_marketing_session_id';
+    let sessionId = localStorage.getItem(sessionKey);
+    if (!sessionId) {
+      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(sessionKey, sessionId);
+    }
+    fetch('/api/analytics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'storefront', metadata })
+    }).catch(() => undefined);
+  } catch (_) {
+    // Analytics must never break shopping.
+  }
+}
+
 export function HomePage() {
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
   const [filters, setFilters] = useState({ search: '', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
   const { data: searchResult, isLoading: isProductsLoading } = useSearchProducts(store?.slug, filters);
+
+  useEffect(() => {
+    trackMarketingEvent('page_view', { page: 'home' });
+  }, []);
   const { items, setIsCartOpen } = useCart();
 
   useEffect(() => {
@@ -132,7 +154,7 @@ export function HomePage() {
               <h2 className="text-3xl md:text-5xl font-black mb-3 tracking-tight">Catálogo</h2>
               <p className="text-base opacity-70 max-w-2xl">Filtra por categoría, busca productos y agrega al carrito sin perder el contexto de tu rutina.</p>
             </div>
-            <button onClick={() => setIsCartOpen(true)} className="inline-flex items-center justify-center rounded-2xl px-5 py-3 bg-white border font-bold" style={{ borderColor: secondaryColor + '40' }}>
+            <button onClick={() => { trackMarketingEvent('cart_open', { source: 'home_button' }); setIsCartOpen(true); }} className="inline-flex items-center justify-center rounded-2xl px-5 py-3 bg-white border font-bold" style={{ borderColor: secondaryColor + '40' }}>
               Carrito ({cartItemCount})
             </button>
           </div>
@@ -239,7 +261,7 @@ export const StyledProductCard: React.FC<{ product: any, config: any, themeColor
           {hasVariants ? (
             <Link to={productCanonicalPath(product)} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 text-center" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>Ver opciones</Link>
           ) : (
-            <button disabled={!inStock} onClick={() => { addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] }); toast.success('Agregado al carrito'); }} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>{inStock ? 'Agregar' : 'Agotado'}</button>
+            <button disabled={!inStock} onClick={() => { addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] }); trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price: product.price }); toast.success('Agregado al carrito'); }} className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" style={{ backgroundColor: config.buttonColor || themeColor, borderRadius: 'var(--border-radius-sm)' }}>{inStock ? 'Agregar' : 'Agotado'}</button>
           )}
         </div>
       </div>

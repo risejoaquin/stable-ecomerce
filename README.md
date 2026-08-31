@@ -185,3 +185,23 @@ Validation target:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 03 — Brand, Catalog & Conversion Optimization
+
+Entrega enfocada en catálogo real, categorías comerciales, eventos de conversión, preparación para tráfico pagado y panel comercial/growth.
+
+Migración requerida:
+
+```sql
+scripts/db/009_post_launch_03_brand_catalog_conversion_optimization.sql
+```
+
+Smoke test:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-growth.ps1
+.\scripts\qa\smoke-growth.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
