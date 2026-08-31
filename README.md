@@ -219,3 +219,24 @@ Smoke test:
 ## POST-LAUNCH 12.1 — Customer loyalty smoke security hotfix
 
 The PL12 smoke script was adjusted so `/api/customer/*` is not validated anonymously or with only an email query parameter. The default validation now checks the admin customer-experience surface. Customer-owned endpoints can be tested only with `-IncludeCustomerEndpoints` plus a real `-CustomerToken`.
+
+## POST-LAUNCH 13 — Marketplace Readiness, Supplier Operations & Purchase Planning
+
+Incluye gestión de proveedores, costos por proveedor, órdenes de compra, planeación de inventario, reposición sugerida, lead times, márgenes por proveedor/producto, catálogo proveedor y alertas de stock proyectado.
+
+Archivos principales:
+
+```txt
+scripts/db/019_post_launch_13_marketplace_supplier_purchase_planning.sql
+scripts/qa/smoke-supplier-ops.ps1
+docs/production/POST_LAUNCH_13_MARKETPLACE_SUPPLIER_PURCHASE_PLANNING.md
+```
+
+Validación:
+
+```powershell
+.\scripts\qa\smoke-supplier-ops.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

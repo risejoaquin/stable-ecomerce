@@ -5438,6 +5438,269 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // POST-LAUNCH 13 — Marketplace Readiness, Supplier Operations & Purchase Planning
+  async function getSupplierOpsTable(table: string, fallback: any[] = [], limit = 100, orderColumn = 'created_at') {
+    if (!supabase) return fallback;
+    const { data, error } = await supabase.from(table).select('*').order(orderColumn, { ascending: false }).limit(limit);
+    if (error) {
+      logger.warn({ err: error, table }, 'Supplier operations table read failed');
+      return fallback;
+    }
+    return data || fallback;
+  }
+
+  async function getOrCreateDefaultSupplier(userId?: string | null) {
+    if (!supabase) return null;
+    const storeId = await getPrimaryStoreId();
+    const existing = await supabase.from('suppliers').select('*').eq('store_id', storeId).eq('supplier_key', 'default_supplier').maybeSingle();
+    if (existing.error) {
+      logger.warn({ err: existing.error }, 'Default supplier lookup failed');
+    }
+    if (existing.data) return existing.data;
+    const created = await supabase.from('suppliers').insert({
+      store_id: storeId,
+      supplier_key: 'default_supplier',
+      name: 'Default Supplier',
+      status: 'active',
+      contact_email: 'suppliers@selfcaresinners.com',
+      lead_time_days: 7,
+      payment_terms: 'manual',
+      created_by: userId || null,
+      metadata: { source: 'api_admin_supplier_ops_default_supplier' }
+    }).select().single();
+    if (created.error) throw created.error;
+    return created.data;
+  }
+
+  app.get('/api/admin/supplier-ops/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [suppliers, purchaseOrders, suggestions, alerts, catalogItems] = await Promise.all([
+      getSupplierOpsTable('suppliers'),
+      getSupplierOpsTable('purchase_orders'),
+      getSupplierOpsTable('supplier_replenishment_suggestions'),
+      getSupplierOpsTable('projected_stock_alerts'),
+      getSupplierOpsTable('supplier_catalog_items')
+    ]);
+    const openPurchaseOrders = purchaseOrders.filter((x: any) => !['received','cancelled','closed'].includes(String(x.status || '').toLowerCase()));
+    const activeAlerts = alerts.filter((x: any) => !['resolved','dismissed'].includes(String(x.status || '').toLowerCase()));
+    res.json({
+      status: 'ok',
+      counts: {
+        suppliers: suppliers.length,
+        catalogItems: catalogItems.length,
+        openPurchaseOrders: openPurchaseOrders.length,
+        replenishmentSuggestions: suggestions.length,
+        activeStockAlerts: activeAlerts.length
+      },
+      latestPurchaseOrder: purchaseOrders[0] || null,
+      generatedAt: new Date().toISOString()
+    });
+  }));
+
+  app.get('/api/admin/supplier-ops/suppliers', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const suppliers = await getSupplierOpsTable('suppliers', [], 250);
+    res.json({ status: 'ok', suppliers });
+  }));
+
+  app.post('/api/admin/supplier-ops/suppliers', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const name = req.body?.name || 'Smoke Supplier';
+    const supplierKey = req.body?.supplierKey || req.body?.supplier_key || String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `supplier_${Date.now()}`;
+    const payload = {
+      store_id: storeId,
+      supplier_key: supplierKey,
+      name,
+      status: req.body?.status || 'active',
+      contact_name: req.body?.contactName || req.body?.contact_name || null,
+      contact_email: req.body?.contactEmail || req.body?.contact_email || 'suppliers@selfcaresinners.com',
+      contact_phone: req.body?.contactPhone || req.body?.contact_phone || null,
+      lead_time_days: Number(req.body?.leadTimeDays || req.body?.lead_time_days || 7),
+      minimum_order_amount: Number(req.body?.minimumOrderAmount || req.body?.minimum_order_amount || 0),
+      payment_terms: req.body?.paymentTerms || req.body?.payment_terms || 'manual',
+      created_by: req.auth?.userId || null,
+      metadata: req.body?.metadata || { source: 'api_admin_supplier_ops_suppliers_create' }
+    };
+    const { data, error } = await supabase.from('suppliers').upsert(payload, { onConflict: 'store_id,supplier_key' }).select().single();
+    if (error) throw error;
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'supplier_created_or_updated', entityType: 'supplier', entityId: data.id, metadata: { supplierKey } });
+    res.json({ status: 'ok', supplier: data });
+  }));
+
+  app.get('/api/admin/supplier-ops/supplier-catalog', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [catalogItems, costs] = await Promise.all([
+      getSupplierOpsTable('supplier_catalog_items', [], 500),
+      getSupplierOpsTable('supplier_product_costs', [], 500)
+    ]);
+    res.json({ status: 'ok', catalogItems, costs });
+  }));
+
+  app.get('/api/admin/supplier-ops/purchase-orders', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [purchaseOrders, items] = await Promise.all([
+      getSupplierOpsTable('purchase_orders', [], 250),
+      getSupplierOpsTable('purchase_order_items', [], 500)
+    ]);
+    res.json({ status: 'ok', purchaseOrders, items });
+  }));
+
+  app.post('/api/admin/supplier-ops/purchase-orders', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const supplier = req.body?.supplierId || req.body?.supplier_id
+      ? { id: req.body?.supplierId || req.body?.supplier_id, lead_time_days: 7 }
+      : await getOrCreateDefaultSupplier(req.auth?.userId || null);
+    const expectedDate = new Date(Date.now() + Number(supplier?.lead_time_days || 7) * 86400000).toISOString().slice(0, 10);
+    const poNumber = req.body?.poNumber || req.body?.po_number || `PO-${Date.now()}`;
+    const orderPayload = {
+      store_id: storeId,
+      supplier_id: supplier?.id || null,
+      po_number: poNumber,
+      status: 'draft',
+      expected_arrival_date: req.body?.expectedArrivalDate || req.body?.expected_arrival_date || expectedDate,
+      subtotal_amount: Number(req.body?.subtotalAmount || req.body?.subtotal_amount || 0),
+      total_amount: Number(req.body?.totalAmount || req.body?.total_amount || 0),
+      currency: req.body?.currency || 'MXN',
+      created_by: req.auth?.userId || null,
+      notes: req.body?.notes || 'Created from supplier operations admin.',
+      metadata: req.body?.metadata || { source: 'api_admin_supplier_ops_purchase_orders_create' }
+    };
+    const { data: purchaseOrder, error } = await supabase.from('purchase_orders').insert(orderPayload).select().single();
+    if (error) throw error;
+    const products = await supabase.from('products').select('id,name,sku,stock,price,cost').eq('store_id', storeId).limit(1);
+    let item = null;
+    if (!products.error && products.data && products.data[0]) {
+      const product = products.data[0];
+      const itemInsert = await supabase.from('purchase_order_items').insert({
+        purchase_order_id: purchaseOrder.id,
+        product_id: product.id,
+        supplier_id: supplier?.id || null,
+        sku: product.sku || null,
+        product_name: product.name,
+        quantity_ordered: Number(req.body?.quantity || 1),
+        unit_cost: Number(req.body?.unitCost || product.cost || 0),
+        line_total: Number(req.body?.unitCost || product.cost || 0) * Number(req.body?.quantity || 1),
+        metadata: { source: 'api_admin_supplier_ops_purchase_order_item' }
+      }).select().single();
+      if (itemInsert.error) throw itemInsert.error;
+      item = itemInsert.data;
+    }
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'purchase_order_created', entityType: 'purchase_order', entityId: purchaseOrder.id, metadata: { poNumber } });
+    res.json({ status: 'ok', purchaseOrder, item });
+  }));
+
+  app.get('/api/admin/supplier-ops/inventory-planning', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const snapshots = await getSupplierOpsTable('inventory_planning_snapshots', [], 250);
+    res.json({ status: 'ok', snapshots });
+  }));
+
+  app.get('/api/admin/supplier-ops/replenishment-suggestions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const suggestions = await getSupplierOpsTable('supplier_replenishment_suggestions', [], 250);
+    res.json({ status: 'ok', suggestions });
+  }));
+
+  app.post('/api/admin/supplier-ops/replenishment-suggestions/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', generated: false });
+    const storeId = await getPrimaryStoreId();
+    const supplier = await getOrCreateDefaultSupplier(req.auth?.userId || null);
+    const { data: products, error: productsError } = await supabase.from('products').select('id,name,sku,stock,price,cost,low_stock_threshold').eq('store_id', storeId).limit(25);
+    if (productsError) throw productsError;
+    const rows = (products || []).map((product: any) => {
+      const threshold = Number(product.low_stock_threshold || 5);
+      const stock = Number(product.stock || 0);
+      const suggestedQuantity = Math.max(threshold * 2 - stock, 1);
+      return {
+        store_id: storeId,
+        supplier_id: supplier?.id || null,
+        product_id: product.id,
+        sku: product.sku || null,
+        product_name: product.name,
+        current_stock: stock,
+        reorder_point: threshold,
+        suggested_quantity: suggestedQuantity,
+        lead_time_days: Number(supplier?.lead_time_days || 7),
+        projected_stockout_date: new Date(Date.now() + Math.max(stock, 1) * 86400000).toISOString().slice(0, 10),
+        status: stock <= threshold ? 'recommended' : 'monitor',
+        recommendation_reason: stock <= threshold ? 'stock_below_reorder_point' : 'planning_snapshot',
+        created_by: req.auth?.userId || null,
+        metadata: req.body?.metadata || { source: 'api_admin_supplier_ops_replenishment_run' }
+      };
+    });
+    let inserted: any[] = [];
+    if (rows.length) {
+      const insert = await supabase.from('supplier_replenishment_suggestions').insert(rows).select();
+      if (insert.error) throw insert.error;
+      inserted = insert.data || [];
+    }
+    res.json({ status: 'ok', suggestionsCreated: inserted.length, suggestions: inserted });
+  }));
+
+  app.get('/api/admin/supplier-ops/lead-times', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const leadTimes = await getSupplierOpsTable('supplier_lead_time_logs', [], 250);
+    res.json({ status: 'ok', leadTimes });
+  }));
+
+  app.get('/api/admin/supplier-ops/margins', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const margins = await getSupplierOpsTable('supplier_margin_snapshots', [], 250);
+    res.json({ status: 'ok', margins });
+  }));
+
+  app.get('/api/admin/supplier-ops/stock-alerts', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const alerts = await getSupplierOpsTable('projected_stock_alerts', [], 250);
+    res.json({ status: 'ok', alerts });
+  }));
+
+  app.post('/api/admin/supplier-ops/stock-alerts/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', generated: false });
+    const storeId = await getPrimaryStoreId();
+    const supplier = await getOrCreateDefaultSupplier(req.auth?.userId || null);
+    const { data: products, error } = await supabase.from('products').select('id,name,sku,stock,low_stock_threshold').eq('store_id', storeId).limit(25);
+    if (error) throw error;
+    const alerts = (products || []).filter((p: any) => Number(p.stock || 0) <= Number(p.low_stock_threshold || 5)).map((p: any) => ({
+      store_id: storeId,
+      supplier_id: supplier?.id || null,
+      product_id: p.id,
+      sku: p.sku || null,
+      product_name: p.name,
+      current_stock: Number(p.stock || 0),
+      projected_stock: Number(p.stock || 0),
+      alert_type: 'projected_low_stock',
+      severity: Number(p.stock || 0) <= 0 ? 'critical' : 'high',
+      status: 'open',
+      projected_date: new Date().toISOString().slice(0, 10),
+      recommendation: 'Review supplier replenishment and create purchase order if needed.',
+      created_by: req.auth?.userId || null,
+      metadata: req.body?.metadata || { source: 'api_admin_supplier_ops_stock_alerts_run' }
+    }));
+    let inserted: any[] = [];
+    if (alerts.length) {
+      const insert = await supabase.from('projected_stock_alerts').insert(alerts).select();
+      if (insert.error) throw insert.error;
+      inserted = insert.data || [];
+    }
+    res.json({ status: 'ok', alertsCreated: inserted.length, alerts: inserted });
+  }));
+
+  app.get('/api/admin/supplier-ops/dashboard', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [suppliers, purchaseOrders, suggestions, alerts, margins] = await Promise.all([
+      getSupplierOpsTable('suppliers', [], 100),
+      getSupplierOpsTable('purchase_orders', [], 100),
+      getSupplierOpsTable('supplier_replenishment_suggestions', [], 100),
+      getSupplierOpsTable('projected_stock_alerts', [], 100),
+      getSupplierOpsTable('supplier_margin_snapshots', [], 100)
+    ]);
+    res.json({
+      status: 'ok',
+      panels: {
+        suppliers,
+        purchaseOrders,
+        replenishmentSuggestions: suggestions,
+        projectedStockAlerts: alerts,
+        marginSnapshots: margins
+      },
+      generatedAt: new Date().toISOString()
+    });
+  }));
+
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
