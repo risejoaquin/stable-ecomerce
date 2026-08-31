@@ -4658,6 +4658,235 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // POST-LAUNCH 09 — Finance, Accounting, Reconciliation & Admin Reporting
+  function sumMoney(rows: any[], key = 'total') {
+    return (rows || []).reduce((sum, row) => sum + Number(row?.[key] || 0), 0);
+  }
+
+  function toCsv(rows: any[]) {
+    if (!rows || rows.length === 0) return '';
+    const headers = Array.from(rows.reduce((set, row) => {
+      Object.keys(row || {}).forEach((key) => set.add(key));
+      return set;
+    }, new Set<string>()));
+    const escape = (value: any) => {
+      const raw = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+      return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+    };
+    return [headers.join(','), ...rows.map((row) => headers.map((header) => escape(row?.[header])).join(','))].join('\n');
+  }
+
+  app.get('/api/admin/finance/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', summary: {} });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [ordersResult, productsResult, stripeResult, closeResult] = await Promise.all([
+        supabase.from('orders').select('id,status,total,paid_at,created_at,updated_at,financial_status,stripe_payment_intent_id').eq('store_id', storeId).gte('created_at', since).order('created_at', { ascending: false }).limit(1000),
+        supabase.from('products').select('id,name,stock,cost,price,status').eq('store_id', storeId).neq('status', 'archived').limit(1000),
+        supabase.from('stripe_events').select('id,type,processed_at,error_message,created_at').order('created_at', { ascending: false }).limit(50),
+        supabase.from('finance_daily_closes').select('*').eq('store_id', storeId).order('business_date', { ascending: false }).limit(10)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      const orders = ordersResult.data || [];
+      const paidStatuses = ['pagado','empacado','enviado','entregado','partially_refunded'];
+      const paidOrders = orders.filter((order: any) => paidStatuses.includes(order.status));
+      const pendingOrders = orders.filter((order: any) => order.status === 'pendiente');
+      const missingPaymentIntent = paidOrders.filter((order: any) => !order.stripe_payment_intent_id);
+      const unresolvedStripeEvents = (stripeResult.data || []).filter((event: any) => !event.processed_at || event.error_message);
+      const inventoryValue = (productsResult.data || []).reduce((sum: number, product: any) => sum + Number(product.stock || 0) * Number(product.cost || 0), 0);
+      res.json({
+        status: missingPaymentIntent.length || unresolvedStripeEvents.length ? 'attention_required' : 'ok',
+        generatedAt: new Date().toISOString(),
+        period: { since, days: 30 },
+        revenue: {
+          paidOrderCount: paidOrders.length,
+          grossSales: sumMoney(paidOrders),
+          averageOrderValue: paidOrders.length ? Number((sumMoney(paidOrders) / paidOrders.length).toFixed(2)) : 0
+        },
+        controls: {
+          pendingOrders: pendingOrders.length,
+          missingPaymentIntent: missingPaymentIntent.length,
+          unresolvedStripeEvents: unresolvedStripeEvents.length,
+          lastDailyClose: closeResult.data?.[0] || null
+        },
+        inventory: {
+          activeProducts: productsResult.data?.length || 0,
+          inventoryValue: Number(inventoryValue.toFixed(2))
+        },
+        recentOrders: orders.slice(0, 10),
+        recentCloses: closeResult.data || []
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/reconciliation', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', exceptions: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const [ordersResult, eventsResult] = await Promise.all([
+        supabase.from('orders').select('id,status,total,stripe_session_id,stripe_payment_intent_id,paid_at,notes,created_at,updated_at').eq('store_id', storeId).order('created_at', { ascending: false }).limit(500),
+        supabase.from('stripe_events').select('id,type,processed_at,error_message,created_at').order('created_at', { ascending: false }).limit(500)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      const orders = ordersResult.data || [];
+      const paidStatuses = ['pagado','empacado','enviado','entregado','partially_refunded'];
+      const exceptions = [
+        ...orders.filter((order: any) => paidStatuses.includes(order.status) && !order.paid_at).map((order: any) => ({ type: 'paid_without_paid_at', order })),
+        ...orders.filter((order: any) => paidStatuses.includes(order.status) && !order.stripe_payment_intent_id).map((order: any) => ({ type: 'paid_without_payment_intent', order })),
+        ...orders.filter((order: any) => order.status === 'pendiente' && order.stripe_session_id).map((order: any) => ({ type: 'pending_with_checkout_session', order })),
+        ...(eventsResult.data || []).filter((event: any) => !event.processed_at || event.error_message).map((event: any) => ({ type: 'stripe_event_unresolved', event }))
+      ];
+      const { data: run } = await supabase.from('finance_reconciliation_runs').insert({
+        store_id: storeId,
+        status: exceptions.length ? 'exceptions_found' : 'clean',
+        checked_orders: orders.length,
+        exception_count: exceptions.length,
+        metadata: { source: 'api_admin_finance_reconciliation' }
+      }).select().maybeSingle();
+      res.json({ status: exceptions.length ? 'attention_required' : 'ok', run, checkedOrders: orders.length, exceptionCount: exceptions.length, exceptions });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance reconciliation failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/sales', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ rows: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const from = req.query.from ? String(req.query.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const to = req.query.to ? String(req.query.to) : new Date().toISOString();
+      const { data, error } = await supabase.from('orders').select('id,status,total,customer_email,paid_at,created_at,stripe_payment_intent_id').eq('store_id', storeId).gte('created_at', from).lte('created_at', to).order('created_at', { ascending: false }).limit(1000);
+      if (error) throw error;
+      const rows = data || [];
+      const grouped = rows.reduce((acc: any, order: any) => {
+        const day = String(order.created_at || '').slice(0, 10);
+        acc[day] ||= { date: day, orders: 0, grossSales: 0 };
+        acc[day].orders += 1;
+        if (['pagado','empacado','enviado','entregado','partially_refunded'].includes(order.status)) acc[day].grossSales += Number(order.total || 0);
+        return acc;
+      }, {});
+      res.json({ from, to, totalOrders: rows.length, grossSales: sumMoney(rows.filter((o: any) => ['pagado','empacado','enviado','entregado','partially_refunded'].includes(o.status))), daily: Object.values(grouped), rows });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance sales report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/margins', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ products: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('products').select('id,name,sku,price,cost,stock,margin_percent,status,commercial_status').eq('store_id', storeId).order('updated_at', { ascending: false }).limit(1000);
+      if (error) throw error;
+      const products = (data || []).map((product: any) => {
+        const price = Number(product.price || 0);
+        const cost = Number(product.cost || 0);
+        const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
+        return { ...product, computed_margin_percent: Number(margin.toFixed(2)), inventory_value: Number((Number(product.stock || 0) * cost).toFixed(2)) };
+      });
+      res.json({ products, inventoryValue: Number(products.reduce((sum: number, p: any) => sum + Number(p.inventory_value || 0), 0).toFixed(2)) });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance margins report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/refunds', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ refunds: [], returns: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const [ordersResult, returnsResult] = await Promise.all([
+        supabase.from('orders').select('id,status,total,refunded_amount,stripe_refund_id,updated_at,created_at').eq('store_id', storeId).in('status', ['refunded','partially_refunded']).order('updated_at', { ascending: false }).limit(100),
+        supabase.from('returns_requests').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      res.json({ refunds: ordersResult.data || [], returns: returnsResult.data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance refunds report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/inventory-valuation', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ products: [], totalValue: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('products').select('id,name,sku,stock,cost,price,status').eq('store_id', storeId).neq('status', 'archived').order('name', { ascending: true }).limit(1000);
+      if (error) throw error;
+      const products = (data || []).map((p: any) => ({ ...p, inventory_value: Number((Number(p.stock || 0) * Number(p.cost || 0)).toFixed(2)) }));
+      res.json({ products, totalValue: Number(products.reduce((sum: number, p: any) => sum + Number(p.inventory_value || 0), 0).toFixed(2)) });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Inventory valuation report failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/daily-close', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ closes: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('finance_daily_closes').select('*').eq('store_id', storeId).order('business_date', { ascending: false }).limit(60);
+      if (error) throw error;
+      res.json({ closes: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Daily close list failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/finance/daily-close', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      const businessDate = req.body?.business_date || req.body?.businessDate || new Date().toISOString().slice(0, 10);
+      const start = `${businessDate}T00:00:00.000Z`;
+      const end = `${businessDate}T23:59:59.999Z`;
+      const { data: orders, error } = await supabase.from('orders').select('id,status,total').eq('store_id', storeId).gte('created_at', start).lte('created_at', end).limit(1000);
+      if (error) throw error;
+      const paid = (orders || []).filter((o: any) => ['pagado','empacado','enviado','entregado','partially_refunded'].includes(o.status));
+      const payload = {
+        store_id: storeId,
+        business_date: businessDate,
+        status: 'closed',
+        order_count: paid.length,
+        gross_sales: sumMoney(paid),
+        net_sales: sumMoney(paid),
+        refund_total: sumMoney((orders || []).filter((o: any) => ['refunded','partially_refunded'].includes(o.status)), 'refunded_amount'),
+        closed_by: req.auth.userId,
+        closed_at: new Date().toISOString(),
+        metadata: { source: 'api_admin_finance_daily_close' }
+      };
+      const { data, error: closeError } = await supabase.from('finance_daily_closes').upsert(payload, { onConflict: 'store_id,business_date' }).select().single();
+      if (closeError) throw closeError;
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'finance_daily_close_created', entityType: 'finance_daily_close', entityId: data.id, metadata: { businessDate } });
+      res.json({ success: true, close: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Daily close failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/finance/export/orders.csv', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.type('text/csv').send('');
+    try {
+      const storeId = await getPrimaryStoreId();
+      const { data, error } = await supabase.from('orders').select('id,status,total,customer_email,stripe_payment_intent_id,paid_at,created_at,updated_at').eq('store_id', storeId).order('created_at', { ascending: false }).limit(5000);
+      if (error) throw error;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="selfcare-orders-export.csv"');
+      res.send(toCsv(data || []));
+    } catch (e: any) {
+      logger.error({ err: e }, 'Finance orders CSV export failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
