@@ -196,3 +196,22 @@ Smoke:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 12 — Customer Account, Loyalty, Subscriptions & Personalization
+
+Estado objetivo: perfil avanzado de cliente, preferencias, historial de compras enriquecido, loyalty points, wallet, recompra, recomendaciones, suscripciones base, notificaciones personalizadas y dashboard admin de customer experience.
+
+Migración:
+
+```sql
+scripts/db/018_post_launch_12_customer_loyalty_subscriptions_personalization.sql
+```
+
+Smoke test:
+
+```powershell
+.\scripts\qa\smoke-customer-loyalty.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

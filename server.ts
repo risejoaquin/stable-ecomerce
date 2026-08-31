@@ -5191,6 +5191,252 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     res.json({ status: 'ok', run: data });
   }));
 
+  // POST-LAUNCH 12 — Customer Account, Loyalty, Subscriptions & Personalization
+  async function getCustomerXpTable(table: string, fallback: any[] = [], limit = 100) {
+    if (!supabase) return fallback;
+    const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false }).limit(limit);
+    if (error) {
+      logger.warn({ err: error, table }, 'Customer experience table read failed');
+      return fallback;
+    }
+    return data || fallback;
+  }
+
+  async function resolveCustomerEmail(req: any) {
+    return String(req.auth?.email || req.query?.email || req.body?.email || '').trim().toLowerCase();
+  }
+
+  async function getOrCreateCustomerProfileByEmail(email: string) {
+    if (!supabase || !email) return null;
+    const storeId = await getPrimaryStoreId();
+    const existing = await supabase.from('customer_profiles').select('*').eq('email', email).maybeSingle();
+    if (existing.data) return existing.data;
+    const inserted = await supabase.from('customer_profiles').insert({
+      store_id: storeId,
+      email,
+      lifecycle_stage: 'lead',
+      status: 'active',
+      metadata: { source: 'api_customer_profile_bootstrap' }
+    }).select().single();
+    if (inserted.error) throw inserted.error;
+    return inserted.data;
+  }
+
+  app.get('/api/customer/profile/advanced', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    res.json({ status: 'ok', profile, emailRequired: !email });
+  }));
+
+  app.put('/api/customer/preferences', requireAuth(false), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', saved: false });
+    const email = await resolveCustomerEmail(req);
+    const profile = await getOrCreateCustomerProfileByEmail(email);
+    if (!profile) return res.status(400).json({ error: 'customer_email_required' });
+    const payload = {
+      customer_profile_id: profile.id,
+      email,
+      skincare_goals: req.body?.skincareGoals || req.body?.skincare_goals || [],
+      skin_type: req.body?.skinType || req.body?.skin_type || null,
+      notification_preferences: req.body?.notificationPreferences || req.body?.notification_preferences || {},
+      product_preferences: req.body?.productPreferences || req.body?.product_preferences || {},
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('customer_preferences').upsert(payload, { onConflict: 'customer_profile_id' }).select().single();
+    if (error) throw error;
+    res.json({ status: 'ok', preferences: data });
+  }));
+
+  app.get('/api/customer/purchase-history', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    if (!supabase || !email) return res.json({ status: 'ok', orders: [] });
+    const { data, error } = await supabase.from('orders').select('id,status,total,created_at,paid_at,updated_at').eq('customer_email', email).order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    res.json({ status: 'ok', orders: data || [] });
+  }));
+
+  app.get('/api/customer/loyalty', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    if (!supabase || !profile) return res.json({ status: 'ok', loyalty: null, transactions: [] });
+    const account = await supabase.from('customer_loyalty_accounts').select('*').eq('customer_profile_id', profile.id).maybeSingle();
+    const transactions = await supabase.from('customer_loyalty_transactions').select('*').eq('customer_profile_id', profile.id).order('created_at', { ascending: false }).limit(25);
+    res.json({ status: 'ok', loyalty: account.data || null, transactions: transactions.data || [] });
+  }));
+
+  app.get('/api/customer/wallet', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    if (!supabase || !profile) return res.json({ status: 'ok', wallet: [] });
+    const { data, error } = await supabase.from('customer_wallet_items').select('*').eq('customer_profile_id', profile.id).order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    res.json({ status: 'ok', wallet: data || [] });
+  }));
+
+  app.get('/api/customer/rebuy-list', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    if (!supabase || !profile) return res.json({ status: 'ok', items: [] });
+    const { data, error } = await supabase.from('customer_rebuy_lists').select('*').eq('customer_profile_id', profile.id).order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    res.json({ status: 'ok', items: data || [] });
+  }));
+
+  app.get('/api/customer/recommendations', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    const recommendations = profile && supabase ? await supabase.from('customer_recommendations').select('*').eq('customer_profile_id', profile.id).order('score', { ascending: false }).limit(20) : { data: [] };
+    const products = supabase ? await supabase.from('products').select('id,name,slug,price,image_url,stock,status,is_featured').eq('status', 'active').order('is_featured', { ascending: false }).limit(12) : { data: [] };
+    res.json({ status: 'ok', recommendations: recommendations.data || [], fallbackProducts: products.data || [] });
+  }));
+
+  app.get('/api/customer/subscriptions', requireAuth(false), asyncHandler(async (req: any, res) => {
+    const email = await resolveCustomerEmail(req);
+    const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
+    if (!supabase || !profile) return res.json({ status: 'ok', subscriptions: [] });
+    const { data, error } = await supabase.from('customer_subscriptions').select('*').eq('customer_profile_id', profile.id).order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    res.json({ status: 'ok', subscriptions: data || [] });
+  }));
+
+  app.post('/api/customer/subscriptions', requireAuth(false), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const email = await resolveCustomerEmail(req);
+    const profile = await getOrCreateCustomerProfileByEmail(email);
+    if (!profile) return res.status(400).json({ error: 'customer_email_required' });
+    const { data, error } = await supabase.from('customer_subscriptions').insert({
+      customer_profile_id: profile.id,
+      email,
+      product_id: req.body?.productId || req.body?.product_id || null,
+      subscription_type: req.body?.subscriptionType || req.body?.subscription_type || 'rebuy_reminder',
+      cadence_days: Number(req.body?.cadenceDays || req.body?.cadence_days || 30),
+      status: 'active',
+      metadata: req.body?.metadata || {}
+    }).select().single();
+    if (error) throw error;
+    res.json({ status: 'ok', subscription: data });
+  }));
+
+  app.get('/api/admin/customer-experience/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [profiles, loyalty, wallet, subscriptions, notifications] = await Promise.all([
+      getCustomerXpTable('customer_profiles', [], 250),
+      getCustomerXpTable('customer_loyalty_accounts', [], 250),
+      getCustomerXpTable('customer_wallet_items', [], 250),
+      getCustomerXpTable('customer_subscriptions', [], 250),
+      getCustomerXpTable('customer_notification_events', [], 250)
+    ]);
+    res.json({
+      status: 'ok',
+      counts: {
+        customers: profiles.length,
+        loyaltyAccounts: loyalty.length,
+        walletItems: wallet.length,
+        activeSubscriptions: subscriptions.filter((s: any) => String(s.status || '').toLowerCase() === 'active').length,
+        notifications: notifications.length
+      },
+      generatedAt: new Date().toISOString()
+    });
+  }));
+
+  app.get('/api/admin/customer-experience/customers', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const profiles = await getCustomerXpTable('customer_profiles', [], 500);
+    res.json({ status: 'ok', customers: profiles });
+  }));
+
+  app.get('/api/admin/customer-experience/segments', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [segments, metrics] = await Promise.all([
+      getCustomerXpTable('customer_segments', [], 250),
+      getCustomerXpTable('customer_metrics', [], 250)
+    ]);
+    res.json({ status: 'ok', segments, metrics });
+  }));
+
+  app.post('/api/admin/customer-experience/segments', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const { data, error } = await supabase.from('customer_segments').insert({
+      store_id: storeId,
+      name: req.body?.name || 'Loyalty Segment',
+      segment_key: req.body?.segmentKey || req.body?.segment_key || `segment_${Date.now()}`,
+      description: req.body?.description || 'Created from customer experience admin.',
+      criteria: req.body?.criteria || {},
+      status: 'active'
+    }).select().single();
+    if (error) throw error;
+    res.json({ status: 'ok', segment: data });
+  }));
+
+  app.get('/api/admin/customer-experience/loyalty', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [accounts, transactions] = await Promise.all([
+      getCustomerXpTable('customer_loyalty_accounts', [], 250),
+      getCustomerXpTable('customer_loyalty_transactions', [], 250)
+    ]);
+    res.json({ status: 'ok', accounts, transactions });
+  }));
+
+  app.post('/api/admin/customer-experience/loyalty/adjust', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', adjusted: false });
+    const storeId = await getPrimaryStoreId();
+    const email = String(req.body?.email || 'smoke-loyalty@selfcaresinners.com').toLowerCase();
+    const profile = await getOrCreateCustomerProfileByEmail(email);
+    const points = Number(req.body?.points || 10);
+    const accountUpsert = await supabase.from('customer_loyalty_accounts').upsert({
+      store_id: storeId,
+      customer_profile_id: profile.id,
+      email,
+      points_balance: points,
+      lifetime_points: points,
+      tier: req.body?.tier || 'starter',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'customer_profile_id' }).select().single();
+    if (accountUpsert.error) throw accountUpsert.error;
+    const txn = await supabase.from('customer_loyalty_transactions').insert({
+      store_id: storeId,
+      customer_profile_id: profile.id,
+      email,
+      points_delta: points,
+      reason: req.body?.reason || 'manual_adjustment',
+      source: 'admin',
+      metadata: { source: 'api_admin_customer_experience_loyalty_adjust' }
+    }).select().single();
+    if (txn.error) throw txn.error;
+    res.json({ status: 'ok', account: accountUpsert.data, transaction: txn.data });
+  }));
+
+  app.get('/api/admin/customer-experience/subscriptions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const subscriptions = await getCustomerXpTable('customer_subscriptions', [], 250);
+    res.json({ status: 'ok', subscriptions });
+  }));
+
+  app.get('/api/admin/customer-experience/personalization', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [events, recommendations, preferences] = await Promise.all([
+      getCustomerXpTable('customer_personalization_events', [], 250),
+      getCustomerXpTable('customer_recommendations', [], 250),
+      getCustomerXpTable('customer_preferences', [], 250)
+    ]);
+    res.json({ status: 'ok', events, recommendations, preferences });
+  }));
+
+  app.post('/api/admin/customer-experience/customer-notification', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const email = String(req.body?.email || 'smoke-customer@selfcaresinners.com').toLowerCase();
+    const profile = await getOrCreateCustomerProfileByEmail(email);
+    const { data, error } = await supabase.from('customer_notification_events').insert({
+      store_id: storeId,
+      customer_profile_id: profile.id,
+      email,
+      channel: req.body?.channel || 'email',
+      event_type: req.body?.eventType || req.body?.event_type || 'personalized_notification',
+      title: req.body?.title || 'Selfcare Sinners update',
+      message: req.body?.message || 'Personalized customer notification test.',
+      status: 'queued',
+      metadata: req.body?.metadata || {}
+    }).select().single();
+    if (error) throw error;
+    res.json({ status: 'ok', notification: data });
+  }));
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
