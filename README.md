@@ -205,3 +205,22 @@ Unblock-File .\scripts\qa\smoke-growth.ps1
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 04 — Content, Email, Reviews & Retention
+
+Entrega enfocada en emails, newsletter, soporte, lifecycle events, reviews y abandoned cart recovery.
+
+Migración requerida:
+
+```sql
+scripts/db/010_post_launch_04_content_email_reviews_retention.sql
+```
+
+Smoke test:
+
+```powershell
+.\scripts\qa\smoke-retention.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

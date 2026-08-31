@@ -513,17 +513,20 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'Store <onboarding@resend.dev>';
 async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
   if (!resend) {
     logger.info(`[Email Mock] To: ${to} | Subject: ${subject}`);
-    return;
+    return { mocked: true, id: `mock-${Date.now()}` } as any;
   }
   try {
     const { data, error } = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
     if (error) {
       logger.error({ err: error }, 'Resend API Error:');
+      return { error } as any;
     } else {
       logger.info({ data: data }, `Email sent to ${to}`);
+      return data as any;
     }
   } catch (error) {
     logger.error({ err: error }, 'Failed to send email:');
+    return { error } as any;
   }
 }
 
@@ -3187,6 +3190,310 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       logger.error({ err: e }, 'Cron job error:');
     }
   }, 60 * 60 * 1000); // run every hour
+
+
+  // Post-launch 04: content, email, reviews and retention operations.
+  function normalizeLifecycleEmail(value: any) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function retentionEmailLayout(title: string, body: string, ctaLabel?: string, ctaHref?: string) {
+    const safeTitle = title || 'Selfcare Sinners';
+    const cta = ctaLabel && ctaHref ? `<p style="margin:28px 0"><a href="${ctaHref}" style="background:#111827;color:#ffffff;padding:12px 18px;border-radius:14px;text-decoration:none;font-weight:700">${ctaLabel}</a></p>` : '';
+    return `
+      <div style="font-family:Inter,Arial,sans-serif;background:#f8f4ef;padding:24px;color:#1f2937">
+        <div style="max-width:620px;margin:auto;background:#fff;border-radius:24px;padding:28px;border:1px solid #eadfd3">
+          <p style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#9a7b5f;margin:0 0 10px">Selfcare Sinners</p>
+          <h1 style="font-size:26px;margin:0 0 16px;color:#111827">${safeTitle}</h1>
+          <div style="font-size:15px;line-height:1.65;color:#374151">${body}</div>
+          ${cta}
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+          <p style="font-size:12px;color:#6b7280;margin:0">Recibes este mensaje por tu compra, solicitud o suscripción en Selfcare Sinners.</p>
+        </div>
+      </div>`;
+  }
+
+  async function recordEmailEventSafe(payload: any) {
+    if (!supabase) return;
+    try {
+      await supabase.from('email_events').insert({
+        store_id: payload.store_id || null,
+        order_id: payload.order_id || null,
+        user_id: payload.user_id || null,
+        email: payload.email || null,
+        event_type: payload.event_type || 'transactional',
+        provider: 'resend',
+        provider_message_id: payload.provider_message_id || null,
+        subject: payload.subject || null,
+        status: payload.status || 'sent',
+        error_message: payload.error_message || null,
+        metadata: payload.metadata || {}
+      });
+    } catch (e) {
+      logger.error({ err: e }, 'Failed to record email event');
+    }
+  }
+
+  app.get('/api/public/content/pages', asyncHandler(async (req: any, res) => {
+    res.set('Cache-Control', 'public, max-age=300');
+    if (!supabase) return res.json({ data: [] });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
+      let query = supabase.from('public_content_pages').select('slug,title,page_type,content,seo_title,seo_description,updated_at').eq('store_id', storeId).eq('status', 'published').order('slug', { ascending: true });
+      if (req.query.slug) query = query.eq('slug', String(req.query.slug));
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json({ data: data || [] });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Public content pages failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/public/support', asyncHandler(async (_req: any, res) => {
+    res.set('Cache-Control', 'public, max-age=300');
+    if (!supabase) return res.json({ supportEmail: 'support@selfcaresinners.com', supportHours: 'Lunes a viernes, 10:00 a 18:00.' });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(404).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('stores').select('name,support_email,support_hours,contact_phone,contact_whatsapp,instagram_url,tiktok_url,whatsapp_url').eq('id', storeId).maybeSingle();
+      if (error) throw error;
+      res.json({
+        name: data?.name || 'Selfcare Sinners',
+        supportEmail: data?.support_email || 'support@selfcaresinners.com',
+        supportHours: data?.support_hours || 'Lunes a viernes, 10:00 a 18:00.',
+        contactPhone: data?.contact_phone || null,
+        whatsapp: data?.contact_whatsapp || data?.whatsapp_url || null,
+        instagram: data?.instagram_url || null,
+        tiktok: data?.tiktok_url || null
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/newsletter/subscribe', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, status: 'subscribed' });
+    try {
+      const email = normalizeLifecycleEmail(req.body?.email);
+      const fullName = String(req.body?.fullName || req.body?.full_name || '').trim() || null;
+      if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email is required' });
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('newsletter_subscribers').upsert({
+        store_id: storeId,
+        email,
+        full_name: fullName,
+        source: req.body?.source || 'storefront',
+        status: 'subscribed',
+        consent_at: new Date().toISOString(),
+        tags: Array.isArray(req.body?.tags) ? req.body.tags : ['newsletter'],
+        metadata: req.body?.metadata || {},
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'store_id,email' }).select().single();
+      if (error) throw error;
+      await supabase.from('lifecycle_events').insert({ store_id: storeId, email, event_type: 'newsletter_subscribed', lifecycle_stage: 'lead_capture', status: 'completed', completed_at: new Date().toISOString(), metadata: { source: req.body?.source || 'storefront' } });
+      res.json({ success: true, subscriber: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Newsletter subscribe failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/support/messages', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true, id: 'mock' });
+    try {
+      const email = normalizeLifecycleEmail(req.body?.email);
+      const message = String(req.body?.message || '').trim();
+      if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email is required' });
+      if (!message || message.length < 5) return res.status(400).json({ error: 'Message is required' });
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, error } = await supabase.from('support_messages').insert({
+        store_id: storeId,
+        order_id: req.body?.orderId || req.body?.order_id || null,
+        name: req.body?.name || null,
+        email,
+        subject: req.body?.subject || 'Nuevo mensaje de soporte',
+        message,
+        source: req.body?.source || 'contact_page',
+        metadata: req.body?.metadata || {}
+      }).select().single();
+      if (error) throw error;
+      res.json({ success: true, message: data });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Support message failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/retention/abandoned-cart', asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const email = normalizeLifecycleEmail(req.body?.email);
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      const cartTotal = Number(req.body?.cartTotal || req.body?.cart_total || 0);
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email is required' });
+      const { data: cart, error: cartError } = await supabase.from('abandoned_carts').insert({ email, items, updated_at: new Date().toISOString() }).select().single();
+      if (cartError) throw cartError;
+      await supabase.from('abandoned_cart_recovery_events').insert({ store_id: storeId, abandoned_cart_id: cart?.id || null, email, event_type: 'cart_captured', status: 'recorded', cart_total: cartTotal, metadata: { itemCount: items.length, source: req.body?.source || 'storefront' } });
+      await supabase.from('lifecycle_events').insert({ store_id: storeId, email, event_type: 'abandoned_cart_captured', lifecycle_stage: 'abandoned_cart', status: 'planned', scheduled_for: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), metadata: { cartId: cart?.id || null, cartTotal } });
+      res.json({ success: true, cartId: cart?.id || null });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Abandoned cart capture failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/retention/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ newsletter: {}, lifecycle: {}, email: {}, reviews: {}, support: {} });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [subs, lifecycle, emails, reviewReqs, support, carts] = await Promise.all([
+        supabase.from('newsletter_subscribers').select('id,status,created_at').eq('store_id', storeId),
+        supabase.from('lifecycle_events').select('id,event_type,lifecycle_stage,status,created_at').eq('store_id', storeId).gte('created_at', since).limit(1000),
+        supabase.from('email_events').select('id,event_type,status,created_at').eq('store_id', storeId).gte('created_at', since).limit(1000),
+        supabase.from('review_requests').select('id,status,created_at').eq('store_id', storeId).gte('created_at', since),
+        supabase.from('support_messages').select('id,status,created_at').eq('store_id', storeId).gte('created_at', since),
+        supabase.from('abandoned_cart_recovery_events').select('id,status,event_type,created_at').eq('store_id', storeId).gte('created_at', since)
+      ]);
+      for (const r of [subs, lifecycle, emails, reviewReqs, support, carts]) if (r.error) throw r.error;
+      const countBy = (rows: any[], key: string) => rows.reduce((acc: any, row: any) => { const v = row[key] || 'unknown'; acc[v] = (acc[v] || 0) + 1; return acc; }, {});
+      res.json({
+        status: 'ok',
+        windowDays: 30,
+        newsletter: { total: subs.data?.length || 0, byStatus: countBy(subs.data || [], 'status') },
+        lifecycle: { total30d: lifecycle.data?.length || 0, byStage: countBy(lifecycle.data || [], 'lifecycle_stage'), byStatus: countBy(lifecycle.data || [], 'status') },
+        email: { total30d: emails.data?.length || 0, byType: countBy(emails.data || [], 'event_type'), byStatus: countBy(emails.data || [], 'status') },
+        reviews: { requests30d: reviewReqs.data?.length || 0, byStatus: countBy(reviewReqs.data || [], 'status') },
+        support: { messages30d: support.data?.length || 0, byStatus: countBy(support.data || [], 'status') },
+        abandonedCart: { events30d: carts.data?.length || 0, byStatus: countBy(carts.data || [], 'status') }
+      });
+    } catch (e: any) {
+      logger.error({ err: e }, 'Retention summary failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/newsletter/subscribers', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, count, error } = await supabase.from('newsletter_subscribers').select('*', { count: 'exact' }).eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/lifecycle/events', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, count, error } = await supabase.from('lifecycle_events').select('*', { count: 'exact' }).eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/email/events', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, count, error } = await supabase.from('email_events').select('*', { count: 'exact' }).eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.get('/api/admin/support/messages', requireAuth(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const { data, count, error } = await supabase.from('support_messages').select('*', { count: 'exact' }).eq('store_id', storeId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      res.json({ data: data || [], total: count || 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/orders/:id/review-request', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const orderId = req.params.id;
+      const { data: order, error } = await supabase.from('orders').select('id,status,customer_email,total').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+      if (error) throw error;
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      const email = normalizeLifecycleEmail(order.customer_email || req.body?.email);
+      if (!email || !email.includes('@')) return res.status(400).json({ error: 'Order does not have a valid customer email' });
+      const reviewUrl = `${process.env.VITE_APP_URL || 'https://selfcaresinners.com'}/my-orders`;
+      const subject = '¿Cómo fue tu experiencia con Selfcare Sinners?';
+      const html = retentionEmailLayout('Cuéntanos cómo te fue', '<p>Tu pedido ya avanzó en el flujo de entrega. Tu opinión ayuda a otros clientes a comprar con más confianza.</p><p>Deja una reseña honesta sobre tu experiencia y producto.</p>', 'Dejar reseña', reviewUrl);
+      const provider = await sendEmail({ to: email, subject, html });
+      const status = provider?.error ? 'failed' : 'sent';
+      const { data: requestRow, error: rrError } = await supabase.from('review_requests').upsert({
+        store_id: storeId,
+        order_id: orderId,
+        customer_email: email,
+        status,
+        sent_at: status === 'sent' ? new Date().toISOString() : null,
+        metadata: { provider }
+      }, { onConflict: 'order_id,customer_email' }).select().single();
+      if (rrError) throw rrError;
+      await recordEmailEventSafe({ store_id: storeId, order_id: orderId, email, event_type: 'review_request', subject, status, provider_message_id: provider?.id || null, error_message: provider?.error?.message || null, metadata: { reviewUrl } });
+      await supabase.from('lifecycle_events').insert({ store_id: storeId, order_id: orderId, email, event_type: 'review_request_sent', lifecycle_stage: 'post_purchase', status: status === 'sent' ? 'completed' : 'failed', completed_at: new Date().toISOString(), metadata: { reviewRequestId: requestRow?.id || null } });
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'review_request_sent', entityType: 'order', entityId: orderId, metadata: { email, status } });
+      res.json({ success: status === 'sent', status, reviewRequest: requestRow });
+    } catch (e: any) {
+      logger.error({ err: e, orderId: req.params.id }, 'Review request failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
+  app.post('/api/admin/coupons/rebuy', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ success: true });
+    try {
+      const storeId = await getPrimaryStoreId();
+      if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
+      const code = String(req.body?.code || `RECOMPRA${new Date().getMonth() + 1}${new Date().getDate()}`).trim().toUpperCase();
+      const payload = {
+        store_id: storeId,
+        code,
+        discount_type: req.body?.discount_type || 'percentage',
+        discount_value: Number(req.body?.discount_value || 10),
+        min_order_amount: Number(req.body?.min_order_amount || 0),
+        max_uses: req.body?.max_uses || 100,
+        expires_at: req.body?.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        is_active: true
+      };
+      const { data, error } = await supabase.from('coupons').upsert(payload, { onConflict: 'store_id,code' }).select().single();
+      if (error) throw error;
+      await supabase.from('lifecycle_events').insert({ store_id: storeId, event_type: 'rebuy_coupon_created', lifecycle_stage: 'retention', status: 'completed', completed_at: new Date().toISOString(), metadata: { code: data.code, discount_value: data.discount_value } });
+      await writeAuditLog({ actorUserId: req.auth.userId, action: 'rebuy_coupon_created', entityType: 'coupon', entityId: data.id, metadata: { code: data.code } });
+      res.json(data);
+    } catch (e: any) {
+      logger.error({ err: e }, 'Rebuy coupon creation failed');
+      res.status(500).json({ error: e.message });
+    }
+  }));
+
 
 
   if (process.env.NODE_ENV !== 'production') {
