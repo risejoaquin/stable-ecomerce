@@ -4887,6 +4887,131 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
   }));
 
 
+  // POST-LAUNCH 10 — Production Governance, Security Audit & Scale Readiness
+  async function getGovernanceTable(table: string, fallback: any[] = []) {
+    if (!supabase) return fallback;
+    const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false }).limit(50);
+    if (error) {
+      logger.warn({ err: error, table }, 'Governance table read failed');
+      return fallback;
+    }
+    return data || fallback;
+  }
+
+  app.get('/api/admin/governance/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const [auditRuns, findings, rateLimits, backups, scaleChecks, checklists] = await Promise.all([
+      getGovernanceTable('governance_audit_runs'),
+      getGovernanceTable('security_review_findings'),
+      getGovernanceTable('rate_limit_policies'),
+      getGovernanceTable('backup_restore_drills'),
+      getGovernanceTable('scale_readiness_checks'),
+      getGovernanceTable('monthly_operations_checklists')
+    ]);
+    const openFindings = findings.filter((x: any) => !['resolved','accepted'].includes(String(x.status || '').toLowerCase()));
+    res.json({
+      status: openFindings.length ? 'attention_required' : 'ok',
+      storeId,
+      counts: {
+        auditRuns: auditRuns.length,
+        openSecurityFindings: openFindings.length,
+        rateLimitPolicies: rateLimits.length,
+        backupDrills: backups.length,
+        scaleChecks: scaleChecks.length,
+        monthlyChecklists: checklists.length
+      },
+      latestAuditRun: auditRuns[0] || null,
+      generatedAt: new Date().toISOString()
+    });
+  }));
+
+  app.get('/api/admin/governance/security-audit', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [runs, items, findings] = await Promise.all([
+      getGovernanceTable('governance_audit_runs'),
+      getGovernanceTable('governance_audit_items'),
+      getGovernanceTable('security_review_findings')
+    ]);
+    res.json({ status: 'ok', runs, items, findings });
+  }));
+
+  app.get('/api/admin/governance/rate-limits', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const policies = await getGovernanceTable('rate_limit_policies');
+    res.json({ status: 'ok', enabled: true, policies });
+  }));
+
+  app.get('/api/admin/governance/admin-access', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const policies = await getGovernanceTable('admin_access_policies');
+    res.json({ status: 'ok', policies, requiredRole: 'admin', tokenRequired: true });
+  }));
+
+  app.get('/api/admin/governance/secrets', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const required = requiredProductionEnv.map((name) => ({ name, configured: Boolean(process.env[name]) }));
+    res.json({ status: required.every((x) => x.configured) ? 'ok' : 'attention_required', required, redacted: true });
+  }));
+
+  app.get('/api/admin/governance/headers', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({
+      status: 'ok',
+      helmet: true,
+      cspEnabled: isProduction,
+      corsOrigins: getAllowedOrigins(),
+      serviceWorkerPolicy: 'same-origin app shell only; no cross-origin API/font interception'
+    });
+  }));
+
+  app.get('/api/admin/governance/log-retention', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const policies = await getGovernanceTable('log_retention_policies');
+    res.json({ status: 'ok', policies });
+  }));
+
+  app.get('/api/admin/governance/backup-restore', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const drills = await getGovernanceTable('backup_restore_drills');
+    res.json({ status: 'ok', drills, minimumCadence: 'monthly' });
+  }));
+
+  app.get('/api/admin/governance/scale-readiness', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const checks = await getGovernanceTable('scale_readiness_checks');
+    res.json({ status: 'ok', railway: 'monitor CPU/RAM/restarts', supabase: 'monitor latency/connections/storage', checks });
+  }));
+
+  app.get('/api/admin/governance/risk-matrix', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const findings = await getGovernanceTable('security_review_findings');
+    const risks = findings.map((f: any) => ({ id: f.id, area: f.area, severity: f.severity, status: f.status, title: f.title, mitigation: f.mitigation }));
+    res.json({ status: 'ok', risks });
+  }));
+
+  app.get('/api/admin/governance/monthly-checklist', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [checklists, items] = await Promise.all([
+      getGovernanceTable('monthly_operations_checklists'),
+      getGovernanceTable('monthly_operations_checklist_items')
+    ]);
+    res.json({ status: 'ok', checklists, items });
+  }));
+
+  app.post('/api/admin/governance/monthly-checklist/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.json({ status: 'ok', created: false });
+    const storeId = await getPrimaryStoreId();
+    const period = new Date().toISOString().slice(0, 7);
+    const { data, error } = await supabase.from('monthly_operations_checklists').insert({
+      store_id: storeId,
+      period,
+      status: 'created',
+      executed_by: req.auth?.userId || null,
+      metadata: { source: 'api_admin_governance_monthly_checklist_run' }
+    }).select().single();
+    if (error) throw error;
+    const defaultItems = [
+      'Review health/readiness and admin diagnostics',
+      'Review unresolved Stripe events and pending orders',
+      'Review backup/restore status',
+      'Review security findings and admin access',
+      'Review scale readiness metrics'
+    ].map((title, idx) => ({ checklist_id: data.id, title, status: 'pending', sort_order: idx + 1 }));
+    await supabase.from('monthly_operations_checklist_items').insert(defaultItems);
+    res.json({ status: 'ok', checklist: data, itemsCreated: defaultItems.length });
+  }));
+
+
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
