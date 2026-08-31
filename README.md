@@ -240,3 +240,38 @@ Validación:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 14 — Mobile Experience, PWA Hardening & App-Like Commerce
+
+Entrega PL14 agrega PWA/mobile hardening:
+
+- Experiencia móvil avanzada.
+- PWA installable más robusta.
+- Offline-lite para catálogo.
+- Mejor checkout móvil.
+- Notificaciones web push base.
+- Home screen app experience.
+- Optimización táctil.
+- Performance mobile.
+- Retención desde móvil.
+- Preparación para app futura.
+
+### Migración
+
+Ejecutar en Supabase:
+
+```sql
+scripts/db/020_post_launch_14_mobile_pwa_app_like_commerce.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+### Smoke
+
+```powershell
+Unblock-File .\scripts\qa\smoke-mobile-pwa.ps1
+
+.\scripts\qa\smoke-mobile-pwa.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```

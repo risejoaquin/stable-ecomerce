@@ -2,13 +2,19 @@
   "name": "Selfcare Sinners",
   "short_name": "Selfcare",
   "description": "Skincare curado para rutinas simples, seguras y efectivas.",
+  "id": "/?source=pwa",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "theme_color": "#6B705C",
   "background_color": "#FDFCFB",
   "categories": ["shopping", "beauty", "lifestyle"],
+  "shortcuts": [
+    { "name": "Comprar", "short_name": "Comprar", "url": "/?source=pwa-shortcut-shop" },
+    { "name": "Rastrear pedido", "short_name": "Rastrear", "url": "/track?source=pwa-shortcut-track" }
+  ],
   "icons": [
     { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png" },
     { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
