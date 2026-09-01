@@ -1,3 +1,18 @@
+# Selfcare Sinners — POST-LAUNCH 26
+
+Entrega: **Live Operations Monitoring, Conversion Optimization & Growth Iteration Loop**.
+
+Incluye:
+
+- `scripts/db/032_post_launch_26_live_operations_conversion_growth_iteration_loop.sql`
+- `scripts/qa/smoke-live-growth-loop.ps1`
+- `docs/production/POST_LAUNCH_26_LIVE_OPERATIONS_CONVERSION_GROWTH_ITERATION_LOOP.md`
+- `src/components/LiveGrowthLoopPanel.tsx`
+
+Estado objetivo: operación real post-campaña, ventas reales, comportamiento por canal, optimización de conversión, A/B prioritization, bottlenecks, campaign iteration, risk/cost control y continuous improvement loop.
+
+---
+
 # Selfcare Sinners — POST-LAUNCH 22
 
 ## Real User Testing, Conversion QA & Live Behavior Feedback Loop
