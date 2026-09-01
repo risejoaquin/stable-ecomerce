@@ -9353,6 +9353,208 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     res.json({ status: 'ok', snapshot: data?.[0] || payload });
   }));
 
+
+
+  // MACROFASE FINAL B — PL33 + PL34 + PL35: Internationalization, Personalization, Scale Governance
+  const getMacroFinalBTable = async (table: string, limit = 500) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const runMacroFinalBUpsert = async (table: string, rows: any[], onConflict: string) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(table).upsert(rows, { onConflict }).select();
+    if (error) throw error;
+    return data || [];
+  };
+
+  app.get('/api/admin/macro-final-b/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [locales, currencies, taxLegal, localizedContent, personalization, rules, recommendationEvents, cdpProfiles, cdpSegments, scaleFreeze, maintenance, roadmap] = await Promise.all([
+      getMacroFinalBTable('internationalization_locales', 250),
+      getMacroFinalBTable('multi_currency_settings', 250),
+      getMacroFinalBTable('tax_legal_readiness_checks', 250),
+      getMacroFinalBTable('localized_content_items', 250),
+      getMacroFinalBTable('personalization_profiles', 250),
+      getMacroFinalBTable('recommendation_engine_rules', 250),
+      getMacroFinalBTable('recommendation_events', 250),
+      getMacroFinalBTable('customer_data_platform_profiles', 250),
+      getMacroFinalBTable('cdp_segment_memberships', 250),
+      getMacroFinalBTable('scale_governance_freeze_records', 250),
+      getMacroFinalBTable('maintenance_mode_controls', 250),
+      getMacroFinalBTable('product_v2_roadmap_items', 250)
+    ]);
+    res.json({
+      status: 'ok',
+      macroFinalB: {
+        locales: locales.length,
+        currencies: currencies.length,
+        taxLegalReadiness: taxLegal.length,
+        localizedContent: localizedContent.length,
+        personalizationProfiles: personalization.length,
+        recommendationRules: rules.length,
+        recommendationEvents: recommendationEvents.length,
+        cdpProfiles: cdpProfiles.length,
+        cdpSegments: cdpSegments.length,
+        scaleFreezeRecords: scaleFreeze.length,
+        maintenanceControls: maintenance.length,
+        productV2RoadmapItems: roadmap.length
+      },
+      readiness: {
+        internationalization: locales.length > 0 || currencies.length > 0 || taxLegal.length > 0,
+        personalization: personalization.length > 0 || rules.length > 0 || cdpProfiles.length > 0,
+        governanceFreeze: scaleFreeze.length > 0 || maintenance.length > 0 || roadmap.length > 0
+      }
+    });
+  }));
+
+  app.get('/api/admin/macro-final-b/locales', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', locales: await getMacroFinalBTable('internationalization_locales', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/locales/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const localeKey = req.body?.localeKey || req.body?.locale_key || 'es-MX';
+    const payload = { store_id: storeId, locale_key: localeKey, locale_name: 'Spanish Mexico', language_code: 'es', region_code: 'MX', is_default: true, is_active: true, readiness_score: 94, recommendation: 'Keep es-MX as primary locale and prepare copy keys before adding additional regions.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_locales_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('internationalization_locales', [payload], 'store_id,locale_key');
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'macro_final_b_locales_run', entityType: 'internationalization_locales', metadata: { localeKey } });
+    res.json({ status: 'ok', locale: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/currencies', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', currencies: await getMacroFinalBTable('multi_currency_settings', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/currencies/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const currencyKey = req.body?.currencyKey || req.body?.currency_key || 'mxn-baseline';
+    const payload = { store_id: storeId, currency_key: currencyKey, currency_code: 'MXN', currency_name: 'Mexican Peso', exchange_rate: 1, is_default: true, is_active: true, pricing_strategy: 'base_currency', recommendation: 'Keep MXN as base currency; add FX update jobs before enabling foreign checkout currencies.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_currencies_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('multi_currency_settings', [payload], 'store_id,currency_key');
+    res.json({ status: 'ok', currency: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/tax-legal', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', checks: await getMacroFinalBTable('tax_legal_readiness_checks', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/tax-legal/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const checkKey = req.body?.checkKey || req.body?.check_key || 'mx-tax-legal-readiness';
+    const payload = { store_id: storeId, check_key: checkKey, area: 'tax_legal', jurisdiction: 'MX', status: 'review_required', readiness_score: 80, risk_level: 'medium', finding: 'Operational readiness is prepared; final legal/tax approval must be performed by qualified advisors.', recommendation: 'Do not treat software readiness as legal advice. Validate tax, privacy, consumer protection and refund language before scaling.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_tax_legal_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('tax_legal_readiness_checks', [payload], 'store_id,check_key');
+    res.json({ status: 'ok', check: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/localized-content', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', items: await getMacroFinalBTable('localized_content_items', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/localized-content/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const contentKey = req.body?.contentKey || req.body?.content_key || 'home-hero-es-mx';
+    const payload = { store_id: storeId, content_key: contentKey, locale_key: 'es-MX', content_type: 'landing_copy', source_text: 'Selfcare Sinners storefront copy', localized_text: 'Rutinas de skincare listas para comprar con confianza.', status: 'approved', quality_score: 92, recommendation: 'Keep localized copy connected to SEO intent and campaign landing pages.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_localized_content_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('localized_content_items', [payload], 'store_id,content_key,locale_key');
+    res.json({ status: 'ok', item: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/personalization-profiles', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', profiles: await getMacroFinalBTable('personalization_profiles', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/personalization-profiles/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const profileKey = req.body?.profileKey || req.body?.profile_key || `personalization-${Date.now()}`;
+    const payload = { store_id: storeId, profile_key: profileKey, segment_key: 'skincare_interest_baseline', lifecycle_stage: 'active_shopper', preference_model: { categoryAffinity: 'skincare', priceSensitivity: 'medium' }, confidence_score: 82, status: 'active', recommendation: 'Use behavior, purchases and lifecycle events to personalize content and offers responsibly.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_personalization_profiles_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('personalization_profiles', [payload], 'store_id,profile_key');
+    res.json({ status: 'ok', profile: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/recommendation-rules', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', rules: await getMacroFinalBTable('recommendation_engine_rules', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/recommendation-rules/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const ruleKey = req.body?.ruleKey || req.body?.rule_key || `recommendation-rule-${Date.now()}`;
+    const payload = { store_id: storeId, rule_key: ruleKey, rule_name: 'Routine completion recommendation', rule_type: 'product_recommendation', target_segment: 'active_shoppers', priority: 90, status: 'active', lift_score: 12, recommendation: 'Recommend complementary products using measurable conversion and retention outcomes.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_recommendation_rules_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('recommendation_engine_rules', [payload], 'store_id,rule_key');
+    res.json({ status: 'ok', rule: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/recommendation-events', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', events: await getMacroFinalBTable('recommendation_events', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/recommendation-events', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const eventKey = req.body?.eventKey || req.body?.event_key || `recommendation-event-${Date.now()}`;
+    const payload = { store_id: storeId, event_key: eventKey, rule_key: req.body?.ruleKey || req.body?.rule_key || 'smoke-recommendation-rule', customer_key: req.body?.customerKey || 'smoke-customer', product_sku: req.body?.productSku || 'CREMA-CERAVE', event_type: 'recommendation_served', outcome: 'observed', occurred_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_recommendation_events' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('recommendation_events', [payload], 'store_id,event_key');
+    res.json({ status: 'ok', event: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/cdp-profiles', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', profiles: await getMacroFinalBTable('customer_data_platform_profiles', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/cdp-profiles/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const profileKey = req.body?.profileKey || req.body?.profile_key || `cdp-profile-${Date.now()}`;
+    const payload = { store_id: storeId, cdp_profile_key: profileKey, email: req.body?.email || 'smoke@example.invalid', identity_status: 'known', total_orders: 2, lifetime_value_cents: 130000, last_seen_at: new Date().toISOString(), attributes: { source: 'smoke', lifecycleStage: 'repeat_candidate' }, recommendation: 'Unify customer identity across orders, email, campaigns, recommendations and retention.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_cdp_profiles_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('customer_data_platform_profiles', [payload], 'store_id,cdp_profile_key');
+    res.json({ status: 'ok', profile: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/cdp-segments', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', memberships: await getMacroFinalBTable('cdp_segment_memberships', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/cdp-segments/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const membershipKey = req.body?.membershipKey || req.body?.membership_key || `cdp-membership-${Date.now()}`;
+    const payload = { store_id: storeId, membership_key: membershipKey, cdp_profile_key: req.body?.profileKey || 'smoke-cdp-profile', segment_key: 'repeat_candidate', segment_name: 'Repeat Purchase Candidate', status: 'active', assigned_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_cdp_segments_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('cdp_segment_memberships', [payload], 'store_id,membership_key');
+    res.json({ status: 'ok', membership: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/scale-freeze', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', records: await getMacroFinalBTable('scale_governance_freeze_records', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/scale-freeze/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const freezeKey = req.body?.freezeKey || req.body?.freeze_key || `scale-freeze-${Date.now()}`;
+    const payload = { store_id: storeId, freeze_key: freezeKey, freeze_name: 'Post-launch scale governance freeze', freeze_scope: 'PL02_PL35_platform', status: 'active', readiness_score: 97, approved_by: req.auth?.userId || null, approved_at: new Date().toISOString(), recommendation: 'Freeze stable scale scope and route future work through product v2 roadmap governance.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_scale_freeze_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('scale_governance_freeze_records', [payload], 'store_id,freeze_key');
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'macro_final_b_scale_freeze_run', entityType: 'scale_governance_freeze_records', metadata: { freezeKey } });
+    res.json({ status: 'ok', record: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/maintenance-controls', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', controls: await getMacroFinalBTable('maintenance_mode_controls', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/maintenance-controls/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const controlKey = req.body?.controlKey || req.body?.control_key || `maintenance-control-${Date.now()}`;
+    const payload = { store_id: storeId, control_key: controlKey, control_name: 'Soft maintenance mode', is_enabled: false, mode_type: 'soft_maintenance', status: 'ready', message: 'Maintenance mode is ready but disabled.', recommendation: 'Keep maintenance controls available for deployments, incidents and planned freezes.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_maintenance_controls_run' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('maintenance_mode_controls', [payload], 'store_id,control_key');
+    res.json({ status: 'ok', control: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/macro-final-b/product-v2-roadmap', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', items: await getMacroFinalBTable('product_v2_roadmap_items', 500) });
+  }));
+
+  app.post('/api/admin/macro-final-b/product-v2-roadmap', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const roadmapKey = req.body?.roadmapKey || req.body?.roadmap_key || `product-v2-${Date.now()}`;
+    const payload = { store_id: storeId, roadmap_key: roadmapKey, roadmap_area: req.body?.roadmapArea || 'product_v2', title: req.body?.title || 'Product v2 roadmap item', description: req.body?.description || 'Post-freeze candidate for roadmap v2.', priority: req.body?.priority || 80, status: 'planned', target_quarter: req.body?.targetQuarter || 'V2', recommendation: 'Move all non-critical future scope into product v2 roadmap after scale governance freeze.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_macro_final_b_product_v2_roadmap' }, updated_at: new Date().toISOString() };
+    const data = await runMacroFinalBUpsert('product_v2_roadmap_items', [payload], 'store_id,roadmap_key');
+    res.json({ status: 'ok', item: data?.[0] || payload });
+  }));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

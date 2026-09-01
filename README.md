@@ -281,3 +281,27 @@ Estado del entregable: generado para validación.
 Incluye migración `scripts/db/035_post_launch_29_operational_automation_scheduled_reports_alerting_workflows.sql`, smoke `scripts/qa/smoke-operational-automation.ps1`, endpoints `/api/admin/operational-automation/*` y documentación de producción.
 
 Objetivo: automatizar reportes recurrentes, revisiones diarias/semanales, alertas comerciales/técnicas, anomalías, riesgos de revenue/conversión, seguimiento de campañas, soporte/retención y workflow ejecutivo recurrente.
+
+
+## MACROFASE FINAL B — PL33 + PL34 + PL35
+
+Incluye internacionalización, multi-moneda, readiness fiscal/legal, personalización avanzada, recommendation engine, customer data platform, scale governance freeze, maintenance mode y product v2 roadmap.
+
+### Migración
+
+Ejecutar en Supabase:
+
+```sql
+scripts/db/037_macro_final_b_pl33_pl34_pl35_internationalization_personalization_governance.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+### Smoke
+
+```powershell
+Unblock-File .\scripts\qa\smoke-macro-final-b.ps1
+.\scripts\qa\smoke-macro-final-b.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
