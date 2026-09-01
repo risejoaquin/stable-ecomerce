@@ -56,3 +56,34 @@ NOTIFY pgrst, 'reload schema';
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+## POST-LAUNCH 19 — Performance, Load Testing & Cost Optimization
+
+Incluye migración y smoke para:
+
+- pruebas de carga controladas
+- query profiling
+- slow query reports
+- cache metrics
+- cost snapshots
+- resource usage alerts
+- admin endpoint optimization checks
+- Railway/Supabase optimization readiness
+
+### Migración
+
+```sql
+scripts/db/025_post_launch_19_performance_load_cost_optimization.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+### Smoke
+
+```powershell
+Unblock-File .\scripts\qa\smoke-performance-cost.ps1
+
+.\scripts\qa\smoke-performance-cost.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
