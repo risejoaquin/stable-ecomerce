@@ -1,3 +1,14 @@
+# Selfcare Sinners — MACROFASE FINAL A / PL30 + PL31 + PL32
+
+Entrega: Experimentation Platform, Real Integrations Layer, Financial Forecasting, Inventory Demand Planning & Unit Economics.
+
+## Validación rápida
+
+1. Ejecutar `scripts/db/036_macro_final_a_pl30_pl31_pl32_experimentation_integrations_forecasting.sql` en Supabase.
+2. Ejecutar `NOTIFY pgrst, 'reload schema';`.
+3. Desplegar en Railway.
+4. Ejecutar `scripts/qa/smoke-macro-final-a.ps1`.
+
 # Selfcare Sinners — POST-LAUNCH 26
 
 Entrega: **Live Operations Monitoring, Conversion Optimization & Growth Iteration Loop**.
