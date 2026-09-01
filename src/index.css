@@ -109,3 +109,20 @@ body {
   display: inline-flex;
   align-items: center;
 }
+
+
+.real-user-testing-panel {
+  border: 1px solid var(--border, rgba(0,0,0,.12));
+  border-radius: 24px;
+  padding: clamp(1rem, 3vw, 2rem);
+  display: grid;
+  gap: 1rem;
+  background: var(--card, #fff);
+}
+
+.real-user-testing-panel ul {
+  display: grid;
+  gap: .75rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}

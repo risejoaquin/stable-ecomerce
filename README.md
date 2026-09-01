@@ -1,3 +1,23 @@
+# Selfcare Sinners — POST-LAUNCH 22
+
+## Real User Testing, Conversion QA & Live Behavior Feedback Loop
+
+Este ZIP incluye PL22 sobre la base cerrada hasta PL21. Agrega contratos de base de datos, endpoints admin, smoke test y documentación para probar usuarios reales, detectar fricción, medir conversión, analizar abandono, capturar feedback, validar mobile/checkout real y priorizar mejoras por impacto.
+
+### Migración
+
+` scripts/db/028_post_launch_22_real_user_testing_conversion_qa_feedback_loop.sql `
+
+### Smoke
+
+` scripts/qa/smoke-real-user-testing.ps1 `
+
+### Resultado esperado
+
+`PASS real user testing smoke checks`
+
+---
+
 # Selfcare Sinners Ecommerce
 
 ## Estado actual
