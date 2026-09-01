@@ -87,3 +87,17 @@ Unblock-File .\scripts\qa\smoke-performance-cost.ps1
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+
+## POST-LAUNCH 20 — Final Commercial Scale Report & Strategic Roadmap
+
+Incluye reporte ejecutivo final, assessment técnico/comercial, matriz de riesgos, deuda técnica, costos operativos, capacidad de escala, roadmap estratégico 2.0, decisión de escala e investor readiness.
+
+Validación:
+
+```powershell
+.\scripts\qa\smoke-final-scale-report.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
