@@ -178,3 +178,52 @@ Objetivo:
 - Cerrar textos finales de producto/categoría.
 - Mejorar contenido educativo.
 - Preparar tráfico orgánico y pagado.
+
+
+## HOTFIX 24.1 — Campaign Landing Pages Schema Cache
+
+Si el smoke falla en `/api/admin/content-seo/landing-pages/run` con:
+
+```txt
+Could not find the 'campaign_type' column of 'campaign_landing_pages' in the schema cache
+```
+
+Ejecuta en Supabase:
+
+```txt
+scripts/db/030b_post_launch_24_campaign_landing_pages_schema_cache_hotfix.sql
+```
+
+Luego espera unos segundos y repite:
+
+```powershell
+.\scripts\qa\smoke-content-seo.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
+
+
+## POST-LAUNCH 24 HOTFIX 24.2
+
+Corrige compatibilidad con la tabla heredada `campaign_landing_pages` creada en PL06, donde `title` es `NOT NULL`. PL24 usa `headline` y `value_proposition`; este hotfix agrega default/trigger de normalización y además actualiza el payload del endpoint para enviar `title`, `subtitle` y `content`.
+
+Ejecutar en Supabase:
+
+```sql
+scripts/db/030c_post_launch_24_campaign_landing_pages_title_not_null_hotfix.sql
+```
+
+Luego repetir:
+
+```powershell
+.\scripts\qa\smoke-content-seo.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
+
+
+## POST-LAUNCH 25 — Controlled Marketing Launch, Paid Traffic Activation & Revenue Validation
+
+Incluye migración `scripts/db/031_post_launch_25_controlled_marketing_launch_paid_traffic_revenue_validation.sql`, smoke `scripts/qa/smoke-marketing-launch.ps1`, endpoints `/api/admin/marketing-launch/*` y documentación de producción.
