@@ -1,0 +1,3 @@
+export function PremiumEditorialSection() {
+  return <section id="rutinas" className="premium-section"><div className="premium-container premium-editorial-card"><div><span className="premium-kicker">Rutina guiada</span><h2 className="mt-5 text-4xl font-black tracking-[-.05em] md:text-6xl">Compra menos impulsiva, decide con más claridad.</h2></div><div><p className="text-lg leading-8 text-black/65">El rediseño prioriza beneficios, ingredientes, confianza, comparación y CTA claros para que cada pantalla ayude a comprar con seguridad.</p><a href="#catalogo" className="premium-button-primary mt-6">Explorar productos</a></div></div></section>;
+}

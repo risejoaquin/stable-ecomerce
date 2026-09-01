@@ -305,3 +305,26 @@ Unblock-File .\scripts\qa\smoke-macro-final-b.ps1
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+---
+
+# UIX-01 — Premium Storefront UX Strategy & Benchmark Plan
+
+Este ZIP agrega la fase de planeación de rediseño UI/UX antes de tocar código visual fuerte.
+
+Documentos incluidos:
+
+- `docs/design/UIX01_UX_STRATEGY.md`
+- `docs/design/BENCHMARK_REFERENCES.md`
+- `docs/design/INDUSTRY_UX_STANDARDS.md`
+- `docs/design/CUSTOMER_JOURNEY_MAP.md`
+- `docs/design/STOREFRONT_INFORMATION_ARCHITECTURE.md`
+- `docs/design/DESIGN_SYSTEM_DIRECTION.md`
+- `docs/design/COMPONENT_REDESIGN_MAP.md`
+- `docs/design/IMPLEMENTATION_ROADMAP_UI.md`
+- `docs/design/UIX01_README.md`
+
+Siguiente paso después de aprobar este plan:
+
+- `MACRO UI A — Premium Storefront Redesign`
+- `MACRO UI B — Checkout & Conversion Experience Redesign`
