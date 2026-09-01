@@ -1,44 +1,37 @@
 # Selfcare Sinners Ecommerce
 
-Estado: producción activa hasta POST-LAUNCH 15 PASS. Esta entrega incluye:
+## Estado actual
 
-1. HOTFIX / CONSOLIDACIÓN — PL14.1 + PL15 Baseline Cleanup
-2. POST-LAUNCH 16 — Marketplace Expansion, Multi-Channel Sales & External Integrations
+Roadmap ejecutado y validado hasta:
 
-## Aplicación recomendada
+- POST-LAUNCH 16 — Marketplace Expansion, Multi-Channel Sales & External Integrations: PASS
+- POST-LAUNCH 17 — Advanced Automation, CRM & Lifecycle Marketing: preparado para validación
 
-```powershell
-cd C:\Users\Joaquin\OneDrive\Documentos\Stable-Ecomerce\stable-ecomerce
+## Stack
 
-git add .
-git commit -m "PL14.1 consolidation and PL16 multichannel marketplace readiness"
-git push origin main
-```
+- Frontend: Vite / React
+- Backend: Node / Express
+- DB: Supabase PostgreSQL
+- Payments: Stripe
+- Email: Resend
+- Deploy: Railway
 
-## Migraciones
+## PL17
 
-Ejecutar en Supabase, en orden:
+Incluye CRM avanzado, automatizaciones por comportamiento, journeys, campañas por segmento, recuperación de carrito avanzada, post-compra, recompra y orquestación email/push base.
+
+### Migración
 
 ```sql
-scripts/db/020b_post_launch_14_1_mobile_pwa_schema_contract_consolidation.sql
-scripts/db/022_post_launch_16_marketplace_multichannel_external_integrations.sql
+scripts/db/023_post_launch_17_advanced_automation_crm_lifecycle_marketing.sql
 NOTIFY pgrst, 'reload schema';
 ```
 
-## Smoke tests
+### Smoke
 
 ```powershell
-Unblock-File .\scripts\qa\smoke-mobile-pwa.ps1
-Unblock-File .\scripts\qa\smoke-ai-commerce.ps1
-Unblock-File .\scripts\qa\smoke-channels.ps1
-
-.\scripts\qa\smoke-mobile-pwa.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
-.\scripts\qa\smoke-ai-commerce.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
-.\scripts\qa\smoke-channels.ps1 -BaseUrl "https://selfcaresinners.com" -Email "TU_ADMIN_EMAIL" -Password "TU_PASSWORD"
+.\scripts\qa\smoke-crm-lifecycle.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
 ```
-
-## Resultado esperado
-
-- `PASS mobile PWA smoke checks`
-- `PASS AI commerce smoke checks`
-- `PASS channels smoke checks`
