@@ -242,3 +242,16 @@ Luego repetir:
 ## POST-LAUNCH 25 — Controlled Marketing Launch, Paid Traffic Activation & Revenue Validation
 
 Incluye migración `scripts/db/031_post_launch_25_controlled_marketing_launch_paid_traffic_revenue_validation.sql`, smoke `scripts/qa/smoke-marketing-launch.ps1`, endpoints `/api/admin/marketing-launch/*` y documentación de producción.
+
+
+## POST-LAUNCH 27 — Customer Success, Retention Operations & Post-Purchase Experience
+
+Estado entregable: listo para validación.
+
+Incluye:
+- Migración: `scripts/db/033_post_launch_27_customer_success_retention_post_purchase_experience.sql`
+- Smoke: `scripts/qa/smoke-customer-success.ps1`
+- Doc: `docs/production/POST_LAUNCH_27_CUSTOMER_SUCCESS_RETENTION_POST_PURCHASE_EXPERIENCE.md`
+- UI component: `src/components/CustomerSuccessPanel.tsx`
+
+Objetivo: experiencia post-compra, satisfacción, soporte, recompra, retención, emails post-compra, quejas/devoluciones, NPS/CSAT y clientes recurrentes.
