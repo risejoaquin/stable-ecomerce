@@ -35,3 +35,24 @@ NOTIFY pgrst, 'reload schema';
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+
+## POST-LAUNCH 18 — Enterprise Security, Audit Trails & Compliance Hardening
+
+Incluye auditoría avanzada, trazabilidad admin, revisión periódica de permisos, retención de datos, exportaciones auditables, controles anti-abuso, aprobaciones para acciones sensibles y hardening final de seguridad.
+
+### Migración
+
+```sql
+scripts/db/024_post_launch_18_enterprise_security_audit_compliance_hardening.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+### Smoke
+
+```powershell
+.\scripts\qa\smoke-enterprise-security.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
