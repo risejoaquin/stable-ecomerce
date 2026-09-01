@@ -261,3 +261,12 @@ Objetivo: experiencia post-compra, satisfacción, soporte, recompra, retención,
 Adds executive KPI snapshots, business command center, commercial/technical health checks, full funnel analytics, channel/campaign comparisons, decision priorities, investor reporting packets, BI insights and operating system reviews.
 
 Smoke test: `scripts/qa/smoke-executive-bi.ps1`.
+
+
+## POST-LAUNCH 29 — Operational Automation, Scheduled Reports & Alerting Workflows
+
+Estado del entregable: generado para validación.
+
+Incluye migración `scripts/db/035_post_launch_29_operational_automation_scheduled_reports_alerting_workflows.sql`, smoke `scripts/qa/smoke-operational-automation.ps1`, endpoints `/api/admin/operational-automation/*` y documentación de producción.
+
+Objetivo: automatizar reportes recurrentes, revisiones diarias/semanales, alertas comerciales/técnicas, anomalías, riesgos de revenue/conversión, seguimiento de campañas, soporte/retención y workflow ejecutivo recurrente.
