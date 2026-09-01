@@ -38,3 +38,74 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
 }
+
+
+/* POST-LAUNCH 21 — UX/UI polish primitives */
+.ux-trust-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.ux-trust-card,
+.ux-state-card {
+  border: 1px solid rgba(107, 112, 92, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 8px 28px rgba(51, 51, 51, 0.06);
+}
+
+.ux-trust-card strong,
+.ux-state-card h2 {
+  display: block;
+  color: var(--color-text);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.ux-trust-card span,
+.ux-state-card p {
+  color: var(--color-secondary);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.ux-state-card.error {
+  border-color: rgba(185, 28, 28, 0.22);
+}
+
+.ux-state-action {
+  margin-top: 0.85rem;
+}
+
+.ux-skeleton-line {
+  height: 0.8rem;
+  border-radius: 999px;
+  background: rgba(107, 112, 92, 0.14);
+  margin-bottom: 0.6rem;
+}
+
+.ux-skeleton-line.short {
+  width: 62%;
+}
+
+.mobile-checkout-confidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  background: rgba(107, 112, 92, 0.08);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mobile-checkout-confidence span {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}

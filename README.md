@@ -101,3 +101,11 @@ Validación:
   -Email "TU_ADMIN_EMAIL" `
   -Password "TU_PASSWORD"
 ```
+
+
+## POST-LAUNCH 21 — Full UX/UI Customer Journey Completion & Frontend Product Polish
+
+PL21 agrega auditoría operativa UX/UI para customer journey, admin UX, mobile-first, checkout confidence, accesibilidad, conversión/confianza y visual regression baseline.
+
+Validación: `scripts/qa/smoke-ux-ui-journey.ps1`.
+Migración: `scripts/db/027_post_launch_21_ux_ui_customer_journey_frontend_polish.sql`.
