@@ -26,7 +26,7 @@ function Invoke-Check {
 }
 
 $loginBody = @{ email = $Email; password = $Password } | ConvertTo-Json
-$login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/auth/login" -ContentType "application/json" -Body $loginBody
+$login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType "application/json" -Body $loginBody
 $token = $login.token
 if (-not $token) { $token = $login.accessToken }
 if (-not $token) { throw "Login did not return token/accessToken" }
