@@ -129,3 +129,30 @@ PL21 agrega auditoría operativa UX/UI para customer journey, admin UX, mobile-f
 
 Validación: `scripts/qa/smoke-ux-ui-journey.ps1`.
 Migración: `scripts/db/027_post_launch_21_ux_ui_customer_journey_frontend_polish.sql`.
+
+---
+
+# POST-LAUNCH 23 — Visual Brand System, Design System & Content Finalization
+
+## Objetivo
+
+Cerrar identidad visual final, consolidar design system, normalizar componentes, terminar contenido comercial, mejorar consistencia visual, estandarizar banners/cards/botones/formularios, cerrar tono/microcopy, preparar assets definitivos para campañas y dejar la tienda lista para marca seria.
+
+## Archivos agregados
+
+- `scripts/db/029_post_launch_23_visual_brand_system_design_system_content_finalization.sql`
+- `scripts/qa/smoke-brand-system.ps1`
+- `docs/production/POST_LAUNCH_23_VISUAL_BRAND_SYSTEM_DESIGN_SYSTEM_CONTENT_FINALIZATION.md`
+- `src/components/BrandSystemPanel.tsx`
+
+## Validación rápida
+
+```powershell
+Unblock-File .\scripts\qa\smoke-brand-system.ps1
+.\scripts\qa\smoke-brand-system.ps1 `
+  -BaseUrl "https://selfcaresinners.com" `
+  -Email "TU_ADMIN_EMAIL" `
+  -Password "TU_PASSWORD"
+```
+
+Resultado esperado: `PASS brand system smoke checks`.
