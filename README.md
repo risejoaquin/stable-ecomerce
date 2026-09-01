@@ -156,3 +156,25 @@ Unblock-File .\scripts\qa\smoke-brand-system.ps1
 ```
 
 Resultado esperado: `PASS brand system smoke checks`.
+
+## POST-LAUNCH 24 — Production Content Completion, SEO Content Depth & Campaign Landing Pages
+
+Estado: listo para aplicar y validar.
+
+Incluye:
+
+- `scripts/db/030_post_launch_24_production_content_seo_campaign_landing_pages.sql`
+- `scripts/qa/smoke-content-seo.ps1`
+- `docs/production/POST_LAUNCH_24_PRODUCTION_CONTENT_SEO_CAMPAIGN_LANDING_PAGES.md`
+- `src/components/ContentSeoPanel.tsx`
+
+Objetivo:
+
+- Completar contenido final de producción.
+- Crear landing pages comerciales.
+- Reforzar SEO de contenido.
+- Optimizar páginas por intención de búsqueda.
+- Preparar páginas para campañas.
+- Cerrar textos finales de producto/categoría.
+- Mejorar contenido educativo.
+- Preparar tráfico orgánico y pagado.
