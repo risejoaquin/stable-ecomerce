@@ -255,3 +255,9 @@ Incluye:
 - UI component: `src/components/CustomerSuccessPanel.tsx`
 
 Objetivo: experiencia post-compra, satisfacción, soporte, recompra, retención, emails post-compra, quejas/devoluciones, NPS/CSAT y clientes recurrentes.
+
+## POST-LAUNCH 28 — Executive Operating System, KPI Command Center & Business Intelligence
+
+Adds executive KPI snapshots, business command center, commercial/technical health checks, full funnel analytics, channel/campaign comparisons, decision priorities, investor reporting packets, BI insights and operating system reviews.
+
+Smoke test: `scripts/qa/smoke-executive-bi.ps1`.
