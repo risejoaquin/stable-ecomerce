@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Heart, ShoppingBag, UserRound } from 'lucide-react';
 
 export function EditorialHeader({ cartCount = 0, onCartOpen, backButton = false }: { cartCount?: number; onCartOpen?: () => void; backButton?: boolean }) {
   return (
@@ -10,11 +10,26 @@ export function EditorialHeader({ cartCount = 0, onCartOpen, backButton = false 
           <a href="/#lookbook">Rutinas</a>
           <Link to="/faq">Ayuda</Link>
         </nav>
+
         <Link to="/" className="ss-editorial-logo ss-display" aria-label="Selfcare Sinners home">
           Selfcare Sinners
           <span>Skincare consciente</span>
         </Link>
-        <button className="ss-editorial-cart-button" onClick={onCartOpen} type="button">Bolsa ({cartCount})</button>
+
+        <div className="ss-editorial-actions" aria-label="Acciones de cuenta y compra">
+          <Link to="/profile" className="ss-editorial-icon-link ss-editorial-account-link" aria-label="Ir a mi cuenta">
+            <UserRound size={17} aria-hidden="true" />
+            <span>Cuenta</span>
+          </Link>
+          <Link to="/wishlist" className="ss-editorial-icon-link" aria-label="Ir a favoritos">
+            <Heart size={17} aria-hidden="true" />
+            <span>Wishlist</span>
+          </Link>
+          <button className="ss-editorial-cart-button" onClick={onCartOpen} type="button" aria-label={`Abrir bolsa con ${cartCount} productos`}>
+            <ShoppingBag size={17} aria-hidden="true" />
+            <span>Bolsa ({cartCount})</span>
+          </button>
+        </div>
       </div>
     </header>
   );
