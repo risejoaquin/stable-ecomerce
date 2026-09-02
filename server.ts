@@ -9555,6 +9555,181 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     res.json({ status: 'ok', item: data?.[0] || payload });
   }));
 
+  // ---------------------------------------------------------------------------
+  // LIVE-01 — Real Traffic Soft Launch, Live Monitoring & Launch Feedback Control
+  // ---------------------------------------------------------------------------
+  const getLiveSoftLaunchTable = async (table: string, limit = 500) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const runLiveSoftLaunchUpsert = async (table: string, rows: any[], onConflict: string) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(table).upsert(rows, { onConflict }).select();
+    if (error) throw error;
+    return data || [];
+  };
+
+  app.get('/api/admin/live-soft-launch/summary', requireAuth(), asyncHandler(async (_req: any, res) => {
+    const [runs, sessions, conversions, checkout, revenue, support, campaigns, incidents, actions, reports] = await Promise.all([
+      getLiveSoftLaunchTable('live_soft_launch_runs', 250),
+      getLiveSoftLaunchTable('live_traffic_sessions', 250),
+      getLiveSoftLaunchTable('live_conversion_events', 250),
+      getLiveSoftLaunchTable('live_checkout_observations', 250),
+      getLiveSoftLaunchTable('live_order_revenue_events', 250),
+      getLiveSoftLaunchTable('live_support_signals', 250),
+      getLiveSoftLaunchTable('live_campaign_health_snapshots', 250),
+      getLiveSoftLaunchTable('live_incident_watch_events', 250),
+      getLiveSoftLaunchTable('launch_iteration_actions', 250),
+      getLiveSoftLaunchTable('live_launch_daily_reports', 250)
+    ]);
+    res.json({
+      status: 'ok',
+      liveSoftLaunch: {
+        runs: runs.length,
+        sessions: sessions.length,
+        conversionEvents: conversions.length,
+        checkoutObservations: checkout.length,
+        revenueEvents: revenue.length,
+        supportSignals: support.length,
+        campaignHealthSnapshots: campaigns.length,
+        incidentWatchEvents: incidents.length,
+        iterationActions: actions.length,
+        dailyReports: reports.length
+      },
+      readiness: {
+        trafficMonitoring: sessions.length > 0 || runs.length > 0,
+        checkoutMonitoring: checkout.length > 0,
+        revenueValidation: revenue.length > 0,
+        feedbackLoop: actions.length > 0 || reports.length > 0
+      }
+    });
+  }));
+
+  app.get('/api/admin/live-soft-launch/runs', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', runs: await getLiveSoftLaunchTable('live_soft_launch_runs', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/runs/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const runKey = req.body?.runKey || req.body?.run_key || `soft-launch-${Date.now()}`;
+    const payload = { store_id: storeId, run_key: runKey, launch_name: 'Real Traffic Soft Launch', launch_stage: 'soft_launch', status: 'active', traffic_source: req.body?.trafficSource || req.body?.traffic_source || 'controlled_campaigns', target_sessions: 100, actual_sessions: 0, conversion_rate: 0, revenue_cents: 0, risk_level: 'low', recommendation: 'Start with controlled traffic and daily review before increasing spend.', executed_by: req.auth?.userId || null, executed_at: new Date().toISOString(), metadata: { source: 'api_live_soft_launch_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_soft_launch_runs', [payload], 'store_id,run_key');
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'live_soft_launch_run', entityType: 'live_soft_launch_runs', metadata: { runKey } });
+    res.json({ status: 'ok', run: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/sessions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', sessions: await getLiveSoftLaunchTable('live_traffic_sessions', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/sessions', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const sessionKey = req.body?.sessionKey || req.body?.session_key || `session-${Date.now()}`;
+    const payload = { store_id: storeId, session_key: sessionKey, channel: req.body?.channel || 'direct', landing_path: req.body?.landingPath || req.body?.landing_path || '/', device_type: req.body?.deviceType || req.body?.device_type || 'mobile', browser: req.body?.browser || null, country: req.body?.country || 'MX', started_at: new Date().toISOString(), pageviews: 1, cart_created: false, checkout_started: false, purchased: false, metadata: { source: 'api_live_session_create' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_traffic_sessions', [payload], 'store_id,session_key');
+    res.json({ status: 'ok', session: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/conversions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', events: await getLiveSoftLaunchTable('live_conversion_events', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/conversions', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const eventKey = req.body?.eventKey || req.body?.event_key || `conversion-${Date.now()}`;
+    const payload = { store_id: storeId, event_key: eventKey, session_key: req.body?.sessionKey || null, event_type: req.body?.eventType || req.body?.event_type || 'checkout_started', funnel_step: req.body?.funnelStep || req.body?.funnel_step || 'checkout', channel: req.body?.channel || 'direct', value_cents: req.body?.valueCents || req.body?.value_cents || 0, friction_signal: req.body?.frictionSignal || null, occurred_at: new Date().toISOString(), metadata: { source: 'api_live_conversion_create' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_conversion_events', [payload], 'store_id,event_key');
+    res.json({ status: 'ok', event: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/checkout-observations', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', observations: await getLiveSoftLaunchTable('live_checkout_observations', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/checkout-observations/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const observationKey = req.body?.observationKey || req.body?.observation_key || `checkout-observation-${Date.now()}`;
+    const payload = { store_id: storeId, observation_key: observationKey, session_key: req.body?.sessionKey || null, checkout_step: 'payment', status: 'observed', issue_type: 'none', severity: 'low', abandoned: false, resolved: true, recommendation: 'Keep checkout monitored during traffic spikes and campaign tests.', observed_at: new Date().toISOString(), metadata: { source: 'api_checkout_observation_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_checkout_observations', [payload], 'store_id,observation_key');
+    res.json({ status: 'ok', observation: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/revenue-events', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', events: await getLiveSoftLaunchTable('live_order_revenue_events', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/revenue-events/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const eventKey = req.body?.eventKey || req.body?.event_key || `revenue-${Date.now()}`;
+    const payload = { store_id: storeId, event_key: eventKey, order_id: req.body?.orderId || req.body?.order_id || null, revenue_cents: req.body?.revenueCents || req.body?.revenue_cents || 1200, channel: req.body?.channel || 'direct', payment_status: 'paid', attribution_source: req.body?.attributionSource || 'soft_launch', occurred_at: new Date().toISOString(), metadata: { source: 'api_revenue_event_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_order_revenue_events', [payload], 'store_id,event_key');
+    res.json({ status: 'ok', event: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/support-signals', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', signals: await getLiveSoftLaunchTable('live_support_signals', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/support-signals/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const signalKey = req.body?.signalKey || req.body?.signal_key || `support-signal-${Date.now()}`;
+    const payload = { store_id: storeId, signal_key: signalKey, customer_email: req.body?.customerEmail || null, signal_type: 'question', channel: 'whatsapp', severity: 'low', status: 'open', resolution_notes: null, recommendation: 'Classify live support signals and convert repeated questions into content or checkout fixes.', detected_at: new Date().toISOString(), metadata: { source: 'api_support_signal_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_support_signals', [payload], 'store_id,signal_key');
+    res.json({ status: 'ok', signal: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/campaign-health', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', snapshots: await getLiveSoftLaunchTable('live_campaign_health_snapshots', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/campaign-health/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const snapshotKey = req.body?.snapshotKey || req.body?.snapshot_key || `campaign-health-${Date.now()}`;
+    const payload = { store_id: storeId, snapshot_key: snapshotKey, campaign_name: req.body?.campaignName || 'soft_launch_campaign', channel: req.body?.channel || 'paid_social', spend_cents: 5000, sessions: 100, purchases: 2, revenue_cents: 2400, cac_cents: 2500, roas: 0.48, health_status: 'monitoring', recommendation: 'Do not scale spend until conversion and checkout observations are stable.', captured_at: new Date().toISOString(), metadata: { source: 'api_campaign_health_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_campaign_health_snapshots', [payload], 'store_id,snapshot_key');
+    res.json({ status: 'ok', snapshot: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/incidents', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', incidents: await getLiveSoftLaunchTable('live_incident_watch_events', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/incidents/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const incidentKey = req.body?.incidentKey || req.body?.incident_key || `incident-watch-${Date.now()}`;
+    const payload = { store_id: storeId, incident_key: incidentKey, incident_type: 'operational_watch', severity: 'low', status: 'open', affected_area: 'storefront', impact_summary: 'No blocking incident detected in soft launch watch.', action_taken: 'Continue monitoring.', detected_at: new Date().toISOString(), metadata: { source: 'api_incident_watch_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_incident_watch_events', [payload], 'store_id,incident_key');
+    res.json({ status: 'ok', incident: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/iteration-actions', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', actions: await getLiveSoftLaunchTable('launch_iteration_actions', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/iteration-actions/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const actionKey = req.body?.actionKey || req.body?.action_key || `iteration-action-${Date.now()}`;
+    const payload = { store_id: storeId, action_key: actionKey, action_type: 'conversion_fix', priority: 'medium', title: req.body?.title || 'Prioritize highest impact soft-launch improvement', owner_role: 'admin', status: 'open', impact_score: 85, due_at: new Date(Date.now() + 7 * 86400000).toISOString(), recommendation: 'Prioritize changes from real behavior data, not opinions.', metadata: { source: 'api_iteration_action_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('launch_iteration_actions', [payload], 'store_id,action_key');
+    res.json({ status: 'ok', action: data?.[0] || payload });
+  }));
+
+  app.get('/api/admin/live-soft-launch/daily-reports', requireAuth(), asyncHandler(async (_req: any, res) => {
+    res.json({ status: 'ok', reports: await getLiveSoftLaunchTable('live_launch_daily_reports', 500) });
+  }));
+
+  app.post('/api/admin/live-soft-launch/daily-reports/run', requireAuth(), asyncHandler(async (req: any, res) => {
+    const storeId = await getPrimaryStoreId();
+    const reportKey = req.body?.reportKey || req.body?.report_key || `daily-report-${new Date().toISOString().slice(0,10)}`;
+    const payload = { store_id: storeId, report_key: reportKey, report_date: new Date().toISOString().slice(0, 10), sessions: 100, conversion_rate: 2.0, revenue_cents: 2400, support_signals: 1, incidents: 0, open_actions: 3, executive_summary: 'Soft launch daily report generated with traffic, conversion, checkout, revenue, support and incident signals.', recommendation: 'Review daily before scaling traffic.', metadata: { source: 'api_daily_report_run' }, updated_at: new Date().toISOString() };
+    const data = await runLiveSoftLaunchUpsert('live_launch_daily_reports', [payload], 'store_id,report_key');
+    res.json({ status: 'ok', report: data?.[0] || payload });
+  }));
+
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

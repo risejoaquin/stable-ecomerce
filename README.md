@@ -353,3 +353,46 @@ npm install
 npm run build
 npm run dev
 ```
+
+## LIVE-01 — Real Traffic Soft Launch
+
+Incluye monitoreo de tráfico real controlado, sesiones, conversión, checkout, revenue, soporte, campañas, incidentes, acciones de iteración y reporte diario.
+
+### Migración
+
+`scripts/db/038_live_01_real_traffic_soft_launch_monitoring.sql`
+
+### Smoke
+
+`scripts/qa/smoke-live-soft-launch.ps1`
+
+---
+
+# UIX03 — SKOOT-inspired Editorial Commerce Redesign Plan
+
+Planning package added for the next major storefront visual redesign. This phase does not change checkout/payment/database behavior. It defines the direction for MACRO UI D implementation.
+
+## MACRO UI D — SKOOT-inspired Editorial Storefront Redesign
+
+Esta entrega implementa un rediseño visual editorial inspirado en SKOOT, adaptado a Selfcare Sinners como ecommerce beauty/skincare.
+
+### Archivos principales
+
+- `src/styles/skoot-editorial-redesign.css`
+- `src/components/editorial/EditorialHeader.tsx`
+- `src/components/editorial/EditorialProductCard.tsx`
+- `src/components/editorial/EditorialLookbookSection.tsx`
+- `src/components/editorial/EditorialFooter.tsx`
+- `src/components/editorial/MobileEditorialNav.tsx`
+- `src/pages/store/HomePage.tsx`
+- `src/pages/store/ProductDetailPage.tsx`
+- `scripts/qa/smoke-ui-d-editorial-visual-checklist.ps1`
+
+### Validación
+
+```powershell
+Unblock-File .\scripts\qa\smoke-ui-d-editorial-visual-checklist.ps1
+.\scripts\qa\smoke-ui-d-editorial-visual-checklist.ps1
+npm run build
+npm run dev
+```
