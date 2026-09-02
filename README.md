@@ -1,3 +1,35 @@
+# MACRO EMAIL/UIX A — Critical Email Safety & Reliability
+
+Entrega: seguridad crítica y confiabilidad base del sistema de correos.
+
+Incluye:
+
+- `src/server/email/email-service.ts`
+- `src/server/email/email-sanitize.ts`
+- `src/server/email/email-events.ts`
+- `src/server/email/email-types.ts`
+- `scripts/db/039_macro_email_uix_a_email_safety_event_contract.sql`
+- `scripts/qa/smoke-email-safety.ps1`
+- `docs/email/MACRO_EMAIL_UIX_A_CRITICAL_EMAIL_SAFETY_RELIABILITY.md`
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-email-safety.ps1
+.\scripts\qa\smoke-email-safety.ps1
+npm install
+npm run build
+```
+
+Migración opcional/idempotente para email events:
+
+```sql
+scripts/db/039_macro_email_uix_a_email_safety_event_contract.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+---
+
 # UIX04.2 — Admin/Home/Cart Organization Hotfix
 
 Corrige organización del panel de administración, contraste del icono de carrito y estructura visual de la página principal.

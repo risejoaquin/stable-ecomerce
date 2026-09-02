@@ -1,3 +1,4 @@
+import { escapeHtml, safeText, sanitizeEmailUrl } from './src/server/email/email-sanitize.js';
 export const getEmailLayout = (content: string, preheader: string = '') => `
 <!DOCTYPE html>
 <html>
@@ -118,7 +119,7 @@ export const getEmailLayout = (content: string, preheader: string = '') => `
   </style>
 </head>
 <body>
-  <span class="preheader">${preheader}</span>
+  <span class="preheader">${escapeHtml(preheader)}</span>
   <div class="wrapper">
     <table class="container" cellpadding="0" cellspacing="0" border="0" width="100%">
       <tr>
@@ -147,14 +148,14 @@ export const getVerificationEmail = (name: string, verificationLink: string) => 
   return getEmailLayout(
     `
     <h2>Welcome to Selfcare Sinners! ✨</h2>
-    <p>Hi ${name || 'Gorgeous'},</p>
+    <p>Hi ${safeText(name, 'Gorgeous')},</p>
     <p>We are absolutely thrilled to have you join our community. Your journey towards radical self-care and indulgence starts here.</p>
     <p>To get started, we just need to verify your email address. It only takes a second.</p>
     <center>
-      <a href="${verificationLink}" class="button">Verify My Account</a>
+      <a href="${sanitizeEmailUrl(verificationLink)}" class="button">Verify My Account</a>
     </center>
     <p>If the button doesn't work, copy and paste this link into your browser:</p>
-    <p style="font-size: 12px; color: #666; word-break: break-all;">${verificationLink}</p>
+    <p style="font-size: 12px; color: #666; word-break: break-all;">${sanitizeEmailUrl(verificationLink)}</p>
     <br/>
     <p>With love,<br/>The Selfcare Sinners Team</p>
     `,
@@ -166,7 +167,7 @@ export const getOrderConfirmationEmail = (orderId: string, total: string, itemsH
   return getEmailLayout(
     `
     <h2>Thank You for Your Order! 🛍️</h2>
-    <p>We've received your order <strong>#${orderId.split('-')[0]}</strong> and we're getting it ready for you right now.</p>
+    <p>We've received your order <strong>#${safeText(String(orderId).split('-')[0])}</strong> and we're getting it ready for you right now.</p>
     <p>Here is a summary of your purchase:</p>
     
     <div style="margin: 30px 0;">
@@ -174,7 +175,7 @@ export const getOrderConfirmationEmail = (orderId: string, total: string, itemsH
       
       <div class="total-row">
         <span>Total</span>
-        <span>${total}</span>
+        <span>${safeText(total)}</span>
       </div>
     </div>
     
@@ -193,9 +194,9 @@ export const getDiscountCouponEmail = (code: string, discount: string, expiryDat
     
     <div class="coupon-box">
       <p style="margin:0; font-size: 14px; text-transform: uppercase; color: #666;">Use code at checkout</p>
-      <div class="coupon-code">${code}</div>
-      <p style="margin:0; font-size: 16px; font-weight: 500;">Enjoy ${discount} off</p>
-      ${expiryDate ? `<p style="margin-top:10px; font-size: 12px; color: #888;">Valid until ${expiryDate}</p>` : ''}
+      <div class="coupon-code">${safeText(code)}</div>
+      <p style="margin:0; font-size: 16px; font-weight: 500;">Enjoy ${safeText(discount)} off</p>
+      ${expiryDate ? `<p style="margin-top:10px; font-size: 12px; color: #888;">Valid until ${safeText(expiryDate)}</p>` : ''}
     </div>
     
     <center>
@@ -219,7 +220,7 @@ export const getAbandonedCartEmail = (recoverUrl: string, itemsHtml: string) => 
     </div>
     
     <center>
-      <a href="${recoverUrl}" class="button">Complete My Purchase</a>
+      <a href="${sanitizeEmailUrl(recoverUrl)}" class="button">Complete My Purchase</a>
     </center>
     
     <p>Don't miss out on treating yourself.</p>
@@ -233,13 +234,13 @@ export const getOrderStatusEmail = (orderId: string, statusText: string, trackin
   return getEmailLayout(
     `
     <h2>Order Update 📦</h2>
-    <p>We're writing to let you know that your order <strong>#${orderId.split('-')[0]}</strong> ${statusText}.</p>
+    <p>We're writing to let you know that your order <strong>#${safeText(String(orderId).split('-')[0])}</strong> ${safeText(statusText)}.</p>
     
     ${trackingInfo ? `<div style="margin: 20px 0; padding: 15px; background: #f4f4f5; border-radius: 6px;">${trackingInfo}</div>` : ''}
     
     <p>If you have any questions, please reply to this email.</p>
     <p>Stay stunning,<br/>The Selfcare Sinners Team</p>
     `,
-    `Your order #${orderId.split('-')[0]} ${statusText}.`
+    `Your order #${safeText(String(orderId).split('-')[0])} ${safeText(statusText)}.`
   );
 };

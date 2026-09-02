@@ -17,6 +17,8 @@ import * as fs from 'fs';
 import multer from 'multer';
 import { z } from 'zod';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
+import { EmailService } from './src/server/email/email-service.js';
+import { buildAppLink, escapeHtml, normalizeRecipientEmail, safeText } from './src/server/email/email-sanitize.js';
 
 // Setup Sentry
 Sentry.init({
@@ -278,21 +280,27 @@ async function sendPaidOrderEmails(order: any, orderItems: any[], session: any) 
   await sendEmail({
     to: ADMIN_EMAIL,
     subject: `New Paid Order: #${String(order.id).split('-')[0]}`,
-    html: `<p>A paid order has been confirmed for $${order.total}.</p><p>Order ID: ${order.id}</p><p>Stripe session: ${order.stripe_session_id || session?.id || 'N/A'}</p>`
+    html: getEmailLayout(`<p>A paid order has been confirmed for $${safeText(order.total)}.</p><p>Order ID: ${safeText(order.id)}</p><p>Stripe session: ${safeText(order.stripe_session_id || session?.id || 'N/A')}</p>`, 'Nueva orden pagada detectada.'),
+    purpose: 'admin_new_order',
+    entityType: 'order',
+    entityId: order.id
   });
 
   if (customerEmail) {
     const itemsHtml = orderItems.map(item => `
       <div class="order-item">
-        <span>${item.quantity}x ${item.products?.name || item.product_snapshot?.name || 'Product'}</span>
-        <span>$${item.unit_price}</span>
+        <span>${safeText(item.quantity)}x ${safeText(item.products?.name || item.product_snapshot?.name || 'Product')}</span>
+        <span>$${safeText(item.unit_price)}</span>
       </div>
     `).join('');
 
     await sendEmail({
       to: customerEmail,
       subject: `Order Confirmation: #${String(order.id).split('-')[0]}`,
-      html: getOrderConfirmationEmail(order.id, `$${order.total}`, itemsHtml)
+      html: getOrderConfirmationEmail(order.id, `$${order.total}`, itemsHtml),
+      purpose: 'order_confirmation',
+      entityType: 'order',
+      entityId: order.id
     });
   }
 }
@@ -337,7 +345,11 @@ async function finalizeCheckoutSession(event: any, session: any) {
       await sendEmail({
         to: ADMIN_EMAIL,
         subject: `Inventory exception after payment: #${String(orderId).split('-')[0]}`,
-        html: `<p>Stripe confirmed payment, but inventory could not be reconciled automatically.</p><p>Order ID: ${orderId}</p><p>Stripe session: ${session.id}</p><p>Message: ${finalization?.message || 'N/A'}</p>`
+        html: getEmailLayout(`<p>Stripe confirmed payment, but inventory could not be reconciled automatically.</p><p>Order ID: ${safeText(orderId)}</p><p>Stripe session: ${safeText(session.id)}</p><p>Message: ${safeText(finalization?.message || 'N/A')}</p>`, 'Inventory exception after payment.'),
+        purpose: 'admin_new_order',
+        entityType: 'order',
+        entityId: orderId,
+        throwOnError: false
       });
     } catch (emailError) {
       logger.error({ err: emailError, orderId }, 'Inventory exception email failed');
@@ -509,25 +521,10 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Store <onboarding@resend.dev>';
 
+const emailService = new EmailService({ resend, from: EMAIL_FROM, logger, getSupabase: () => supabase });
 
-async function sendEmail({ to, subject, html }: { to: string, subject: string, html: string }) {
-  if (!resend) {
-    logger.info(`[Email Mock] To: ${to} | Subject: ${subject}`);
-    return { mocked: true, id: `mock-${Date.now()}` } as any;
-  }
-  try {
-    const { data, error } = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
-    if (error) {
-      logger.error({ err: error }, 'Resend API Error:');
-      return { error } as any;
-    } else {
-      logger.info({ data: data }, `Email sent to ${to}`);
-      return data as any;
-    }
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to send email:');
-    return { error } as any;
-  }
+async function sendEmail({ to, subject, html, purpose = 'generic', entityType = null, entityId = null, metadata = {}, throwOnError = true }: { to: string, subject: string, html: string, purpose?: any, entityType?: string | null, entityId?: string | null, metadata?: Record<string, unknown>, throwOnError?: boolean }) {
+  return emailService.send({ to, subject, html, purpose, entityType, entityId, metadata, throwOnError });
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -605,6 +602,8 @@ async function startServer() {
   const orderLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: 'Too many orders created, please try again later.' });
   const checkoutLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: 'Too many checkout attempts, please try again later.' });
   const contactLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, message: 'Too many contact messages, please try again later.' });
+  const emailSensitiveLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many email requests, please try again later.' } });
+  const adminEmailLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many admin email actions, please try again later.' } });
 
 
   // Stripe webhook needs raw body. This route intentionally runs before express.json().
@@ -881,18 +880,23 @@ async function startServer() {
           try {
             const { name, email, message } = req.body;
             if (!name || !email || !message) return res.status(400).json({ error: 'Missing fields' });
-            
-            const html = `
-        <h2>New Contact Message</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Message:</strong><br/>${message}</p>
-      `;
+            const safeName = safeText(name, 'Cliente');
+            const safeEmail = safeText(normalizeRecipientEmail(email), 'sin-email');
+            const safeMessage = escapeHtml(message).replace(/
+/g, '<br/>');
+            const html = getEmailLayout(`
+        <h2>Nuevo mensaje de contacto</h2>
+        <p><strong>Nombre:</strong> ${safeName}</p>
+        <p><strong>Email:</strong> ${safeEmail}</p>
+        <p><strong>Mensaje:</strong><br/>${safeMessage}</p>
+      `, 'Nuevo mensaje recibido desde el storefront.');
             
             await sendEmail({
               to: ADMIN_EMAIL,
-              subject: `Contact from ${name}`,
-              html
+              subject: `Contacto desde storefront: ${String(name).slice(0, 80)}`,
+              html,
+              purpose: 'contact_admin',
+              metadata: { source: 'contact_form' }
             });
             
             res.json({ success: true });
@@ -905,12 +909,13 @@ async function startServer() {
   // --- AUTH ROUTES ---
   app.post('/api/register', asyncHandler(async (req, res) => {
           const { email, password, full_name } = req.body;
-          if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+          const normalizedEmail = normalizeRecipientEmail(email);
+          if (!normalizedEmail || !password) return res.status(400).json({ error: 'Email and password required' });
           try {
             const password_hash = await bcrypt.hash(password, 10);
             const { data, error } = await supabase
               .from('users')
-              .insert([{ id: crypto.randomUUID(), email, password_hash, full_name }])
+              .insert([{ id: crypto.randomUUID(), email: normalizedEmail, password_hash, full_name }])
               .select()
               .single();
             if (error) {
@@ -919,14 +924,16 @@ async function startServer() {
             }
             // Generate verification token
             const verificationToken = jwt.sign({ userId: data.id, purpose: 'email_verification' }, effectiveJwtSecret, { expiresIn: '24h' });
-            const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-            const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}`;
+            const verificationLink = buildAppLink('/verify-email', { token: verificationToken });
 
             // Send Verification Email
             await sendEmail({
-              to: email,
+              to: normalizedEmail,
               subject: 'Verify your Selfcare Sinners account',
-              html: getVerificationEmail(full_name, verificationLink)
+              html: getVerificationEmail(full_name, verificationLink),
+              purpose: 'verification_email',
+              entityType: 'user',
+              entityId: data.id
             });
             
             // Still issue a normal token so they can be logged in immediately (or you can require verification to log in)
@@ -972,23 +979,27 @@ async function startServer() {
           }
         }));
 
-  app.post('/api/resend-verification', asyncHandler(async (req, res) => {
+  app.post('/api/resend-verification', emailSensitiveLimiter, asyncHandler(async (req, res) => {
           const { email } = req.body;
-          if (!email) return res.status(400).json({ error: 'Email is required' });
+          const normalizedEmail = normalizeRecipientEmail(email);
+          if (!normalizedEmail) return res.status(400).json({ error: 'Email is required' });
           
           try {
-            const { data: user, error } = await supabase.from('users').select('*').eq('email', email).single();
-            if (error || !user) return res.status(404).json({ error: 'User not found' });
-            if (user.is_verified) return res.status(400).json({ error: 'Email is already verified' });
+            const { data: user, error } = await supabase.from('users').select('*').eq('email', normalizedEmail).maybeSingle();
+            if (error || !user || user.is_verified) {
+              return res.json({ success: true, message: 'If the account exists and requires verification, an email will be sent.' });
+            }
             
             const verificationToken = jwt.sign({ userId: user.id, purpose: 'email_verification' }, effectiveJwtSecret, { expiresIn: '24h' });
-            const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-            const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}`;
+            const verificationLink = buildAppLink('/verify-email', { token: verificationToken });
             
             await sendEmail({
-              to: email,
+              to: normalizedEmail,
               subject: 'Verify your Selfcare Sinners account',
-              html: getVerificationEmail(user.full_name, verificationLink)
+              html: getVerificationEmail(user.full_name, verificationLink),
+              purpose: 'verification_email',
+              entityType: 'user',
+              entityId: user.id
             });
             
             res.json({ success: true, message: 'Verification email resent.' });
@@ -998,31 +1009,34 @@ async function startServer() {
         }));
 
   
-  app.post('/api/forgot-password', asyncHandler(async (req, res) => {
+  app.post('/api/forgot-password', emailSensitiveLimiter, asyncHandler(async (req, res) => {
           const { email } = req.body;
-          if (!email) return res.status(400).json({ error: 'El correo electrónico es obligatorio' });
+          const normalizedEmail = normalizeRecipientEmail(email);
+          if (!normalizedEmail) return res.status(400).json({ error: 'El correo electrónico es obligatorio' });
           try {
-            const { data: user, error } = await supabase.from('users').select('*').eq('email', email).single();
+            const { data: user, error } = await supabase.from('users').select('*').eq('email', normalizedEmail).maybeSingle();
             if (error || !user) {
               // Para no revelar si el correo existe o no
               return res.json({ message: 'Si el correo existe, recibirás un enlace de recuperación.' });
             }
             
             const resetToken = jwt.sign({ userId: user.id, purpose: 'password_reset' }, effectiveJwtSecret, { expiresIn: '1h' });
-            const baseUrl = req.headers.origin || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-            const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
+            const resetLink = buildAppLink('/reset-password', { token: resetToken });
             
             await sendEmail({
-              to: email,
+              to: normalizedEmail,
               subject: 'Recuperación de contraseña',
+              purpose: 'password_reset',
+              entityType: 'user',
+              entityId: user.id,
               html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
             <h2>Recuperación de Contraseña</h2>
-            <p>Hola ${user.full_name || 'Usuario'},</p>
+            <p>Hola ${safeText(user.full_name, 'Usuario')},</p>
             <p>Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para continuar:</p>
             <div style="text-align: center; margin: 30px 0;">
               <a href="${resetLink}" style="background-color: #6B705C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
-                Restablecer Contraseña
+                Restablecer contraseña
               </a>
             </div>
             <p>Este enlace expirará en 1 hora.</p>
@@ -2098,12 +2112,16 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
                  }
                  
                  if (customerEmail) {
-                   const statusText = status === 'enviado' ? 'has been shipped' : status === 'entregado' ? 'has been delivered' : 'has been cancelled';
-                   const trackingInfo = status === 'enviado' && data.tracking_number ? `<p style="margin:0;">Tracking Number: <strong>${data.tracking_number}</strong></p>` : '';
+                   const statusText = status === 'enviado' ? 'ha sido enviado' : status === 'entregado' ? 'ha sido entregado' : 'ha sido cancelado';
+                   const trackingInfo = status === 'enviado' && data.tracking_number ? `<p style="margin:0;">Número de guía: <strong>${safeText(data.tracking_number)}</strong></p>` : '';
                    await sendEmail({
                      to: customerEmail,
                      subject: `Order Update: #${data.id.split('-')[0]} ${statusText}`,
-                     html: getOrderStatusEmail(data.id, statusText, trackingInfo)
+                     html: getOrderStatusEmail(data.id, statusText, trackingInfo),
+                     purpose: 'order_status_update',
+                     entityType: 'order',
+                     entityId: data.id,
+                     throwOnError: false
                    });
                  }
                } catch (emailError) {
@@ -2136,7 +2154,7 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
           }
         }));
 
-  app.post('/api/admin/orders/:id/resend-confirmation', asyncHandler(async (req: any, res) => {
+  app.post('/api/admin/orders/:id/resend-confirmation', requireAuth(), requireAdmin(), adminEmailLimiter, asyncHandler(async (req: any, res) => {
     if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
     try {
       const { id } = req.params;
@@ -2705,12 +2723,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
           }
         }));
 
-  app.post('/api/admin/coupons/:id/send', requireAuth(), asyncHandler(async (req: any, res) => {
+  app.post('/api/admin/coupons/:id/send', requireAuth(), requireAdmin(), adminEmailLimiter, asyncHandler(async (req: any, res) => {
           if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
           try {
             const { id } = req.params;
             const { email } = req.body;
-            if (!email) return res.status(400).json({ error: 'Email is required' });
+            const normalizedEmail = normalizeRecipientEmail(email);
+            if (!normalizedEmail) return res.status(400).json({ error: 'Email is required' });
 
             const storeId = await getPrimaryStoreId();
             if (!storeId) return res.status(403).json({ error: 'Primary store is not configured' });
@@ -2722,9 +2741,12 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             const expiryDate = coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : undefined;
 
             await sendEmail({
-              to: email,
+              to: normalizedEmail,
               subject: 'A special gift just for you!',
-              html: getDiscountCouponEmail(coupon.code, discountText, expiryDate)
+              html: getDiscountCouponEmail(coupon.code, discountText, expiryDate),
+              purpose: 'coupon_sent',
+              entityType: 'coupon',
+              entityId: coupon.id
             });
 
             res.json({ success: true, message: 'Coupon sent successfully' });
@@ -3194,19 +3216,23 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
         // Ensure email is valid
         if (!cart.email || !cart.email.includes('@')) continue;
 
-        const recoverUrl = `\${process.env.VITE_APP_URL || 'http://localhost:3000'}/recover?token=\${cart.id}`;
+        const recoverUrl = buildAppLink('/recover', { token: cart.id });
         
         const itemsHtml = cart.items.map((i: any) => `
           <div class="order-item">
-            <span>\${i.quantity}x \${i.name}</span>
-            <span>\${i.price}</span>
+            <span>${safeText(i.quantity)}x ${safeText(i.name, 'Producto')}</span>
+            <span>${safeText(i.price)}</span>
           </div>
         `).join('');
         
         await sendEmail({
           to: cart.email,
           subject: 'Complete your purchase',
-          html: getAbandonedCartEmail(recoverUrl, itemsHtml)
+          html: getAbandonedCartEmail(recoverUrl, itemsHtml),
+          purpose: 'abandoned_cart_recovery',
+          entityType: 'abandoned_cart',
+          entityId: cart.id,
+          throwOnError: false
         });
         
         await supabase
@@ -3471,11 +3497,11 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       if (!order) return res.status(404).json({ error: 'Order not found' });
       const email = normalizeLifecycleEmail(order.customer_email || req.body?.email);
       if (!email || !email.includes('@')) return res.status(400).json({ error: 'Order does not have a valid customer email' });
-      const reviewUrl = `${process.env.VITE_APP_URL || 'https://selfcaresinners.com'}/my-orders`;
+      const reviewUrl = buildAppLink('/my-orders');
       const subject = '¿Cómo fue tu experiencia con Selfcare Sinners?';
       const html = retentionEmailLayout('Cuéntanos cómo te fue', '<p>Tu pedido ya avanzó en el flujo de entrega. Tu opinión ayuda a otros clientes a comprar con más confianza.</p><p>Deja una reseña honesta sobre tu experiencia y producto.</p>', 'Dejar reseña', reviewUrl);
-      const provider = await sendEmail({ to: email, subject, html });
-      const status = provider?.error ? 'failed' : 'sent';
+      const provider = await sendEmail({ to: email, subject, html, purpose: 'generic', entityType: 'order', entityId: orderId, throwOnError: false });
+      const status = provider?.success ? 'sent' : 'failed';
       const { data: requestRow, error: rrError } = await supabase.from('review_requests').upsert({
         store_id: storeId,
         order_id: orderId,
