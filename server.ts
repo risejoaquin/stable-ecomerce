@@ -882,8 +882,7 @@ async function startServer() {
             if (!name || !email || !message) return res.status(400).json({ error: 'Missing fields' });
             const safeName = safeText(name, 'Cliente');
             const safeEmail = safeText(normalizeRecipientEmail(email), 'sin-email');
-            const safeMessage = escapeHtml(message).replace(/
-/g, '<br/>');
+            const safeMessage = escapeHtml(message).replace(/\r?\n/g, '<br/>');
             const html = getEmailLayout(`
         <h2>Nuevo mensaje de contacto</h2>
         <p><strong>Nombre:</strong> ${safeName}</p>
