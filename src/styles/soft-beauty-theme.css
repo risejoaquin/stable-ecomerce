@@ -763,3 +763,269 @@ body {
   .ss-admin-dashboard { padding-bottom: 5rem; }
   .ss-admin-hero-panel h1 { font-size: clamp(2.4rem, 12vw, 4rem); }
 }
+
+/* URGENT-FLOW-01 — account/logout discoverability and responsive account sheet */
+.ss-account-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ss-editorial-account-trigger {
+  cursor: pointer;
+}
+
+.ss-account-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + .8rem);
+  width: min(92vw, 360px);
+  padding: .9rem;
+  border: 1px solid rgba(171, 140, 108, .28);
+  border-radius: 24px;
+  background: rgba(255, 250, 244, .98);
+  color: var(--ss-soft-text, #261c17);
+  box-shadow: 0 28px 70px rgba(68, 42, 27, .18), 0 1px 0 rgba(255,255,255,.7) inset;
+  backdrop-filter: blur(18px);
+  z-index: 80;
+}
+
+.ss-account-dropdown::before {
+  content: '';
+  position: absolute;
+  right: 1.5rem;
+  top: -8px;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  background: rgba(255, 250, 244, .98);
+  border-left: 1px solid rgba(171, 140, 108, .28);
+  border-top: 1px solid rgba(171, 140, 108, .28);
+}
+
+.ss-account-dropdown-head {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .35rem .35rem .9rem;
+  border-bottom: 1px solid rgba(171, 140, 108, .22);
+}
+
+.ss-account-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2b211c;
+  color: #fffaf4;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  letter-spacing: -.04em;
+}
+
+.ss-account-dropdown-head strong,
+.ss-account-dropdown-item strong {
+  display: block;
+  font-size: .88rem;
+  line-height: 1.1;
+  color: var(--ss-soft-text, #261c17);
+}
+
+.ss-account-dropdown-head small,
+.ss-account-dropdown-item small {
+  display: block;
+  margin-top: .18rem;
+  font-size: .72rem;
+  line-height: 1.15;
+  color: var(--ss-soft-muted, #7f6b5c);
+}
+
+.ss-account-dropdown-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .18rem;
+  padding: .55rem 0;
+  max-height: min(62vh, 460px);
+  overflow: auto;
+}
+
+.ss-account-dropdown-item,
+.ss-account-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: .68rem;
+  border: 0;
+  border-radius: 16px;
+  padding: .72rem .75rem;
+  color: var(--ss-soft-text, #261c17) !important;
+  background: transparent;
+  text-decoration: none;
+  text-align: left;
+  transition: background .18s ease, transform .18s ease;
+}
+
+.ss-account-dropdown-item:hover,
+.ss-account-dropdown-item:focus-visible,
+.ss-account-logout:hover,
+.ss-account-logout:focus-visible {
+  background: rgba(169, 134, 99, .12) !important;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.ss-account-dropdown-item svg,
+.ss-account-logout svg {
+  flex: 0 0 auto;
+  color: #8f7358;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+.ss-account-admin-item {
+  background: #2b211c !important;
+  color: #fffaf4 !important;
+}
+.ss-account-admin-item strong,
+.ss-account-admin-item small,
+.ss-account-admin-item svg { color: #fffaf4 !important; }
+
+.ss-account-logout {
+  margin-top: .2rem;
+  border-top: 1px solid rgba(171, 140, 108, .22);
+  border-radius: 0 0 18px 18px;
+  color: #8c2f25 !important;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ss-account-logout svg { color: #8c2f25 !important; }
+
+.ss-mobile-sheet-open {
+  overflow: hidden;
+}
+
+.ss-mobile-account-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(39, 29, 23, .38);
+  backdrop-filter: blur(8px);
+}
+
+.ss-mobile-account-sheet {
+  width: min(100%, 560px);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  padding: .65rem 1rem 1.1rem;
+  border-radius: 28px 28px 0 0;
+  border: 1px solid rgba(171, 140, 108, .28);
+  background: #fffaf4;
+  color: var(--ss-soft-text, #261c17);
+  box-shadow: 0 -30px 80px rgba(68, 42, 27, .22);
+}
+
+.ss-mobile-account-handle {
+  width: 46px;
+  height: 4px;
+  margin: .15rem auto .85rem;
+  border-radius: 999px;
+  background: rgba(77, 55, 41, .25);
+}
+
+.ss-mobile-account-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: .85rem;
+  border-bottom: 1px solid rgba(171, 140, 108, .22);
+}
+
+.ss-mobile-account-head span {
+  display: block;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ss-soft-muted, #7f6b5c);
+}
+.ss-mobile-account-head strong {
+  display: block;
+  margin-top: .15rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.65rem;
+  font-weight: 500;
+  letter-spacing: -.04em;
+}
+.ss-mobile-account-head small {
+  display: block;
+  margin-top: .2rem;
+  color: var(--ss-soft-muted, #7f6b5c);
+}
+.ss-mobile-account-head button {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(171, 140, 108, .3);
+  background: rgba(255,255,255,.55);
+  color: var(--ss-soft-text, #261c17);
+}
+
+.ss-mobile-account-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+  padding: .9rem 0;
+}
+
+.ss-mobile-account-item,
+.ss-mobile-account-logout {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  border-radius: 18px;
+  padding: .7rem .75rem;
+  border: 1px solid rgba(171, 140, 108, .22);
+  background: rgba(255,255,255,.52);
+  color: var(--ss-soft-text, #261c17) !important;
+  text-decoration: none;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.ss-mobile-account-item svg,
+.ss-mobile-account-logout svg {
+  color: #8f7358;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+.ss-mobile-account-admin {
+  grid-column: 1 / -1;
+  background: #2b211c !important;
+  color: #fffaf4 !important;
+  border-color: #2b211c !important;
+}
+.ss-mobile-account-admin svg { color: #fffaf4 !important; }
+
+.ss-mobile-account-logout {
+  width: 100%;
+  justify-content: center;
+  border-color: rgba(140, 47, 37, .22);
+  background: rgba(140, 47, 37, .06);
+  color: #8c2f25 !important;
+  cursor: pointer;
+}
+.ss-mobile-account-logout svg { color: #8c2f25 !important; }
+
+@media (max-width: 820px) {
+  .ss-account-dropdown {
+    display: none;
+  }
+}
