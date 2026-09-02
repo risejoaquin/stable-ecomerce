@@ -43,6 +43,8 @@ import { FaqPage } from './pages/store/FaqPage';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import type { Product, StoreConfig } from './types';
+import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
+import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
 
 
 function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
@@ -274,10 +276,10 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)}></div>
-      <aside className="relative w-full max-w-md bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
-        <header className="p-5 sm:p-6 border-b flex justify-between items-start gap-4">
+    <div className="premium-cart-overlay">
+      <div className="premium-cart-scrim" onClick={() => setIsCartOpen(false)}></div>
+      <aside className="premium-cart-drawer animate-in slide-in-from-right duration-300">
+        <header className="premium-cart-header">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] opacity-50 font-black">Selfcare Sinners</p>
             <h2 className="font-serif text-2xl font-black">Tu carrito</h2>
@@ -286,7 +288,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
           <button onClick={() => setIsCartOpen(false)} className="text-gray-500 hover:text-black text-2xl leading-none">&times;</button>
         </header>
 
-        <div className="flex-1 overflow-auto p-5 sm:p-6 flex flex-col gap-5">
+        <div className="premium-cart-body">
           {items.length === 0 ? (
             <div className="text-center my-auto py-12">
               <div className="w-16 h-16 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined">shopping_bag</span></div>
@@ -295,15 +297,15 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
               <button onClick={() => setIsCartOpen(false)} className="px-5 py-3 rounded-2xl text-white font-bold" style={{ backgroundColor: buttonColor || themeColor }}>Seguir comprando</button>
             </div>
           ) : items.map(item => (
-            <div key={item.id} className="flex gap-4 items-center rounded-2xl border border-gray-100 p-3">
-              {item.image ? <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-xl" loading="lazy" /> : <div className="w-16 h-16 bg-gray-100 rounded-xl"></div>}
+            <div key={item.id} className="premium-cart-item">
+              {item.image ? <img src={item.image} alt={item.name} loading="lazy" /> : <div className="premium-cart-image-placeholder"></div>}
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold text-sm text-[var(--color-text)] line-clamp-2">{item.name}</h4>
                 <p className="text-gray-500 text-sm mt-1">MXN ${Number(item.price).toFixed(2)}</p>
                 <div className="flex items-center gap-3 mt-3">
-                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center border rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">-</button>
+                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="premium-qty-control">-</button>
                   <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center border rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">+</button>
+                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="premium-qty-control">+</button>
                 </div>
               </div>
               <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors self-start mt-2"><span className="material-symbols-outlined text-xl">delete</span></button>
@@ -312,15 +314,15 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
         </div>
 
         {items.length > 0 && (
-          <footer className="p-5 sm:p-6 border-t bg-gray-50 flex flex-col gap-4">
+          <footer className="premium-cart-footer flex flex-col gap-4">
             {!isSignedIn && (
               <div>
                 <label className="block text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Correo para checkout invitado</label>
-                <input type="email" placeholder="tu@email.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-black" />
+                <input type="email" placeholder="tu@email.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="premium-field text-sm" />
               </div>
             )}
             <div className="flex gap-2">
-              <input type="text" placeholder="Código promocional" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="flex-1 border border-gray-300 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-black" id="coupon-input" />
+              <input type="text" placeholder="Código promocional" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="premium-field flex-1 text-sm" id="coupon-input" />
               <button onClick={validateCoupon} className="px-4 py-3 bg-gray-200 text-gray-800 rounded-2xl text-sm font-black hover:bg-gray-300 transition-colors">Aplicar</button>
             </div>
             {couponError && <p className="text-sm text-red-600">{couponError}</p>}
@@ -331,10 +333,11 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
               <div className="flex justify-between text-gray-500"><span>Pago</span><span>Stripe Checkout seguro</span></div>
             </div>
             <div className="flex justify-between font-black text-xl"><span>Total</span><span>MXN ${finalTotal.toFixed(2)}</span></div>
-            <button onClick={startCheckout} disabled={checkout.isPending} style={{ backgroundColor: buttonColor || themeColor }} className="w-full text-white py-4 rounded-2xl font-black transition-opacity hover:opacity-90 disabled:opacity-50 mt-2">
+            <CheckoutConfidenceStrip />
+            <button onClick={startCheckout} disabled={checkout.isPending} style={{ backgroundColor: buttonColor || themeColor }} className="premium-primary-action mt-2">
               {checkout.isPending ? 'Procesando...' : 'Continuar a pago seguro'}
             </button>
-            <p className="text-[11px] text-center text-gray-500">Al pagar aceptas términos, privacidad y políticas de devolución de Selfcare Sinners.</p>
+            <ConversionMicrocopy type="checkout" />
           </footer>
         )}
       </aside>
