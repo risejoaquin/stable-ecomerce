@@ -100,7 +100,44 @@ export function HomePage() {
           </div>
         </section>
 
-        <main id="shop" className="ss-editorial-section">
+        <section className="ss-home-curated-row" aria-label="Beneficios principales">
+          <article>
+            <span>01</span>
+            <strong>Rutina clara</strong>
+            <p>Compra por objetivo: luminosidad, hidratación, balance o barrera.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <strong>Producto protagonista</strong>
+            <p>Cards limpias, imágenes amplias y decisiones de compra sin ruido.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <strong>Confianza antes del pago</strong>
+            <p>Envío, cambios, seguridad y soporte visibles durante todo el journey.</p>
+          </article>
+        </section>
+
+        <section className="ss-home-editorial-grid" aria-label="Experiencia principal">
+          <div className="ss-home-feature-card large">
+            <p className="ss-topline">The skin edit</p>
+            <h2 className="ss-display">Skincare que se siente cuidado, no saturado.</h2>
+            <p>Una página principal con intención: primero propuesta de valor, después confianza, rutinas, productos y cierre de compra.</p>
+            <a href="#shop" className="ss-btn">Comprar ahora <ArrowRight size={16} /></a>
+          </div>
+          <div className="ss-home-feature-card">
+            <p className="ss-topline">Bestsellers</p>
+            <h3>Lo más elegido</h3>
+            <p>Acceso rápido a productos destacados sin obligar al usuario a filtrar desde cero.</p>
+          </div>
+          <div className="ss-home-feature-card muted">
+            <p className="ss-topline">Mobile-first</p>
+            <h3>Menos fricción</h3>
+            <p>CTA claros, navegación inferior y carrito visible para comprar desde celular.</p>
+          </div>
+        </section>
+
+        <main id="shop" className="ss-editorial-section ss-shop-section-organized">
           <div className="ss-section-head">
             <div>
               <p className="ss-topline">Tienda</p>

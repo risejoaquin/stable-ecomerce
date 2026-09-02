@@ -357,19 +357,32 @@ function AdminLayout() {
   return (
     <div className="ss-admin-shell flex flex-col md:flex-row min-h-screen font-sans">
       <aside className="ss-admin-sidebar w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r py-6 md:py-10 px-6 flex flex-col shrink-0">
-        <div className="mb-12">
+        <div className="ss-admin-sidebar-head mb-8">
+          <span className="ss-admin-console-pill">Admin</span>
           <h1 className="ss-admin-brand text-2xl">Selfcare Sinners</h1>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Operations Console v.1.0</p>
+          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Operations Console</p>
         </div>
-        <nav className="flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
-          <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
-          <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
-          <Link to="/admin/categories" className={navItemClass('/admin/categories')}>Categorías</Link>
-          <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
-          <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
-          <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
-          <Link to="/admin/commercial" className={navItemClass('/admin/commercial')}>Comercial</Link>
-          <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
+        <nav className="ss-admin-nav flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
+          <div className="ss-admin-nav-group">
+            <p>Command center</p>
+            <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
+          </div>
+          <div className="ss-admin-nav-group">
+            <p>Operación</p>
+            <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
+            <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
+          </div>
+          <div className="ss-admin-nav-group">
+            <p>Catálogo</p>
+            <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
+            <Link to="/admin/categories" className={navItemClass('/admin/categories')}>Categorías</Link>
+            <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
+          </div>
+          <div className="ss-admin-nav-group">
+            <p>Crecimiento</p>
+            <Link to="/admin/commercial" className={navItemClass('/admin/commercial')}>Comercial</Link>
+            <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
+          </div>
         </nav>
         <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
           <div className="flex items-center gap-3">
@@ -385,8 +398,11 @@ function AdminLayout() {
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="ss-admin-header h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b shrink-0">
-          <h2 className="ss-soft-serif text-xl">Selfcare Sinners Admin</h2>
-          <div className="flex gap-4">
+          <div>
+            <p className="ss-admin-kicker">Panel organizado</p>
+            <h2 className="ss-soft-serif text-xl">Selfcare Sinners Admin</h2>
+          </div>
+          <div className="flex gap-3 flex-wrap">
             <button onClick={() => {
               toast.promise(queryClient.invalidateQueries(), {
                 loading: 'Syncing catalog...',

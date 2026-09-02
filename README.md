@@ -1,3 +1,19 @@
+# UIX04.2 — Admin/Home/Cart Organization Hotfix
+
+Corrige organización del panel de administración, contraste del icono de carrito y estructura visual de la página principal.
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-uix04-2-admin-home-cart.ps1
+.\scripts\qa\smoke-uix04-2-admin-home-cart.ps1
+npm install
+npm run build
+npm run dev
+```
+
+---
+
 # Selfcare Sinners — MACROFASE FINAL A / PL30 + PL31 + PL32
 
 Entrega: Experimentation Platform, Real Integrations Layer, Financial Forecasting, Inventory Demand Planning & Unit Economics.
