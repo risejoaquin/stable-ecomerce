@@ -40,12 +40,12 @@ export function HomePage() {
   const { items, setIsCartOpen } = useCart();
 
   useEffect(() => {
-    trackMarketingEvent('page_view', { page: 'home', redesign: 'skoot_editorial' });
+    trackMarketingEvent('page_view', { page: 'home', redesign: 'soft_premium_skincare' });
   }, []);
 
   if (isStoreLoading) return <div className="ss-editorial-shell flex items-center justify-center">Cargando Selfcare Sinners...</div>;
 
-  const currentStore = store || { name: DEFAULT_BRAND, config: {}, description: 'Skincare seleccionado con criterio, seguridad y experiencia editorial.' };
+  const currentStore = store || { name: DEFAULT_BRAND, config: {}, description: 'Skincare consciente para resultados reales, rutinas claras y una experiencia premium.' };
   const config = currentStore.config || {};
   const currentProducts = searchResult?.data || [];
   const heroProduct = currentProducts[0];
@@ -68,21 +68,21 @@ export function HomePage() {
         <section className="ss-hero">
           <div className="ss-hero-copy">
             <div>
-              <p className="ss-topline">New beauty system</p>
-              <h1 className="ss-hero-title ss-display">SKINCARE<br />WITH EDGE</h1>
+              <p className="ss-topline">Ritual consciente</p>
+              <h1 className="ss-hero-title ss-display">Tu piel,<br />tu ritual,<br />tu momento.</h1>
               <p className="ss-hero-lede">
-                Una tienda de skincare con dirección editorial: menos plantilla, más marca, producto protagonista y compra clara desde móvil.
+                Skincare consciente para resultados reales. Una experiencia cálida, clara y premium desde que descubres tu rutina hasta que completas tu compra.
               </p>
               <div className="ss-hero-actions">
-                <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click')}>Shop now <ArrowRight size={16} /></a>
-                <a href="#lookbook" className="ss-btn-outline">View edit <Eye size={16} /></a>
+                <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click')}>Descubre tu rutina <ArrowRight size={16} /></a>
+                <a href="#lookbook" className="ss-btn-outline">Ver rituales <Eye size={16} /></a>
               </div>
             </div>
             <div className="ss-trust-editorial">
               <div><ShieldCheck size={20} /><strong>Pago seguro</strong><p>Stripe, confirmación y protección del checkout.</p></div>
               <div><PackageCheck size={20} /><strong>Stock real</strong><p>Inventario validado antes de cerrar la compra.</p></div>
               <div><Truck size={20} /><strong>Tracking</strong><p>Rastreo con correo e ID de orden.</p></div>
-              <div><Sparkles size={20} /><strong>Beauty edit</strong><p>Selección compacta, visual y clara.</p></div>
+              <div><Sparkles size={20} /><strong>Ingredientes limpios</strong><p>Rutinas claras con fórmulas seguras.</p></div>
             </div>
           </div>
           <div className="ss-hero-media">
@@ -103,10 +103,10 @@ export function HomePage() {
         <main id="shop" className="ss-editorial-section">
           <div className="ss-section-head">
             <div>
-              <p className="ss-topline">Shop</p>
-              <h2 className="ss-section-title ss-display">PRODUCT<br />INDEX</h2>
+              <p className="ss-topline">Tienda</p>
+              <h2 className="ss-section-title ss-display">Todos los<br />productos</h2>
             </div>
-            <p className="ss-section-note">Catálogo directo, visual y sin ruido. Busca, filtra y compra con estructura editorial inspirada en tiendas de alto impacto.</p>
+            <p className="ss-section-note">Catálogo limpio, cálido y fácil de explorar. Busca por rutina, tipo de piel o producto y compra sin fricción.</p>
           </div>
 
           <div className="ss-shop-layout">
@@ -124,8 +124,8 @@ export function HomePage() {
                 <div className="p-12 text-center">Cargando productos...</div>
               ) : currentProducts.length === 0 ? (
                 <div className="p-12 text-center">
-                  <p className="ss-topline">No results</p>
-                  <h3 className="ss-section-title ss-display" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>EMPTY<br />EDIT</h3>
+                  <p className="ss-topline">Sin resultados</p>
+                  <h3 className="ss-section-title ss-display" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>No encontramos<br />productos</h3>
                   <p className="ss-section-note" style={{ margin: '1rem auto' }}>No encontramos productos con esos filtros. Limpia la búsqueda y vuelve al catálogo.</p>
                   <button className="ss-btn" onClick={resetFilters} type="button">Limpiar filtros</button>
                 </div>
@@ -148,10 +148,10 @@ export function HomePage() {
         <section className="ss-editorial-section">
           <div className="ss-section-head">
             <div>
-              <p className="ss-topline">Before checkout</p>
-              <h2 className="ss-section-title ss-display">BUY WITH<br />CLARITY</h2>
+              <p className="ss-topline">Antes de pagar</p>
+              <h2 className="ss-section-title ss-display">Compra con<br />claridad</h2>
             </div>
-            <p className="ss-section-note">La estética cambia, pero la base comercial se mantiene: ayuda visible, políticas claras, tracking y confianza antes del pago.</p>
+            <p className="ss-section-note">La experiencia visual se mantiene serena y confiable: ayuda visible, políticas claras, tracking y seguridad antes del pago.</p>
           </div>
           <div className="ss-trust-editorial">
             <div><strong>FAQ</strong><p>Respuestas visibles antes de comprar.</p><Link to="/faq" className="ss-mini-btn">Ver FAQ</Link></div>

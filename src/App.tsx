@@ -351,14 +351,14 @@ function AdminLayout() {
 
   const navItemClass = (path: string) => {
     const isActive = location.pathname === path;
-    return `px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-primary)] hover:bg-gray-50'}`;
+    return `ss-admin-nav-link px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'is-active' : ''}`;
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[var(--color-background)] font-sans text-[var(--color-text)]">
-      <aside className="w-full md:w-[260px] md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-[#E5E5E1] py-6 md:py-10 px-6 flex flex-col shrink-0">
+    <div className="ss-admin-shell flex flex-col md:flex-row min-h-screen font-sans">
+      <aside className="ss-admin-sidebar w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r py-6 md:py-10 px-6 flex flex-col shrink-0">
         <div className="mb-12">
-          <h1 className="font-serif text-2xl font-bold text-[var(--color-primary)]">Selfcare Sinners</h1>
+          <h1 className="ss-admin-brand text-2xl">Selfcare Sinners</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Operations Console v.1.0</p>
         </div>
         <nav className="flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
@@ -384,8 +384,8 @@ function AdminLayout() {
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E5E1] bg-white/30 shrink-0">
-          <h2 className="font-serif text-xl">Selfcare Sinners Admin</h2>
+        <header className="ss-admin-header h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b shrink-0">
+          <h2 className="ss-soft-serif text-xl">Selfcare Sinners Admin</h2>
           <div className="flex gap-4">
             <button onClick={() => {
               toast.promise(queryClient.invalidateQueries(), {
@@ -393,8 +393,8 @@ function AdminLayout() {
                 success: 'Catalog synced successfully!',
                 error: 'Failed to sync catalog'
               });
-            }} className="px-4 py-2 bg-white border border-[#E5E5E1] rounded-full text-xs font-bold hover:bg-gray-50 transition-colors">Sync Catalog</button>
-            <button onClick={() => window.open('/', '_blank')} className="px-6 py-2 bg-[var(--color-primary)] text-white rounded-full text-xs font-bold shadow-lg shadow-[var(--color-primary)]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
+            }} className="ss-account-secondary text-xs">Sync Catalog</button>
+            <button onClick={() => window.open('/', '_blank')} className="ss-account-action text-xs">View Live Store</button>
           </div>
         </header>
         <div className="flex-1 overflow-auto">

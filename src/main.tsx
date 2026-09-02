@@ -6,6 +6,7 @@ import './styles/premium-storefront.css';
 import './styles/checkout-conversion.css';
 import './styles/final-visual-polish.css';
 import './styles/skoot-editorial-redesign.css';
+import './styles/soft-beauty-theme.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import * as Sentry from '@sentry/react';
 

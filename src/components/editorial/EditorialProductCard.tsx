@@ -40,20 +40,20 @@ export function EditorialProductCard({ product }: { product: any }) {
 
   return (
     <article className="ss-product-card">
-      {!inStock && <span className="ss-badge">Sold out</span>}
-      {inStock && (product.featured || product.is_featured) && <span className="ss-badge">Edit pick</span>}
+      {!inStock && <span className="ss-badge">Agotado</span>}
+      {inStock && (product.featured || product.is_featured) && <span className="ss-badge">Bestseller</span>}
       <Link className="ss-product-image" to={productCanonicalPath(product)}>
         {product.images?.[0] ? <img src={product.images[0]} alt={product.name} loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center opacity-45">No image</div>}
       </Link>
       <div className="ss-card-body">
-        <p className="ss-card-kicker">{product.category || product.brand || 'Selfcare edit'}</p>
+        <p className="ss-card-kicker">{product.category || product.brand || 'Rutina Selfcare'}</p>
         <Link to={productCanonicalPath(product)}><h3 className="ss-card-title ss-display">{product.name}</h3></Link>
         <div className="ss-card-meta">
           <span>MXN ${price.toFixed(2)}</span>
-          <span>{hasVariants ? `${product.variants.length} options` : inStock ? 'In stock' : 'Out'}</span>
+          <span>{hasVariants ? `${product.variants.length} opciones` : inStock ? 'Disponible' : 'Agotado'}</span>
         </div>
         <div className="ss-card-actions">
-          {hasVariants ? <Link className="ss-mini-btn primary" to={productCanonicalPath(product)}>View options</Link> : <button className="ss-mini-btn primary" disabled={!inStock} onClick={quickAdd} type="button"><Plus size={14} /> Add</button>}
+          {hasVariants ? <Link className="ss-mini-btn primary" to={productCanonicalPath(product)}>Ver opciones</Link> : <button className="ss-mini-btn primary" disabled={!inStock} onClick={quickAdd} type="button"><Plus size={14} /> Añadir</button>}
           <WishlistButton productId={product.id} className="ss-mini-btn" />
         </div>
       </div>

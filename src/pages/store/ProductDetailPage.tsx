@@ -135,12 +135,12 @@ export function ProductDetailPage() {
           </section>
 
           <section className="ss-buy-panel">
-            <Link to="/" className="ss-topline">Back to shop</Link>
+            <Link to="/" className="ss-topline">Volver a tienda</Link>
             <h1 className="ss-product-title-big ss-display">{product.name}</h1>
             <div className="flex flex-wrap items-center gap-3">
               {product.brand && <span className="ss-badge" style={{ position: 'static' }}>{product.brand}</span>}
               {product.category && <span className="ss-card-kicker">{product.category}</span>}
-              {ratingData && ratingData.count > 0 ? <StarRating rating={ratingData.average} color="#0b0b0a" size={18} /> : <span className="ss-card-kicker">New review slot</span>}
+              {ratingData && ratingData.count > 0 ? <StarRating rating={ratingData.average} color="#0b0b0a" size={18} /> : <span className="ss-card-kicker">Nuevo producto</span>}
             </div>
             <p className="ss-product-price">MXN ${price.toFixed(2)}</p>
             {sku && <p className="ss-card-kicker">SKU {sku}</p>}
@@ -148,7 +148,7 @@ export function ProductDetailPage() {
 
             {hasVariants && (
               <div style={{ marginTop: '2rem' }}>
-                <p className="ss-card-kicker">Choose option</p>
+                <p className="ss-card-kicker">Elige opción</p>
                 <div className="ss-variant-grid">
                   {variants.map((variant: any, idx: number) => {
                     const selected = activeVariant?.name === variant.name;
@@ -170,19 +170,19 @@ export function ProductDetailPage() {
                 <button onClick={() => setQuantity(Math.min(Math.max(availableStock, 1), quantity + 1))} type="button">+</button>
               </div>
               <button className="ss-btn" onClick={handleAddToCart} disabled={!inStock} type="button">
-                {inStock ? 'Add to bag' : 'Sold out'} <ArrowRight size={16} />
+                {inStock ? 'Agregar al carrito' : 'Agotado'} <ArrowRight size={16} />
               </button>
             </div>
 
             <div className="ss-trust-editorial" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginTop: '1.5rem' }}>
-              <div><ShieldCheck size={18} /><strong>Secure</strong><p>Pago protegido.</p></div>
-              <div><Truck size={18} /><strong>Track</strong><p>Pedido rastreable.</p></div>
-              <div><Sparkles size={18} /><strong>Edit</strong><p>Selección curada.</p></div>
+              <div><ShieldCheck size={18} /><strong>Pago seguro</strong><p>Stripe protegido.</p></div>
+              <div><Truck size={18} /><strong>Tracking</strong><p>Pedido rastreable.</p></div>
+              <div><Sparkles size={18} /><strong>Rutina</strong><p>Selección cuidada.</p></div>
             </div>
 
             <div className="ss-accordions">
               <div className="ss-accordion-item">
-                <h3>Editorial notes</h3>
+                <h3>Descripción</h3>
                 <p>{product.long_description || product.description || 'Producto elegido para una rutina clara, estética y fácil de sostener.'}</p>
               </div>
               {Array.isArray(ingredients) && ingredients.length > 0 && (
@@ -207,8 +207,8 @@ export function ProductDetailPage() {
           <section className="ss-editorial-section">
             <div className="ss-section-head">
               <div>
-                <p className="ss-topline">More from the edit</p>
-                <h2 className="ss-section-title ss-display">RELATED<br />PIECES</h2>
+                <p className="ss-topline">También te puede gustar</p>
+                <h2 className="ss-section-title ss-display">Completa<br />tu rutina</h2>
               </div>
             </div>
             <div className="ss-collection-grid">
@@ -220,8 +220,8 @@ export function ProductDetailPage() {
         <section className="ss-editorial-section">
           <div className="ss-section-head">
             <div>
-              <p className="ss-topline">Community</p>
-              <h2 className="ss-section-title ss-display">REVIEWS</h2>
+              <p className="ss-topline">Comunidad</p>
+              <h2 className="ss-section-title ss-display">Reseñas</h2>
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
