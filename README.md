@@ -328,3 +328,28 @@ Siguiente paso después de aprobar este plan:
 
 - `MACRO UI A — Premium Storefront Redesign`
 - `MACRO UI B — Checkout & Conversion Experience Redesign`
+
+## MACRO UI C — Final Visual QA, Storefront Integration & Conversion Polish
+
+Esta entrega integra el rediseño visual premium con una capa final de QA visual, consistencia, mobile-first y polish de conversión.
+
+Archivos principales:
+
+- `src/styles/final-visual-polish.css`
+- `src/components/visual/FinalVisualQAPanel.tsx`
+- `docs/design/MACRO_UI_C_FINAL_VISUAL_QA.md`
+- `docs/design/UI_C_SCREEN_CHECKLIST.md`
+- `docs/design/UI_C_MOBILE_CHECKLIST.md`
+- `docs/design/UI_C_CONVERSION_POLISH.md`
+- `docs/design/UI_C_FINAL_DESIGN_SYSTEM_FREEZE.md`
+- `scripts/qa/smoke-ui-c-visual-checklist.ps1`
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-ui-c-visual-checklist.ps1
+.\scripts\qa\smoke-ui-c-visual-checklist.ps1
+npm install
+npm run build
+npm run dev
+```

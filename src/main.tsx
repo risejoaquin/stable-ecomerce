@@ -2,7 +2,9 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './styles/premium-storefront.css';
 import './styles/checkout-conversion.css';
+import './styles/final-visual-polish.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import * as Sentry from '@sentry/react';
 
