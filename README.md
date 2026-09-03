@@ -134,3 +134,30 @@ Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
 .\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
 npm run build
 ```
+
+## QA/RELEASE E HOTFIX 03 — Service Worker Fetch Response Guard
+
+Corrige el error de consola `TypeError: Failed to convert value to 'Response'` producido por el service worker al navegar rutas con query params como `/?search=Piel%20sensible`.
+
+Archivos clave:
+
+- `public/sw.js`
+- `docs/release/QA_RELEASE_E_HOTFIX_03_SERVICE_WORKER_FETCH_RESPONSE_GUARD.md`
+- `scripts/qa/smoke-qa-release-e.ps1`
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+npm run build
+```
+
+
+## QA RELEASE E HOTFIX 04 — PowerShell Regex Literal Assert
+
+Corrige el smoke final para que la validación del service worker use comparación literal en patrones con `||` y paréntesis. No cambia lógica de producción.
+
+## QA RELEASE E HOTFIX 05 — Assert-ContainsLiteral Applied
+
+Corrige definitivamente el smoke `scripts/qa/smoke-qa-release-e.ps1` para que la validación literal del fallback del service worker use `Assert-ContainsLiteral` y no `Assert-Contains`/`-match`.

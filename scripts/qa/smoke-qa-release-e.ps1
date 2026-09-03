@@ -17,6 +17,12 @@ function Assert-Contains($path, $pattern, $message) {
   if ($content -match $pattern) { Pass $message } else { Fail "$message ($path missing pattern: $pattern)" }
 }
 
+function Assert-ContainsLiteral($path, $text, $message) {
+  if (!(Test-Path $path)) { Fail "$message ($path missing)" }
+  $content = Get-Content $path -Raw
+  if ($content.Contains($text)) { Pass $message } else { Fail "$message ($path missing text: $text)" }
+}
+
 Assert-File "src\components\uix\UixPageShell.tsx" "UIX page shell exists"
 Assert-File "src\components\uix\UixStatePanel.tsx" "UIX state panel exists"
 Assert-File "src\components\uix\UixStatusBadge.tsx" "UIX status badge exists"
@@ -49,6 +55,14 @@ Assert-Contains "src\server\email\email-queue.ts" "locked" "Email queue keeps lo
 Assert-Contains "src\lib\analytics.ts" "dedupe_key" "Analytics keeps dedupe key"
 Assert-Contains "src\lib\auth-session.ts" "logoutUser" "Central logout remains available"
 
+Assert-File "public\sw.js" "service worker exists"
+Assert-Contains "public\sw.js" "selfcare-sinners-static-v4" "service worker static cache version bumped"
+Assert-Contains "public\sw.js" "selfcare-sinners-catalog-v2" "service worker catalog cache version bumped"
+Assert-Contains "public\sw.js" "offlineHtmlResponse" "service worker defines offline HTML fallback"
+Assert-Contains "public\sw.js" "offlineJsonResponse" "service worker defines offline JSON fallback"
+Assert-ContainsLiteral "public\sw.js" "cached || caches.match('/') || offlineHtmlResponse()" "service worker never falls back to undefined cached response"
+Assert-Contains "public\sw.js" "!url.search" "service worker avoids caching query-param navigations"
+
 if ($BaseUrl.Trim().Length -gt 0) {
   try {
     $homeResponse = Invoke-WebRequest -Uri $BaseUrl -UseBasicParsing -TimeoutSec 20
@@ -58,4 +72,5 @@ if ($BaseUrl.Trim().Length -gt 0) {
   }
 }
 
+Pass "service worker fetch response guard checks"
 Pass "qa release e final regression accessibility production closure checks"
