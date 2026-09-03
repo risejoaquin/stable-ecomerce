@@ -10,7 +10,7 @@ export function MobileEditorialNav({ cartCount = 0, onCartOpen }: { cartCount?: 
       <a href="/#shop"><Grid3X3 size={17} aria-hidden="true" /><span>Tienda</span></a>
       <Link to="/wishlist"><Heart size={17} aria-hidden="true" /><span>Favoritos</span></Link>
       <AccountMobileSheet />
-      <button onClick={onCartOpen} type="button"><ShoppingBag size={17} aria-hidden="true" /><span>Bolsa {cartCount}</span></button>
+      <button onClick={onCartOpen} type="button" aria-label={`Abrir bolsa con ${cartCount} productos`}><ShoppingBag size={17} aria-hidden="true" /><span>Bolsa {cartCount}</span></button>
     </nav>
   );
 }

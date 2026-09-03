@@ -16,9 +16,10 @@ export function UixPageShell({ children, className = '', mainClassName = '', hea
   const cartItemCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
 
   return (
-    <div className={`uix-page-shell ss-account-theme ${className}`.trim()} {...rest}>
+    <div className={`uix-page-shell ss-account-theme ${className}`.trim()} data-mobile-ux-f="final-regression-shell" {...rest}>
+      <a className="uix-skip-link" href="#uix-main-content">Saltar al contenido principal</a>
       {header && <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />}
-      <main className={`uix-page-shell__main ${mainClassName}`.trim()}>{children}</main>
+      <main id="uix-main-content" tabIndex={-1} className={`uix-page-shell__main ${mainClassName}`.trim()}>{children}</main>
       {mobileNav && <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />}
       <CartDrawer storeId={undefined} themeColor="#2b1d17" buttonColor="#2b1d17" />
     </div>

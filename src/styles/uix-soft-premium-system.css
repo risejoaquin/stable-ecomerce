@@ -4408,3 +4408,97 @@ svg {
   [data-mobile-ux-e="orders-checkout-flow"] .uix-order-card__footer > button { justify-content: center; min-height: 46px; }
 }
 /* ===== END MOBILE/UX E ===== */
+
+
+/* ===== MOBILE/UX F — Final Visual Regression Closure ===== */
+html,
+body,
+#root {
+  max-width: 100%;
+  min-width: 0;
+}
+html { overflow-x: hidden; }
+body { overflow-x: hidden; }
+img,
+video,
+canvas { max-width: 100%; }
+
+.uix-skip-link {
+  position: fixed;
+  top: .75rem;
+  left: .75rem;
+  z-index: 1000;
+  transform: translateY(-180%);
+  padding: .75rem 1rem;
+  border-radius: 999px;
+  background: #2b1d17;
+  color: #fffaf4;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 12px 30px rgba(43, 29, 23, .24);
+  transition: transform .18s ease;
+}
+.uix-skip-link:focus { transform: translateY(0); }
+
+[data-mobile-ux-f="final-regression-shell"],
+[data-mobile-ux-f="storefront-final-regression"],
+[data-mobile-ux-f="admin-final-regression"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.uix-page-shell__main:focus,
+.uix-admin-main:focus { outline: none; }
+
+@media (max-width: 1024px) {
+  .uix-customer-page,
+  .uix-admin-responsive-page,
+  .ss-home-curated-row { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea { font-size: 16px; }
+  button,
+  a,
+  input,
+  select,
+  textarea { touch-action: manipulation; }
+  .ss-mobile-nav {
+    padding-bottom: max(.35rem, env(safe-area-inset-bottom)) !important;
+  }
+  .premium-cart-drawer,
+  .uix-auth-modal,
+  .uix-admin-modal-card { max-height: 100dvh; }
+}
+
+@media (max-width: 430px) {
+  .uix-customer-page { width: min(100% - 1rem, 1180px); }
+  .uix-state-panel { align-items: flex-start; padding: 1rem; border-radius: 22px; }
+  .uix-state-panel__icon { width: 44px; height: 44px; border-radius: 15px; }
+  .ss-mobile-nav a,
+  .ss-mobile-nav button { min-height: 44px; }
+}
+
+@media (max-width: 360px) {
+  .ss-mobile-nav { left: .2rem !important; right: .2rem !important; bottom: .2rem !important; }
+  .ss-mobile-nav a,
+  .ss-mobile-nav button { font-size: .5rem !important; }
+  .uix-checkout-success h1 { font-size: clamp(2rem, 12vw, 2.7rem); }
+  .uix-track-card,
+  .uix-checkout-success,
+  .uix-account-auth-card { border-radius: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+/* ===== END MOBILE/UX F ===== */

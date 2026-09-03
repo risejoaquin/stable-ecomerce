@@ -353,9 +353,10 @@ function AdminLayout() {
   const { user } = useUser();
 
   return (
-    <div className="uix-admin-shell">
+    <div className="uix-admin-shell" data-mobile-ux-f="admin-final-regression">
+      <a className="uix-skip-link" href="#uix-admin-content">Saltar al contenido de administración</a>
       <AdminCommandNav />
-      <main className="uix-admin-main">
+      <main id="uix-admin-content" tabIndex={-1} className="uix-admin-main">
         <header className="uix-admin-topbar">
           <div>
             <p className="uix-admin-eyebrow">Panel organizado</p>

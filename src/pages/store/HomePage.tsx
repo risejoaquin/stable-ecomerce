@@ -78,7 +78,8 @@ export function HomePage() {
         canonicalPath="/"
         jsonLd={[organizationJsonLd(), websiteJsonLd()]}
       />
-      <div className="ss-editorial-shell">
+      <div className="ss-editorial-shell" data-mobile-ux-f="storefront-final-regression">
+        <a className="uix-skip-link" href="#shop">Saltar al catálogo</a>
         <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
 
         <section className="ss-hero">
