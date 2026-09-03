@@ -3,7 +3,7 @@ import { CartDrawer, useCart } from '../../App';
 import { EditorialHeader } from '../editorial/EditorialHeader';
 import { MobileEditorialNav } from '../editorial/MobileEditorialNav';
 
-type UixPageShellProps = {
+type UixPageShellProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
   className?: string;
   mainClassName?: string;
@@ -11,12 +11,12 @@ type UixPageShellProps = {
   mobileNav?: boolean;
 };
 
-export function UixPageShell({ children, className = '', mainClassName = '', header = true, mobileNav = true }: UixPageShellProps) {
+export function UixPageShell({ children, className = '', mainClassName = '', header = true, mobileNav = true, ...rest }: UixPageShellProps) {
   const { items, setIsCartOpen } = useCart();
   const cartItemCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
 
   return (
-    <div className={`uix-page-shell ss-account-theme ${className}`.trim()}>
+    <div className={`uix-page-shell ss-account-theme ${className}`.trim()} {...rest}>
       {header && <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />}
       <main className={`uix-page-shell__main ${mainClassName}`.trim()}>{children}</main>
       {mobileNav && <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />}

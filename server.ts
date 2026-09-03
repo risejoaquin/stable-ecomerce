@@ -920,7 +920,7 @@ async function startServer() {
             const password_hash = await bcrypt.hash(password, 10);
             const { data, error } = await supabase
               .from('users')
-              .insert([{ id: crypto.randomUUID(), email: normalizedEmail, password_hash, full_name }])
+              .insert([{ id: crypto.randomUUID(), email: normalizedEmail, password_hash, full_name, role: 'user' }])
               .select()
               .single();
             if (error) {
@@ -934,7 +934,7 @@ async function startServer() {
             // Send Verification Email
             await sendEmail({
               to: normalizedEmail,
-              subject: 'Verify your Selfcare Sinners account',
+              subject: 'Verifica tu cuenta de Selfcare Sinners',
               html: getVerificationEmail(full_name, verificationLink),
               purpose: 'verification_email',
               entityType: 'user',
@@ -944,7 +944,7 @@ async function startServer() {
             // Still issue a normal token so they can be logged in immediately (or you can require verification to log in)
             const userRole = resolveUserRole(data);
             const token = jwt.sign({ userId: data.id, role: userRole }, effectiveJwtSecret, { expiresIn: '7d' });
-            res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: userRole, is_verified: false }, message: 'Registration successful. Please check your email to verify your account.' });
+            res.json({ token, user: { id: data.id, email: data.email, full_name: data.full_name, role: userRole, is_verified: false }, message: 'Cuenta creada. Te enviamos un correo para verificar tu cuenta.' });
           } catch (error) {
             logger.error(error);
             res.status(500).json({ error: 'Internal server error' });
@@ -1000,7 +1000,7 @@ async function startServer() {
             
             await sendEmail({
               to: normalizedEmail,
-              subject: 'Verify your Selfcare Sinners account',
+              subject: 'Verifica tu cuenta de Selfcare Sinners',
               html: getVerificationEmail(user.full_name, verificationLink),
               purpose: 'verification_email',
               entityType: 'user',

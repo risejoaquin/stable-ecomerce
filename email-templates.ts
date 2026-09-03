@@ -1,246 +1,102 @@
 import { escapeHtml, safeText, sanitizeEmailUrl } from './src/server/email/email-sanitize.js';
-export const getEmailLayout = (content: string, preheader: string = '') => `
+
+export const getEmailLayout = (content: string, preheader: string = '', title: string = 'Selfcare Sinners') => {
+  const safePreheader = escapeHtml(preheader || 'Actualización de Selfcare Sinners');
+  const safeTitle = safeText(title, 'Selfcare Sinners');
+  return `
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Selfcare Sinners</title>
-  <style>
-    body {
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      background-color: #f9f9f9;
-      margin: 0;
-      padding: 0;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrapper {
-      width: 100%;
-      background-color: #f9f9f9;
-      padding: 40px 0;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      background-color: #ffffff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    }
-    .header {
-      background-color: #1a1a1a;
-      padding: 30px 20px;
-      text-align: center;
-    }
-    .header h1 {
-      color: #ffffff;
-      margin: 0;
-      font-size: 24px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-    .content {
-      padding: 40px 30px;
-      color: #333333;
-      line-height: 1.6;
-      font-size: 16px;
-    }
-    .content h2 {
-      color: #1a1a1a;
-      font-size: 20px;
-      margin-top: 0;
-      margin-bottom: 20px;
-      font-weight: 500;
-    }
-    .button {
-      display: inline-block;
-      padding: 14px 28px;
-      background-color: #1a1a1a;
-      color: #ffffff !important;
-      text-decoration: none;
-      border-radius: 4px;
-      font-weight: 500;
-      margin: 20px 0;
-      text-align: center;
-      letter-spacing: 1px;
-    }
-    .footer {
-      background-color: #f1f1f1;
-      padding: 20px;
-      text-align: center;
-      font-size: 12px;
-      color: #777777;
-    }
-    .order-item {
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 1px solid #eeeeee;
-      padding: 15px 0;
-    }
-    .order-item:last-child {
-      border-bottom: none;
-    }
-    .total-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 15px 0;
-      font-weight: bold;
-      border-top: 2px solid #1a1a1a;
-      margin-top: 10px;
-    }
-    .coupon-box {
-      background-color: #f4f4f5;
-      border: 1px dashed #a1a1aa;
-      padding: 20px;
-      text-align: center;
-      margin: 20px 0;
-      border-radius: 6px;
-    }
-    .coupon-code {
-      font-size: 24px;
-      font-weight: bold;
-      color: #1a1a1a;
-      letter-spacing: 3px;
-      margin: 10px 0;
-    }
-    .preheader {
-      display: none !important;
-      visibility: hidden;
-      mso-hide: all;
-      font-size: 1px;
-      color: #f9f9f9;
-      line-height: 1px;
-      max-height: 0;
-      max-width: 0;
-      opacity: 0;
-      overflow: hidden;
-    }
-  </style>
+  <title>${safeTitle}</title>
 </head>
-<body>
-  <span class="preheader">${escapeHtml(preheader)}</span>
-  <div class="wrapper">
-    <table class="container" cellpadding="0" cellspacing="0" border="0" width="100%">
-      <tr>
-        <td class="header">
-          <h1>Selfcare Sinners</h1>
-        </td>
-      </tr>
-      <tr>
-        <td class="content">
-          ${content}
-        </td>
-      </tr>
-      <tr>
-        <td class="footer">
-          &copy; ${new Date().getFullYear()} Selfcare Sinners. All rights reserved.<br>
-          Your daily dose of radical self-love.
-        </td>
-      </tr>
-    </table>
-  </div>
+<body style="margin:0;padding:0;background:#f7efe5;color:#241f1a;font-family:Inter,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${safePreheader}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7efe5;margin:0;padding:32px 14px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffaf4;border:1px solid #eadccf;border-radius:28px;overflow:hidden;box-shadow:0 20px 60px rgba(67,47,31,.10);">
+          <tr>
+            <td style="padding:30px 32px 16px;border-bottom:1px solid #eadccf;">
+              <div style="font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#8d725d;font-weight:800;">Selfcare Sinners</div>
+              <h1 style="margin:14px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.1;color:#241f1a;font-weight:500;">${safeTitle}</h1>
+              <p style="margin:0;color:#7b6654;font-size:14px;line-height:1.6;">${safePreheader}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px 32px 34px;font-size:15px;line-height:1.75;color:#3b332d;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:22px 32px;background:#f3e7da;color:#735f50;font-size:12px;line-height:1.6;">
+              Selfcare Sinners · Skincare editorial y cuidado personal.<br>
+              Recibes este correo por tu cuenta, pedido o interacción con nuestra tienda.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-`;
-
-export const getVerificationEmail = (name: string, verificationLink: string) => {
-  return getEmailLayout(
-    `
-    <h2>Welcome to Selfcare Sinners! ✨</h2>
-    <p>Hi ${safeText(name, 'Gorgeous')},</p>
-    <p>We are absolutely thrilled to have you join our community. Your journey towards radical self-care and indulgence starts here.</p>
-    <p>To get started, we just need to verify your email address. It only takes a second.</p>
-    <center>
-      <a href="${sanitizeEmailUrl(verificationLink)}" class="button">Verify My Account</a>
-    </center>
-    <p>If the button doesn't work, copy and paste this link into your browser:</p>
-    <p style="font-size: 12px; color: #666; word-break: break-all;">${sanitizeEmailUrl(verificationLink)}</p>
-    <br/>
-    <p>With love,<br/>The Selfcare Sinners Team</p>
-    `,
-    'Action Required: Verify your email address to get started.'
-  );
+</html>`;
 };
 
-export const getOrderConfirmationEmail = (orderId: string, total: string, itemsHtml: string) => {
-  return getEmailLayout(
-    `
-    <h2>Thank You for Your Order! 🛍️</h2>
-    <p>We've received your order <strong>#${safeText(String(orderId).split('-')[0])}</strong> and we're getting it ready for you right now.</p>
-    <p>Here is a summary of your purchase:</p>
-    
-    <div style="margin: 30px 0;">
-      ${itemsHtml}
-      
-      <div class="total-row">
-        <span>Total</span>
-        <span>${safeText(total)}</span>
-      </div>
+const button = (href: string, label: string) => `<p style="margin:30px 0 8px;text-align:center"><a href="${sanitizeEmailUrl(href)}" style="display:inline-block;background:#241f1a;color:#fff7ee;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:800;letter-spacing:.02em">${escapeHtml(label)}</a></p>`;
+
+export const getVerificationEmail = (name: string, verificationLink: string) => getEmailLayout(
+  `
+    <p style="margin:0 0 16px;">Hola ${safeText(name, 'bienvenida')}.</p>
+    <p style="margin:0 0 18px;">Tu cuenta fue creada correctamente. Para activar tu acceso y proteger tus pedidos, confirma tu correo electrónico.</p>
+    ${button(verificationLink, 'Verificar mi cuenta')}
+    <p style="margin:18px 0 0;font-size:13px;color:#7b6654;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+    <p style="margin:8px 0 0;font-size:12px;word-break:break-all;color:#8d725d;">${sanitizeEmailUrl(verificationLink)}</p>
+  `,
+  'Confirma tu correo para activar tu cuenta.',
+  'Verifica tu cuenta'
+);
+
+export const getOrderConfirmationEmail = (orderId: string, total: string, itemsHtml: string) => getEmailLayout(
+  `
+    <p style="margin:0 0 16px;">Recibimos tu pedido <strong>#${safeText(String(orderId).split('-')[0])}</strong> y ya está en proceso.</p>
+    <div style="margin:26px 0;padding:18px;border:1px solid #eadccf;border-radius:20px;background:#fff7ee;">${itemsHtml}<div style="display:flex;justify-content:space-between;border-top:1px solid #eadccf;margin-top:14px;padding-top:14px;font-weight:800"><span>Total</span><span>${safeText(total)}</span></div></div>
+    <p style="margin:0;color:#7b6654;">Te avisaremos cuando el estado del pedido cambie o cuando exista número de rastreo.</p>
+  `,
+  'Tu pedido Selfcare Sinners fue confirmado.',
+  'Pedido confirmado'
+);
+
+export const getDiscountCouponEmail = (code: string, discount: string, expiryDate?: string) => getEmailLayout(
+  `
+    <p style="margin:0 0 18px;">Tenemos un beneficio listo para tu próxima compra.</p>
+    <div style="margin:24px 0;padding:24px;text-align:center;border:1px dashed #b99d86;border-radius:22px;background:#fff7ee;">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.2em;color:#8d725d;font-weight:800;">Código</div>
+      <div style="font-size:30px;letter-spacing:.18em;font-weight:900;color:#241f1a;margin:10px 0;">${safeText(code)}</div>
+      <div style="color:#7b6654;">${safeText(discount)} de descuento${expiryDate ? ` · válido hasta ${safeText(expiryDate)}` : ''}</div>
     </div>
-    
-    <p>We'll send you another email as soon as your order ships.</p>
-    <p>Stay stunning,<br/>The Selfcare Sinners Team</p>
-    `,
-    'Your Selfcare Sinners order has been confirmed.'
-  );
-};
+    ${button('https://selfcaresinners.com', 'Comprar ahora')}
+  `,
+  'Un beneficio exclusivo para tu próxima rutina.',
+  'Tu cupón está listo'
+);
 
-export const getDiscountCouponEmail = (code: string, discount: string, expiryDate?: string) => {
-  return getEmailLayout(
-    `
-    <h2>A Special Gift Just For You 🎁</h2>
-    <p>Because you deserve a little extra self-care, we're treating you to a special discount on your next purchase.</p>
-    
-    <div class="coupon-box">
-      <p style="margin:0; font-size: 14px; text-transform: uppercase; color: #666;">Use code at checkout</p>
-      <div class="coupon-code">${safeText(code)}</div>
-      <p style="margin:0; font-size: 16px; font-weight: 500;">Enjoy ${safeText(discount)} off</p>
-      ${expiryDate ? `<p style="margin-top:10px; font-size: 12px; color: #888;">Valid until ${safeText(expiryDate)}</p>` : ''}
-    </div>
-    
-    <center>
-      <a href="https://selfcare-sinners.com" class="button">Shop Now</a>
-    </center>
-    
-    <p>Treat yourself,<br/>The Selfcare Sinners Team</p>
-    `,
-    'Here is a special discount code for your next order.'
-  );
-};
+export const getAbandonedCartEmail = (recoverUrl: string, itemsHtml: string) => getEmailLayout(
+  `
+    <p style="margin:0 0 16px;">Guardamos los productos que dejaste en tu carrito para que puedas terminar tu compra sin empezar de nuevo.</p>
+    <div style="margin:24px 0;padding:18px;border:1px solid #eadccf;border-radius:20px;background:#fff7ee;">${itemsHtml}</div>
+    ${button(recoverUrl, 'Recuperar mi carrito')}
+  `,
+  'Tu carrito Selfcare Sinners sigue disponible.',
+  'Tu ritual te espera'
+);
 
-export const getAbandonedCartEmail = (recoverUrl: string, itemsHtml: string) => {
-  return getEmailLayout(
-    `
-    <h2>Did you forget something? 🛒</h2>
-    <p>It looks like you left some amazing items in your cart. We've saved them for you, but they won't last forever!</p>
-    
-    <div style="margin: 30px 0;">
-      ${itemsHtml}
-    </div>
-    
-    <center>
-      <a href="${sanitizeEmailUrl(recoverUrl)}" class="button">Complete My Purchase</a>
-    </center>
-    
-    <p>Don't miss out on treating yourself.</p>
-    <p>With love,<br/>The Selfcare Sinners Team</p>
-    `,
-    'You left some items in your cart. Complete your purchase now.'
-  );
-};
-
-export const getOrderStatusEmail = (orderId: string, statusText: string, trackingInfo: string = '') => {
-  return getEmailLayout(
-    `
-    <h2>Order Update 📦</h2>
-    <p>We're writing to let you know that your order <strong>#${safeText(String(orderId).split('-')[0])}</strong> ${safeText(statusText)}.</p>
-    
-    ${trackingInfo ? `<div style="margin: 20px 0; padding: 15px; background: #f4f4f5; border-radius: 6px;">${trackingInfo}</div>` : ''}
-    
-    <p>If you have any questions, please reply to this email.</p>
-    <p>Stay stunning,<br/>The Selfcare Sinners Team</p>
-    `,
-    `Your order #${safeText(String(orderId).split('-')[0])} ${safeText(statusText)}.`
-  );
-};
+export const getOrderStatusEmail = (orderId: string, statusText: string, trackingInfo: string = '') => getEmailLayout(
+  `
+    <p style="margin:0 0 16px;">Tu pedido <strong>#${safeText(String(orderId).split('-')[0])}</strong> ${safeText(statusText)}.</p>
+    ${trackingInfo ? `<div style="margin:22px 0;padding:18px;background:#fff7ee;border:1px solid #eadccf;border-radius:18px;">${trackingInfo}</div>` : ''}
+    <p style="margin:0;color:#7b6654;">Puedes revisar el estado del pedido desde la tienda con tu correo y el ID del pedido.</p>
+  `,
+  `Actualización de tu pedido #${safeText(String(orderId).split('-')[0])}.`,
+  'Actualización de pedido'
+);

@@ -8,9 +8,10 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot-password'>('signin');
   const [email, setEmail] = useState('');
-  const [password, setContraseña] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
@@ -18,6 +19,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
       setMode(newMode);
       setIsOpen(true);
       setError('');
+      setSuccess('');
     });
     return () => setAuthModalOpener(null);
   }, []);
@@ -25,6 +27,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     if (mode === 'forgot-password') {
@@ -39,7 +42,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
         if (!res.ok) {
           throw new Error(data.error || 'Error enviando el correo');
         }
-        alert(data.message || 'Se ha enviado un enlace para restablecer tu contraseña.');
+        setSuccess(data.message || 'Te enviamos un enlace seguro para restablecer tu contraseña. Revisa tu correo.');
         setMode('signin');
       } catch (err: any) {
         setError(err.message);
@@ -70,10 +73,14 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
         throw new Error(data.error || 'Error en la autenticación');
       }
 
-      localStorage.setItem('auth_token', data.token);
-      if (mode === 'signup' && data.message) {
-        alert(data.message);
+      if (mode === 'signup') {
+        setSuccess(data.message || 'Cuenta creada. Te enviamos un correo para verificar tu cuenta.');
+        setPassword('');
+        setMode('signin');
+        return;
       }
+
+      localStorage.setItem('auth_token', data.token);
       window.location.reload(); // Recargamos para que toda la app tome el nuevo estado
     } catch (err: any) {
       setError(err.message);
@@ -124,6 +131,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
               </div>
 
               {error && <div className="uix-auth-error" role="alert">{error}</div>}
+              {success && <div className="uix-auth-success" role="status" aria-live="polite">{success}</div>}
 
               <form onSubmit={handleSubmit} className="uix-auth-form">
                 {mode === 'signup' && (
@@ -172,7 +180,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
                       autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setContraseña(e.target.value)}
+                      onChange={(e) => setPassword(e.target.value)}
                     />
                   </label>
                 )}

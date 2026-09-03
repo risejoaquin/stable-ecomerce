@@ -68,3 +68,7 @@ lighthouse-report*.json
 pa11y-report*.json
 axe-report*.json
 release-notes.local.md
+
+# Account flow QA artifacts
+account-flow-debug-*.json
+account-flow-screenshot-*.png

@@ -187,3 +187,25 @@ Corrige el smoke test del login premium para validar `role="dialog"` con búsque
 ## LOGIN UIX A HOTFIX 02 — PowerShell Quote Literal Assert
 
 Corrige el smoke `scripts/qa/smoke-login-uix-a.ps1` para validar atributos TSX como `role="dialog"` usando literales PowerShell con comillas simples. No cambia lógica de producción.
+
+## ACCOUNT FLOW A — Roles, Registration and Profile Data Integrity
+
+Corrección post-cierre para roles, registro, verificación de correo y perfil de usuario.
+
+### Incluye
+
+- Matriz clara guest/user/admin.
+- Registro sin `alert()` del navegador; ahora usa mensaje inline premium.
+- Página `/verify-email` migrada al UIX premium.
+- Plantillas legacy de correo actualizadas al formato Soft Premium.
+- Perfil sin pedidos, tarjetas, puntos, cupones, envíos o notificaciones estáticas.
+- Perfil conectado a `/api/profile`, `/api/orders/my` y wishlist real.
+- `useUserSafe` ya no devuelve `Local Admin` falso.
+
+### Validación
+
+```powershell
+Unblock-File .\scripts\qa\smoke-account-flow-a.ps1
+.\scripts\qa\smoke-account-flow-a.ps1
+npm run build
+```

@@ -4,10 +4,11 @@ import { useAuthSafe } from '../../hooks/useAuthSafe';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApiClient } from '../../api/useApiClient';
 import { toast } from 'react-hot-toast';
-import { Bell, CreditCard, Gift, Heart, Home, MapPin, Package, Plus, RotateCcw, ShieldCheck, Sparkles, Ticket, Trash2, Truck, UserRound } from 'lucide-react';
-import { EditorialHeader } from '../../components/editorial/EditorialHeader';
-import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
-import { useCart, CartDrawer } from '../../App';
+import { Bell, CreditCard, Gift, Heart, MapPin, Package, Plus, RotateCcw, ShieldCheck, Ticket, Trash2, Truck, UserRound } from 'lucide-react';
+import { UixPageShell } from '../../components/uix/UixPageShell';
+import { UixStatePanel } from '../../components/uix/UixStatePanel';
+import { UixStatusBadge } from '../../components/uix/UixStatusBadge';
+import { useWishlist } from '../../hooks/useWishlist';
 
 type ProfileAddress = {
   name: string;
@@ -20,28 +21,61 @@ type ProfileAddress = {
 
 const defaultAddress: ProfileAddress = { name: 'Casa', street: '', city: '', state: '', zip: '', country: 'México' };
 
-const demoProducts = [
-  { name: 'Glow Drops', meta: 'Suero iluminador', price: '$890' },
-  { name: 'Daily Oasis', meta: 'Crema hidratante', price: '$790' },
-  { name: 'Silk Veil SPF 50', meta: 'Protector solar', price: '$670' },
-];
+function normalizeAddresses(profile: any): ProfileAddress[] {
+  try {
+    if (profile?.addresses) {
+      const parsed = typeof profile.addresses === 'string' ? JSON.parse(profile.addresses) : profile.addresses;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+    if (profile?.shipping_address) {
+      const parsed = typeof profile.shipping_address === 'string' ? JSON.parse(profile.shipping_address) : profile.shipping_address;
+      if (parsed && typeof parsed === 'object') return [{ ...defaultAddress, ...parsed }];
+    }
+  } catch (_) {
+    return [{ ...defaultAddress }];
+  }
+  return [{ ...defaultAddress }];
+}
 
-function ProductMiniature({ label }: { label?: string }) {
-  return <div className="ss-row-thumb" aria-label={label || 'Producto'} />;
+function formatMoney(value: any) {
+  const amount = Number(value || 0);
+  return `MXN $${amount.toFixed(2)}`;
 }
 
 export function ProfilePage() {
-  const { isSignedIn } = useAuthSafe();
+  const { isSignedIn, role } = useAuthSafe();
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
-  const { items, setIsCartOpen } = useCart();
-  const cartItemCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+  const { data: wishlistItems = [] } = useWishlist();
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading: loadingProfile, error: profileError } = useQuery({
     queryKey: ['profile'],
     queryFn: () => apiClient.get('/profile'),
     enabled: isSignedIn
   });
+
+  const { data: orders = [], isLoading: loadingOrders } = useQuery({
+    queryKey: ['my-orders'],
+    queryFn: () => apiClient.get('/orders/my'),
+    enabled: isSignedIn
+  });
+
+  const [formData, setFormData] = useState({
+    email: '',
+    fullName: '',
+    phone: '',
+    addresses: [{ ...defaultAddress }] as ProfileAddress[]
+  });
+
+  React.useEffect(() => {
+    if (!profile) return;
+    setFormData({
+      email: profile.email || '',
+      fullName: profile.full_name || profile.fullName || '',
+      phone: profile.phone || '',
+      addresses: normalizeAddresses(profile)
+    });
+  }, [profile]);
 
   const updateProfile = useMutation({
     mutationFn: (data: any) => apiClient.put('/profile', data),
@@ -52,48 +86,29 @@ export function ProfilePage() {
     onError: () => toast.error('Error al actualizar el perfil')
   });
 
-  const [formData, setFormData] = useState({
-    email: '',
-    fullNombre: '',
-    phone: '',
-    addresses: [defaultAddress] as ProfileAddress[]
-  });
-
-  React.useEffect(() => {
-    if (!profile) return;
-    let loadedAddresses: ProfileAddress[] = [];
-    try {
-      if (profile.addresses) {
-        loadedAddresses = typeof profile.addresses === 'string' ? JSON.parse(profile.addresses) : profile.addresses;
-      } else if (profile.shipping_address) {
-        loadedAddresses = [{ ...defaultAddress, ...JSON.parse(profile.shipping_address) }];
-      }
-    } catch (_) {
-      loadedAddresses = [];
-    }
-    if (!Array.isArray(loadedAddresses) || loadedAddresses.length === 0) loadedAddresses = [defaultAddress];
-    setFormData({
-      email: profile.email || '',
-      fullNombre: profile.full_name || profile.fullNombre || '',
-      phone: profile.phone || '',
-      addresses: loadedAddresses
-    });
-  }, [profile]);
-
-  if (isLoading) {
-    return <div className="ss-account-theme flex items-center justify-center">Cargando tu cuenta...</div>;
+  if (loadingProfile) {
+    return <UixPageShell mainClassName="uix-customer-page"><UixStatePanel tone="loading" title="Cargando perfil" description="Estamos recuperando tus datos reales de cuenta." /></UixPageShell>;
   }
 
-  const displayName = formData.fullNombre || profile?.full_name || profile?.email?.split('@')[0] || 'Sofía Martínez';
+  if (profileError) {
+    return <UixPageShell mainClassName="uix-customer-page"><UixStatePanel tone="error" title="No pudimos cargar tu perfil" description="Intenta de nuevo o contacta soporte." actionText="Ir a soporte" actionTo="/contact" /></UixPageShell>;
+  }
+
+  const displayName = formData.fullName || profile?.full_name || profile?.email?.split('@')[0] || 'Cliente';
   const initials = displayName.split(' ').map((part: string) => part[0]).join('').slice(0, 2).toUpperCase() || 'SS';
+  const orderCount = Array.isArray(orders) ? orders.length : 0;
+  const shippingCount = Array.isArray(orders) ? orders.filter((order: any) => ['enviado', 'shipped', 'in_transit'].includes(String(order.status || '').toLowerCase()) || order.tracking_number).length : 0;
+  const wishlistCount = Array.isArray(wishlistItems) ? wishlistItems.length : 0;
+  const recentOrders = Array.isArray(orders) ? orders.slice(0, 3) : [];
+  const recentWishlist = Array.isArray(wishlistItems) ? wishlistItems.slice(0, 3) : [];
 
   const addAddress = () => setFormData(f => ({ ...f, addresses: [...f.addresses, { ...defaultAddress, name: 'Nueva dirección' }] }));
-  const removeAddress = (index: number) => setFormData(f => ({ ...f, addresses: f.addresses.filter((_, i) => i !== index) }));
+  const removeAddress = (index: number) => setFormData(f => ({ ...f, addresses: f.addresses.length <= 1 ? f.addresses : f.addresses.filter((_, i) => i !== index) }));
   const updateAddress = (index: number, field: keyof ProfileAddress, value: string) => {
     setFormData(f => {
-      const newAddresses = [...f.addresses];
-      newAddresses[index] = { ...newAddresses[index], [field]: value };
-      return { ...f, addresses: newAddresses };
+      const next = [...f.addresses];
+      next[index] = { ...next[index], [field]: value };
+      return { ...f, addresses: next };
     });
   };
 
@@ -101,161 +116,126 @@ export function ProfilePage() {
     e.preventDefault();
     updateProfile.mutate({
       email: formData.email,
-      fullNombre: formData.fullNombre,
+      fullName: formData.fullName,
       phone: formData.phone,
+      shippingAddress: JSON.stringify(formData.addresses[0] || defaultAddress),
       addresses: formData.addresses
     });
   };
 
   return (
-    <div className="ss-account-theme">
-      <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
-
-      <main className="ss-account-wrap">
-        <div className="ss-account-board">
-          <aside className="ss-account-sidebar">
-            <div className="ss-account-user">
-              <div className="ss-account-avatar">{initials}</div>
-              <div>
-                <p className="ss-topline">Mi cuenta</p>
-                <h1 className="ss-soft-serif text-xl">{displayName}</h1>
-                <p className="text-sm text-[var(--ss-soft-muted)]">{formData.email || 'cliente@selfcaresinners.com'}</p>
-              </div>
-            </div>
-            <div className="ss-sinner-card" style={{ minHeight: 118, margin: '.7rem 0 1rem' }}>
-              <p className="ss-topline" style={{ color: '#fffaf4' }}>Sinner Club</p>
-              <strong style={{ fontSize: '2rem', fontFamily: 'Georgia,serif', fontWeight: 500 }}>1,250 pts</strong>
-              <p style={{ fontSize: '.82rem', opacity: .86 }}>750 pts para Sinner Icon</p>
-            </div>
-            <nav className="ss-account-nav" aria-label="Navegación de cuenta">
-              <a className="is-active" href="#resumen"><span><UserRound size={16} /> Resumen</span></a>
-              <a href="#pedidos"><span><Package size={16} /> Pedidos</span><span>3</span></a>
-              <a href="#direcciones"><span><MapPin size={16} /> Direcciones</span></a>
-              <a href="#wishlist"><span><Heart size={16} /> Favoritos</span><span>6</span></a>
-              <a href="#rewards"><span><Gift size={16} /> Rewards</span></a>
-              <a href="#cupones"><span><Ticket size={16} /> Cupones</span><span>2</span></a>
-              <a href="#pagos"><span><CreditCard size={16} /> Métodos de pago</span></a>
-              <a href="#soporte"><span><RotateCcw size={16} /> Soporte y devoluciones</span></a>
-              <a href="#notificaciones"><span><Bell size={16} /> Notificaciones</span></a>
-            </nav>
-            <div className="ss-account-promo" style={{ padding: '1rem', marginTop: '1rem' }}>
-              <p className="ss-topline">The ritual collection</p>
-              <h2 className="ss-soft-serif text-2xl leading-none mt-2">Rutinas que se sienten tan bien como se ven.</h2>
-              <Link to="/" className="ss-mini-btn mt-4 inline-flex">Comprar ahora</Link>
-            </div>
-          </aside>
-
-          <section className="ss-account-main" id="resumen">
-            <div className="ss-account-hero">
-              <div>
-                <p className="ss-topline">Resumen de cuenta</p>
-                <h2 className="ss-account-title">Bienvenida de vuelta, {displayName.split(' ')[0]}.</h2>
-                <p className="ss-section-note mt-3 max-w-2xl">Aquí se desglosa toda tu experiencia: pedidos, rutinas, recompensas, direcciones, pagos, soporte y preferencias.</p>
-              </div>
-              <div className="ss-sinner-card">
-                <p className="ss-topline" style={{ color: '#fffaf4' }}>Nivel actual</p>
-                <strong style={{ fontSize: '2.4rem', fontFamily: 'Georgia,serif', fontWeight: 500 }}>Sinner Glow</strong>
-                <p style={{ opacity: .86 }}>Beneficios activos y recompensas disponibles.</p>
-              </div>
-            </div>
-
-            <div className="ss-account-metrics">
-              <div className="ss-account-metric"><Package size={20} /><span>Pedidos</span><strong>3</strong><small>este año</small></div>
-              <div className="ss-account-metric"><Truck size={20} /><span>Envíos</span><strong>1</strong><small>en camino</small></div>
-              <div className="ss-account-metric"><Sparkles size={20} /><span>Rutina activa</span><strong>Sinner Glow</strong><small>actualizada hoy</small></div>
-              <div className="ss-account-metric"><Ticket size={20} /><span>Cupones</span><strong>2</strong><small>disponibles</small></div>
-            </div>
-
-            <div className="ss-account-grid">
-              <section className="ss-account-panel wide" id="pedidos">
-                <div className="ss-account-panel-head"><h2>Pedidos recientes</h2><Link to="/my-orders" className="ss-mini-btn">Ver todos</Link></div>
-                <div className="ss-row-list">
-                  {['#SS10458', '#SS10392', '#SS10287'].map((order, index) => (
-                    <div className="ss-row-item" key={order}>
-                      <div className="flex items-center gap-3"><ProductMiniature /><div><strong>{order}</strong><p className="text-sm text-[var(--ss-soft-muted)]">{index === 0 ? '12 Mayo 2025' : index === 1 ? '28 Abril 2025' : '10 Abril 2025'}</p></div></div>
-                      <span className={`ss-pill ${index === 0 ? '' : 'warn'}`}>{index === 0 ? 'Entregado' : 'En camino'}</span>
-                      <strong>{index === 0 ? '$1,580' : index === 1 ? '$2,340' : '$990'}</strong>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="ss-account-panel" id="wishlist">
-                <div className="ss-account-panel-head"><h2>Reordenar sugerencias</h2><Link to="/wishlist" className="ss-mini-btn">Ver wishlist</Link></div>
-                <div className="ss-row-list">
-                  {demoProducts.map(product => <div className="ss-row-item" key={product.name}><div className="flex items-center gap-3"><ProductMiniature /><div><strong>{product.name}</strong><p className="text-sm text-[var(--ss-soft-muted)]">{product.meta}</p></div></div><strong>{product.price}</strong></div>)}
-                </div>
-              </section>
-
-              <section className="ss-account-panel" id="rewards">
-                <div className="ss-account-panel-head"><h2>Rewards</h2><span className="ss-pill">Activo</span></div>
-                <p className="ss-topline">Puntos disponibles</p>
-                <strong className="ss-soft-serif text-4xl">1,250 pts</strong>
-                <div className="h-2 rounded-full bg-[#eadfd5] mt-4 overflow-hidden"><div className="h-full w-[64%] bg-[var(--ss-soft-sage)]" /></div>
-                <p className="text-sm text-[var(--ss-soft-muted)] mt-3">Gana puntos por cada compra, reseña y recompra.</p>
-              </section>
-
-              <section className="ss-account-panel" id="cupones">
-                <div className="ss-account-panel-head"><h2>Cupones</h2><Link to="/" className="ss-mini-btn">Usar</Link></div>
-                <div className="ss-row-list">
-                  <div className="ss-row-item"><strong>SINNER10</strong><span>10% OFF</span><span className="ss-pill">vigente</span></div>
-                  <div className="ss-row-item"><strong>FREESHIP</strong><span>Envío gratis</span><span className="ss-pill">nuevo</span></div>
-                </div>
-              </section>
-
-              <section className="ss-account-panel wide" id="direcciones">
-                <div className="ss-account-panel-head"><h2>Direcciones guardadas</h2><button type="button" onClick={addAddress} className="ss-account-secondary"><Plus size={15} /> Agregar</button></div>
-                <form onSubmit={submitProfile} className="grid gap-4">
-                  <div className="ss-account-form-grid">
-                    <div className="ss-account-field"><label>Correo electrónico</label><input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))} /></div>
-                    <div className="ss-account-field"><label>Nombre completo</label><input type="text" value={formData.fullNombre} onChange={e => setFormData(f => ({ ...f, fullNombre: e.target.value }))} placeholder="Sofía Martínez" /></div>
-                    <div className="ss-account-field"><label>Teléfono</label><input type="tel" value={formData.phone} onChange={e => setFormData(f => ({ ...f, phone: e.target.value }))} placeholder="+52 55 1234 5678" /></div>
-                  </div>
-                  {formData.addresses.map((address, index) => (
-                    <div className="ss-account-address" key={`${address.name}-${index}`}>
-                      <div className="flex items-center justify-between mb-3"><strong>{address.name || 'Dirección'}</strong><button type="button" onClick={() => removeAddress(index)} className="ss-account-secondary" title="Eliminar dirección"><Trash2 size={15} /></button></div>
-                      <div className="ss-account-form-grid">
-                        <div className="ss-account-field"><label>Tipo</label><select value={address.name} onChange={e => updateAddress(index, 'name', e.target.value)}><option>Casa</option><option>Trabajo</option><option>Departamento</option><option>Otra</option></select></div>
-                        <div className="ss-account-field"><label>Calle y número</label><input value={address.street} onChange={e => updateAddress(index, 'street', e.target.value)} placeholder="Av. Presidente Masaryk 123" /></div>
-                        <div className="ss-account-field"><label>Ciudad</label><input value={address.city} onChange={e => updateAddress(index, 'city', e.target.value)} placeholder="Ciudad de México" /></div>
-                        <div className="ss-account-field"><label>Estado</label><input value={address.state} onChange={e => updateAddress(index, 'state', e.target.value)} placeholder="CDMX" /></div>
-                        <div className="ss-account-field"><label>Código postal</label><input value={address.zip} onChange={e => updateAddress(index, 'zip', e.target.value)} placeholder="11560" /></div>
-                        <div className="ss-account-field"><label>País</label><input value={address.country} onChange={e => updateAddress(index, 'country', e.target.value)} placeholder="México" /></div>
-                      </div>
-                    </div>
-                  ))}
-                  <button type="submit" disabled={updateProfile.isPending} className="ss-account-action">{updateProfile.isPending ? 'Guardando...' : 'Guardar cambios de cuenta'}</button>
-                </form>
-              </section>
-
-              <section className="ss-account-panel" id="pagos">
-                <div className="ss-account-panel-head"><h2>Métodos de pago</h2><button className="ss-mini-btn">Ver todos</button></div>
-                <div className="ss-row-list"><div className="ss-row-item"><CreditCard size={18} /><span>Visa terminada en 4242</span><span className="ss-pill">Principal</span></div><div className="ss-row-item"><CreditCard size={18} /><span>Mastercard terminada en 1111</span></div></div>
-              </section>
-
-              <section className="ss-account-panel" id="soporte">
-                <div className="ss-account-panel-head"><h2>Soporte</h2><Link to="/contact" className="ss-mini-btn">Nuevo ticket</Link></div>
-                <div className="ss-row-list"><div className="ss-row-item"><span>Consulta de ingredientes</span><span className="ss-pill">Respondido</span></div><div className="ss-row-item"><span>Cambio de dirección</span><span className="ss-pill warn">En curso</span></div></div>
-              </section>
-
-              <section className="ss-account-panel" id="notificaciones">
-                <div className="ss-account-panel-head"><h2>Notificaciones</h2><Bell size={18} /></div>
-                <div className="ss-row-list"><div className="ss-row-item"><span>Tu pedido fue entregado.</span><small>Hace 2 días</small></div><div className="ss-row-item"><span>Glow Drops vuelve a estar en stock.</span><small>Hace 1 semana</small></div></div>
-              </section>
-
-              <section className="ss-account-panel full">
-                <div className="ss-account-panel-head"><h2>Preferencias y seguridad</h2><ShieldCheck size={18} /></div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  {['Información personal', 'Seguridad y contraseña', 'Preferencias de comunicación', 'Privacidad y datos'].map(item => <div key={item} className="ss-row-item"><span>{item}</span><span>→</span></div>)}
-                </div>
-              </section>
-            </div>
-          </section>
+    <UixPageShell mainClassName="uix-customer-page" data-account-flow-a="profile-real-data">
+      <section className="uix-customer-hero">
+        <div className="uix-profile-identity">
+          <span className="uix-profile-avatar" aria-hidden="true">{initials}</span>
+          <div>
+            <p className="uix-eyebrow">Mi cuenta</p>
+            <h1>Bienvenida de vuelta, {displayName.split(' ')[0]}.</h1>
+            <p>{formData.email || 'Completa tu correo para recibir seguimiento de pedidos.'}</p>
+          </div>
         </div>
-      </main>
+        <div className="uix-role-card" data-role={role}>
+          <span>Rol actual</span>
+          <strong>{role === 'admin' ? 'Administrador' : 'Cliente'}</strong>
+          <p>{role === 'admin' ? 'Puedes entrar al panel de operación.' : 'Tienes acceso a perfil, pedidos, wishlist y soporte.'}</p>
+          {role === 'admin' && <Link to="/admin" className="uix-action-primary">Abrir admin</Link>}
+        </div>
+      </section>
 
-      <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
-      <CartDrawer storeId={undefined} themeColor="#2b1d17" buttonColor="#2b1d17" />
-    </div>
+      <section className="uix-account-metrics" data-account-flow-a="real-customer-metrics">
+        <article><Package size={19} /><span>Pedidos reales</span><strong>{loadingOrders ? '...' : orderCount}</strong></article>
+        <article><Truck size={19} /><span>Envíos con rastreo</span><strong>{loadingOrders ? '...' : shippingCount}</strong></article>
+        <article><Heart size={19} /><span>Favoritos reales</span><strong>{wishlistCount}</strong></article>
+        <article><MapPin size={19} /><span>Direcciones guardadas</span><strong>{formData.addresses.filter(a => a.street || a.city || a.zip).length}</strong></article>
+      </section>
+
+      <section className="uix-profile-grid">
+        <article className="uix-profile-panel uix-profile-panel--wide" id="pedidos">
+          <header><h2>Pedidos recientes</h2><Link to="/my-orders" className="uix-action-secondary">Ver todos</Link></header>
+          {loadingOrders ? (
+            <UixStatePanel tone="loading" title="Cargando pedidos" description="Consultando tu historial real." />
+          ) : recentOrders.length === 0 ? (
+            <UixStatePanel tone="empty" title="Aún no tienes pedidos" description="Cuando compres, verás aquí tus pedidos reales y su seguimiento." actionText="Comprar ahora" actionTo="/" />
+          ) : (
+            <div className="uix-profile-list">
+              {recentOrders.map((order: any) => (
+                <div className="uix-profile-row" key={order.id}>
+                  <div><strong>Pedido #{String(order.id).split('-')[0]}</strong><span>{new Date(order.created_at).toLocaleDateString()}</span></div>
+                  <UixStatusBadge status={order.status} />
+                  <strong>{formatMoney(order.total)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="uix-profile-panel" id="wishlist">
+          <header><h2>Favoritos</h2><Link to="/wishlist" className="uix-action-secondary">Ver wishlist</Link></header>
+          {recentWishlist.length === 0 ? (
+            <UixStatePanel tone="empty" title="Sin favoritos" description="Guarda productos desde el catálogo para verlos aquí." />
+          ) : (
+            <div className="uix-profile-list">
+              {recentWishlist.map((product: any) => (
+                <div className="uix-profile-row" key={product.id}>
+                  <div><strong>{product.name}</strong><span>{product.brand || 'Producto guardado'}</span></div>
+                  <strong>{formatMoney(product.price)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="uix-profile-panel" id="beneficios">
+          <header><h2>Beneficios</h2><Gift size={18} /></header>
+          <UixStatePanel tone="empty" title="Beneficios próximamente" description="No mostramos puntos ni cupones estáticos. Esta sección se activará cuando exista data real." />
+        </article>
+
+        <article className="uix-profile-panel uix-profile-panel--wide" id="direcciones">
+          <header><h2>Direcciones y datos</h2><button type="button" onClick={addAddress} className="uix-action-secondary"><Plus size={15} /> Agregar</button></header>
+          <form onSubmit={submitProfile} className="uix-profile-form">
+            <div className="uix-profile-form-grid">
+              <label><span>Correo electrónico</span><input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))} /></label>
+              <label><span>Nombre completo</span><input type="text" value={formData.fullName} onChange={e => setFormData(f => ({ ...f, fullName: e.target.value }))} placeholder="Tu nombre" /></label>
+              <label><span>Teléfono</span><input type="tel" value={formData.phone} onChange={e => setFormData(f => ({ ...f, phone: e.target.value }))} placeholder="+52" /></label>
+            </div>
+            {formData.addresses.map((address, index) => (
+              <div className="uix-profile-address" key={`${address.name}-${index}`}>
+                <div className="uix-profile-address-head"><strong>{address.name || 'Dirección'}</strong><button type="button" onClick={() => removeAddress(index)} className="uix-icon-action" aria-label="Eliminar dirección"><Trash2 size={15} /></button></div>
+                <div className="uix-profile-form-grid">
+                  <label><span>Tipo</span><select value={address.name} onChange={e => updateAddress(index, 'name', e.target.value)}><option>Casa</option><option>Trabajo</option><option>Departamento</option><option>Otra</option></select></label>
+                  <label><span>Calle y número</span><input value={address.street} onChange={e => updateAddress(index, 'street', e.target.value)} /></label>
+                  <label><span>Ciudad</span><input value={address.city} onChange={e => updateAddress(index, 'city', e.target.value)} /></label>
+                  <label><span>Estado</span><input value={address.state} onChange={e => updateAddress(index, 'state', e.target.value)} /></label>
+                  <label><span>Código postal</span><input value={address.zip} onChange={e => updateAddress(index, 'zip', e.target.value)} /></label>
+                  <label><span>País</span><input value={address.country} onChange={e => updateAddress(index, 'country', e.target.value)} /></label>
+                </div>
+              </div>
+            ))}
+            <button type="submit" disabled={updateProfile.isPending} className="uix-action-primary">{updateProfile.isPending ? 'Guardando...' : 'Guardar cambios'}</button>
+          </form>
+        </article>
+
+        <article className="uix-profile-panel" id="pagos">
+          <header><h2>Pagos</h2><CreditCard size={18} /></header>
+          <UixStatePanel tone="empty" title="Sin tarjetas guardadas" description="Los pagos se procesan en Stripe. No mostraremos tarjetas ficticias al usuario." />
+        </article>
+
+        <article className="uix-profile-panel" id="soporte">
+          <header><h2>Soporte</h2><RotateCcw size={18} /></header>
+          <p className="uix-muted-copy">Para cambios de envío, devoluciones o dudas de producto, abre un mensaje de soporte. No mezclamos tickets estáticos con datos reales.</p>
+          <Link to="/contact" className="uix-action-secondary">Contactar soporte</Link>
+        </article>
+
+        <article className="uix-profile-panel" id="notificaciones">
+          <header><h2>Notificaciones</h2><Bell size={18} /></header>
+          <UixStatePanel tone="empty" title="Sin notificaciones reales" description="Aquí aparecerán avisos reales cuando el sistema los genere." />
+        </article>
+
+        <article className="uix-profile-panel" id="seguridad">
+          <header><h2>Seguridad y privacidad</h2><ShieldCheck size={18} /></header>
+          <p className="uix-muted-copy">Tu cuenta usa sesión protegida por token. Mantendremos esta sección ligada a datos reales, no a placeholders.</p>
+        </article>
+      </section>
+    </UixPageShell>
   );
 }

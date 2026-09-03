@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { StoreHeader } from '../../components/storefront/StoreHeader';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { SEO } from '../../components/SEO';
+import { UixPageShell } from '../../components/uix/UixPageShell';
 
 export const VerifyEmailPage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const navigate = useNavigate();
-  
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setErrorMessage('Verification token is missing.');
+      setErrorMessage('El enlace de verificación no incluye token.');
       return;
     }
 
@@ -25,18 +25,17 @@ export const VerifyEmailPage = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         });
-        
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         if (response.ok) {
           setStatus('success');
-          setTimeout(() => navigate('/'), 3000);
+          window.setTimeout(() => navigate('/'), 3500);
         } else {
           setStatus('error');
-          setErrorMessage(data.error || 'Verification failed');
+          setErrorMessage(data.error || 'No pudimos verificar tu correo.');
         }
-      } catch (err) {
+      } catch (_) {
         setStatus('error');
-        setErrorMessage('An unexpected error occurred.');
+        setErrorMessage('Ocurrió un error inesperado al verificar tu cuenta.');
       }
     };
 
@@ -44,46 +43,38 @@ export const VerifyEmailPage = () => {
   }, [token, navigate]);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-gray-900 font-sans flex flex-col">
-      <StoreHeader />
-      <main className="flex-1 flex flex-col items-center justify-center p-4 mt-20">
-        <div className="max-w-md w-full bg-white p-12 text-center rounded-xl shadow-sm">
-          {status === 'loading' && (
-            <div className="flex flex-col items-center space-y-4">
-              <Loader2 className="h-12 w-12 text-gray-900 animate-spin" />
-              <h2 className="text-xl font-medium tracking-tight">Verifying Email...</h2>
-              <p className="text-gray-500">Please wait while we verify your account.</p>
-            </div>
-          )}
-          
-          {status === 'success' && (
-            <div className="flex flex-col items-center space-y-4">
-              <CheckCircle2 className="h-12 w-12 text-green-600" />
-              <h2 className="text-xl font-medium tracking-tight">Email Verified!</h2>
-              <p className="text-gray-500">Your account has been verified successfully. Redirecting you to the store...</p>
-            </div>
-          )}
-          
-          {status === 'error' && (
-            <div className="flex flex-col items-center space-y-4">
-              <XCircle className="h-12 w-12 text-red-600" />
-              <h2 className="text-xl font-medium tracking-tight">Verification Failed</h2>
-              <p className="text-gray-500">{errorMessage}</p>
-              <button 
-                onClick={() => navigate('/')}
-                className="mt-4 px-6 py-3 bg-black text-white text-sm font-medium tracking-wide uppercase hover:bg-gray-900 transition-colors"
-              >
-                Return to Store
-              </button>
-            </div>
-          )}
-        </div>
-      </main>
-      <footer className="bg-white border-t border-gray-100 py-12 mt-12">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 text-center text-gray-500 text-sm">
-          <p>&copy; {new Date().getFullYear()} Selfcare Sinners. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+    <UixPageShell mainClassName="uix-customer-page" data-account-flow-a="verify-email-premium">
+      <SEO title="Verificar correo | Selfcare Sinners" description="Confirma tu cuenta Selfcare Sinners." />
+      <section className="uix-auth-result-card">
+        {status === 'loading' && (
+          <div className="uix-auth-result uix-auth-result--loading" role="status" aria-live="polite">
+            <Loader2 className="uix-spin" size={38} aria-hidden="true" />
+            <p className="uix-eyebrow">Verificación segura</p>
+            <h1>Estamos confirmando tu correo</h1>
+            <span>Esto solo tomará unos segundos.</span>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div className="uix-auth-result uix-auth-result--success" role="status" aria-live="polite">
+            <CheckCircle2 size={42} aria-hidden="true" />
+            <p className="uix-eyebrow">Cuenta verificada</p>
+            <h1>Tu correo fue confirmado</h1>
+            <span>Ya puedes iniciar sesión y usar tu perfil, pedidos y wishlist.</span>
+            <Link to="/" className="uix-action-primary">Volver a la tienda</Link>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="uix-auth-result uix-auth-result--error" role="alert">
+            <XCircle size={42} aria-hidden="true" />
+            <p className="uix-eyebrow">No se pudo verificar</p>
+            <h1>Revisa el enlace de verificación</h1>
+            <span>{errorMessage}</span>
+            <Link to="/" className="uix-action-secondary">Volver a la tienda</Link>
+          </div>
+        )}
+      </section>
+    </UixPageShell>
   );
 };
