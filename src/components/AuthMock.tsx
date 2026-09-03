@@ -1,11 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
-import { LogOut, User, Package, Heart, Shield } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { logoutUser } from '../lib/auth-session';
+import { AccountMenu } from './account/AccountMenu';
+import { openAuthDialog, setAuthModalOpener, type AuthModalMode } from '../lib/auth-modal';
 
-// Un simple store global para el modal de auth
-let openAuthModal: ((mode: 'signin' | 'signup' | 'forgot-password') => void) | null = null;
 
 export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,11 +13,14 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  openAuthModal = (newMode) => {
-    setMode(newMode);
-    setIsOpen(true);
-    setError('');
-  };
+  React.useEffect(() => {
+    setAuthModalOpener((newMode: AuthModalMode) => {
+      setMode(newMode);
+      setIsOpen(true);
+      setError('');
+    });
+    return () => setAuthModalOpener(null);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,105 +183,23 @@ export const SignedOut = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const UserButton = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { role } = useAuthSafe();
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSignOut = () => logoutUser({ redirectTo: '/' });
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
-      >
-        <User size={20} className="text-gray-600" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
-          <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900 truncate">Mi Cuenta</p>
-          </div>
-          
-          <div className="py-1 border-b border-gray-100">
-            {role === 'admin' && (
-              <Link 
-                to="/admin" 
-                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                <Shield size={16} className="text-gray-400" />
-                <span>Panel de Administración</span>
-              </Link>
-            )}
-            <Link 
-              to="/profile" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <User size={16} className="text-gray-400" />
-              <span>Mi Perfil</span>
-            </Link>
-            <Link 
-              to="/my-orders" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <Package size={16} className="text-gray-400" />
-              <span>Mis Pedidos</span>
-            </Link>
-            <Link 
-              to="/wishlist" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <Heart size={16} className="text-gray-400" />
-              <span>Lista de Deseos</span>
-            </Link>
-          </div>
-
-          <button
-            onClick={handleSignOut}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-          >
-            <LogOut size={16} />
-            <span>Cerrar Sesión</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  return <AccountMenu triggerClassName="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400" triggerLabel="" anonymousLabel="" />;
 };
 
 export const RedirectToSignIn = () => {
   // Cuando se monta este componente, podríamos abrir el modal, pero por ahora mostramos un mensaje
   React.useEffect(() => {
-    if (openAuthModal) openAuthModal('signin');
+    openAuthDialog('signin');
   }, []);
   return <div>Por favor, inicia sesión...</div>;
 };
 
 export const SignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <div className="cursor-pointer" onClick={() => {
-    if (openAuthModal) openAuthModal('signin');
-  }}>{children}</div>;
+  return <div className="cursor-pointer" onClick={() => openAuthDialog('signin')}>{children}</div>;
 };
 
 export const SignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <div className="cursor-pointer" onClick={() => {
-    if (openAuthModal) openAuthModal('signup');
-  }}>{children}</div>;
+  return <div className="cursor-pointer" onClick={() => openAuthDialog('signup')}>{children}</div>;
 };
 
 export const SignIn = () => {

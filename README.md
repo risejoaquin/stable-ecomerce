@@ -1,3 +1,32 @@
+
+
+---
+
+# EMERGENCY-DRY-05 — Account Menu & Types Consolidation
+
+Estado objetivo: consolidar menú de cuenta desktop/mobile y tipos compartidos para eliminar duplicación, drift funcional y colisiones de definición.
+
+Incluye:
+
+- `src/components/account/account-links.ts`
+- `src/components/account/AccountMenu.tsx`
+- `src/components/account/AccountMobileSheet.tsx`
+- `src/lib/auth-modal.ts`
+- `src/types.ts` como re-export de compatibilidad
+- `src/types/index.ts` como fuente canónica de tipos
+- `scripts/qa/smoke-emergency-dry-05.ps1`
+- `docs/emergency/EMERGENCY_DRY_05_ACCOUNT_MENU_TYPES_CONSOLIDATION.md`
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-emergency-dry-05.ps1
+.\scripts\qa\smoke-emergency-dry-05.ps1
+npm run build
+```
+
+Resultado esperado: un solo menú de cuenta, un solo bottom sheet mobile, un solo mapa de links, logout centralizado y tipos sin duplicación.
+
 # EMERGENCY-DRY-04.1 — CSS Build Fix
 
 Corrige fallo de build en Railway/PostCSS causado por secuencias literales `\n` dentro de `src/styles/uix-soft-premium-system.css`.

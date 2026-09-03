@@ -78,3 +78,24 @@ pa11y-report.*
 .cache-uix/
 .tmp-uix/
 .DS_Store?
+
+# Emergency / audit scratch
+*.tmp
+*.bak
+*.orig
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+playwright-report/
+test-results/
+dist/
+node_modules/
+.env
+.env.*
+!.env.example
+*.zip
