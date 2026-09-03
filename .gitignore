@@ -61,3 +61,10 @@ tmp/
 
 # misc
 *.local
+
+# QA / release local artifacts
+lighthouse-report*.html
+lighthouse-report*.json
+pa11y-report*.json
+axe-report*.json
+release-notes.local.md
