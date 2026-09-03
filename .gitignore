@@ -11,7 +11,6 @@ build/
 out/
 server.js
 *.tsbuildinfo
-
 # Environment / secrets
 .env
 .env.*
@@ -22,7 +21,6 @@ server.js
 secrets/
 exports/private/
 backups/private/
-
 # Logs
 *.log
 logs/
@@ -31,14 +29,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 bun-debug.log*
-
 # Test / coverage
 coverage/
 playwright-report/
 test-results/
 .nyc_output/
 vitest-results/
-
 # Caches
 .cache/
 .vite/
@@ -47,7 +43,6 @@ vitest-results/
 .railway/
 .supabase/
 .local/
-
 # OS / editor
 .DS_Store
 Thumbs.db
@@ -57,7 +52,6 @@ Desktop.ini
 .idea/
 *.swp
 *.swo
-
 # Generated archives / temp
 *.zip
 *.tar
@@ -68,16 +62,19 @@ Desktop.ini
 *.bak
 *.backup
 *.orig
-
 # Generated reports
 lighthouse-report.*
 pa11y-report.*
-
 # Local database dumps
 *.dump
 *.sql.gz
 *.sqlite
 *.sqlite3
-
 # Misc
 .envrc
+# Emergency/UIX generated local artifacts
+*.local-report.json
+*.local-report.md
+.cache-uix/
+.tmp-uix/
+.DS_Store?

@@ -1,3 +1,24 @@
+# EMERGENCY-DRY-04 — CSS/System Collision Cleanup
+
+Estado: generado para validación.
+
+Corrige colisiones visuales centralizando los imports CSS globales en:
+
+```txt
+src/styles/uix-soft-premium-system.css
+```
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-emergency-dry-04.ps1
+.\scripts\qa\smoke-emergency-dry-04.ps1
+npm install
+npm run build
+```
+
+---
+
 # EMERGENCY-DRY-03 — Abandoned Cart Race Condition Fix
 
 Corrige la condición de carrera del job de recuperación de carritos abandonados.
