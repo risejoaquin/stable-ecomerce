@@ -86,83 +86,111 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
     <>
       {children}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md relative">
-            <button 
+        <div className="uix-auth-overlay" role="dialog" aria-modal="true" aria-labelledby="uix-auth-title">
+          <div className="uix-auth-modal" role="document">
+            <button
+              type="button"
               onClick={() => setIsOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-black font-bold"
+              className="uix-auth-close"
+              aria-label="Cerrar ventana de acceso"
             >
               ✕
             </button>
-            <h2 className="text-2xl font-bold mb-6 text-center">
-              {mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Recuperar Contraseña'}
-            </h2>
-            
-            {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">{error}</div>}
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
-                <input 
-                  type="email" 
-                  required 
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              {mode !== 'forgot-password' && (
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-medium text-gray-700">Contraseña</label>
-                    {mode === 'signin' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setMode('forgot-password'); setError(''); }} 
-                        className="text-xs text-[var(--color-primary)] hover:underline"
-                      >
-                        ¿Olvidaste tu contraseña?
-                      </button>
-                    )}
-                  </div>
-                  <input 
-                    type="password" 
-                    required 
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                    value={password}
-                    onChange={(e) => setContraseña(e.target.value)}
-                  />
-                </div>
-              )}
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[var(--color-primary)] text-white font-medium py-2 rounded hover:bg-[#5a5f4d] disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Cargando...' : (mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar Enlace')}
-              </button>
-            </form>
 
-            <div className="mt-4 text-center text-sm">
-              {mode === 'signin' ? (
-                <p>¿No tienes una cuenta? <button onClick={() => { setMode('signup'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Regístrate</button></p>
-              ) : mode === 'signup' ? (
-                <p>¿Ya tienes una cuenta? <button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Inicia sesión</button></p>
-              ) : (
-                <p><button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Volver a Iniciar Sesión</button></p>
-              )}
+            <div className="uix-auth-visual" aria-hidden="true">
+              <span className="uix-auth-kicker">Selfcare Sinners</span>
+              <h2>Acceso premium</h2>
+              <p>Gestiona tus pedidos, favoritos y rutinas desde una experiencia segura y limpia.</p>
+              <div className="uix-auth-benefits">
+                <span>Pedidos protegidos</span>
+                <span>Favoritos sincronizados</span>
+                <span>Rutinas personalizadas</span>
+              </div>
+            </div>
+
+            <div className="uix-auth-form-panel">
+              <div className="uix-auth-heading">
+                <p>{mode === 'signin' ? 'Bienvenida de vuelta' : mode === 'signup' ? 'Crea tu cuenta' : 'Recupera tu acceso'}</p>
+                <h2 id="uix-auth-title">
+                  {mode === 'signin' ? 'Iniciar sesión' : mode === 'signup' ? 'Crear cuenta' : 'Recuperar contraseña'}
+                </h2>
+                <span>
+                  {mode === 'signin'
+                    ? 'Entra para ver tus pedidos, favoritos y estado de compra.'
+                    : mode === 'signup'
+                      ? 'Regístrate para guardar favoritos y dar seguimiento a tus pedidos.'
+                      : 'Te enviaremos un enlace seguro para restablecer tu contraseña.'}
+                </span>
+              </div>
+
+              {error && <div className="uix-auth-error" role="alert">{error}</div>}
+
+              <form onSubmit={handleSubmit} className="uix-auth-form">
+                {mode === 'signup' && (
+                  <label className="uix-auth-field">
+                    <span>Nombre completo</span>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="name"
+                      placeholder="Tu nombre"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </label>
+                )}
+
+                <label className="uix-auth-field">
+                  <span>Correo electrónico</span>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </label>
+
+                {mode !== 'forgot-password' && (
+                  <label className="uix-auth-field">
+                    <span className="uix-auth-label-row">
+                      Contraseña
+                      {mode === 'signin' && (
+                        <button
+                          type="button"
+                          onClick={() => { setMode('forgot-password'); setError(''); }}
+                          className="uix-auth-inline-action"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setContraseña(e.target.value)}
+                    />
+                  </label>
+                )}
+
+                <button type="submit" disabled={loading} className="uix-auth-submit">
+                  {loading ? 'Procesando...' : (mode === 'signin' ? 'Entrar a mi cuenta' : mode === 'signup' ? 'Crear mi cuenta' : 'Enviar enlace seguro')}
+                </button>
+              </form>
+
+              <div className="uix-auth-switch">
+                {mode === 'signin' ? (
+                  <p>¿No tienes una cuenta? <button type="button" onClick={() => { setMode('signup'); setError(''); }}>Regístrate</button></p>
+                ) : mode === 'signup' ? (
+                  <p>¿Ya tienes una cuenta? <button type="button" onClick={() => { setMode('signin'); setError(''); }}>Inicia sesión</button></p>
+                ) : (
+                  <p><button type="button" onClick={() => { setMode('signin'); setError(''); }}>Volver a iniciar sesión</button></p>
+                )}
+              </div>
             </div>
           </div>
         </div>

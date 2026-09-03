@@ -161,3 +161,29 @@ Corrige el smoke final para que la validación del service worker use comparaci�
 ## QA RELEASE E HOTFIX 05 — Assert-ContainsLiteral Applied
 
 Corrige definitivamente el smoke `scripts/qa/smoke-qa-release-e.ps1` para que la validación literal del fallback del service worker use `Assert-ContainsLiteral` y no `Assert-Contains`/`-match`.
+
+## LOGIN UIX A — Premium Auth Modal
+
+Actualiza el diseño frontend del login/registro/recuperación para alinearlo al sistema visual premium de Selfcare Sinners.
+
+### Archivos principales
+- `src/components/AuthMock.tsx`
+- `src/styles/uix-soft-premium-system.css`
+- `docs/design/LOGIN_UIX_A_PREMIUM_AUTH_MODAL.md`
+- `scripts/qa/smoke-login-uix-a.ps1`
+
+### Validación
+```powershell
+Unblock-File .\scripts\qa\smoke-login-uix-a.ps1
+.\scripts\qa\smoke-login-uix-a.ps1
+npm run build
+```
+
+## LOGIN UIX A HOTFIX 01 — Dialog Role Smoke Assert
+
+Corrige el smoke test del login premium para validar `role="dialog"` con búsqueda literal estable. No cambia lógica de autenticación ni backend.
+
+
+## LOGIN UIX A HOTFIX 02 — PowerShell Quote Literal Assert
+
+Corrige el smoke `scripts/qa/smoke-login-uix-a.ps1` para validar atributos TSX como `role="dialog"` usando literales PowerShell con comillas simples. No cambia lógica de producción.
