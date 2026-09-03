@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Eye } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Eye, SlidersHorizontal, X } from 'lucide-react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
 import { useCart, CartDrawer } from '../../App';
@@ -20,12 +20,24 @@ import { StorefrontTrustStrip } from '../../components/storefront/uix/Storefront
 import { RoutineCards } from '../../components/storefront/uix/RoutineCards';
 import { ShopByConcern } from '../../components/storefront/uix/ShopByConcern';
 import { StorefrontNewsletter } from '../../components/storefront/uix/StorefrontNewsletter';
+import { UixStatePanel } from '../../components/uix/UixStatePanel';
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
 
 export function HomePage() {
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
-  const [filters, setFilters] = useState({ search: '', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState(() => ({
+    search: searchParams.get('search') || '',
+    category: searchParams.get('category') || 'all',
+    minPrice: searchParams.get('min_price') || '',
+    maxPrice: searchParams.get('max_price') || '',
+    sortBy: searchParams.get('sort_by') || 'created_at',
+    order: searchParams.get('order') || 'desc',
+    page: Math.max(1, Number(searchParams.get('page') || '1') || 1),
+    pageSize: 12,
+  }));
   const { data: searchResult, isLoading: isProductsLoading } = useSearchProducts(store?.slug, filters);
   const { items, setIsCartOpen } = useCart();
 
@@ -33,7 +45,20 @@ export function HomePage() {
     trackPageView('home', { redesign: 'soft_premium_skincare' }, { source: 'soft_premium_storefront' });
   }, []);
 
-  if (isStoreLoading) return <div className="ss-editorial-shell flex items-center justify-center">Cargando Selfcare Sinners...</div>;
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (filters.search) next.set('search', filters.search);
+    if (filters.category && filters.category !== 'all') next.set('category', filters.category);
+    if (filters.minPrice) next.set('min_price', filters.minPrice);
+    if (filters.maxPrice) next.set('max_price', filters.maxPrice);
+    if (filters.sortBy && filters.sortBy !== 'created_at') next.set('sort_by', filters.sortBy);
+    if (filters.order && filters.order !== 'desc') next.set('order', filters.order);
+    if (filters.page > 1) next.set('page', String(filters.page));
+    setSearchParams(next, { replace: true });
+  }, [filters, setSearchParams]);
+
+
+  if (isStoreLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Preparando Selfcare Sinners" description="Estamos cargando el catálogo y la experiencia de tienda." /></div>;
 
   const currentStore = store || { name: DEFAULT_BRAND, config: {}, description: 'Skincare consciente para resultados reales, rutinas claras y una experiencia premium.' };
   const config = currentStore.config || {};
@@ -42,7 +67,8 @@ export function HomePage() {
   const totalPages = searchResult && searchResult.total ? Math.ceil(searchResult.total / (searchResult.pageSize || 20)) : 1;
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
 
-  const resetFilters = () => setFilters({ search: '', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
+  const resetFilters = () => setFilters({ search: '', category: 'all', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
+  const activeFilterCount = [filters.search, filters.category !== 'all' ? filters.category : '', filters.minPrice, filters.maxPrice].filter(Boolean).length;
 
   return (
     <>
@@ -79,13 +105,13 @@ export function HomePage() {
               {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
               <div className="ss-hero-overlay">
                 <div>
-                  <p className="ss-card-kicker">Featured drop</p>
-                  <strong>{heroProduct?.name || 'Editorial skincare drop'}</strong>
+                  <p className="ss-card-kicker">Selección destacada</p>
+                  <strong>{heroProduct?.name || 'Selección editorial'}</strong>
                 </div>
                 {heroProduct && <span>MXN ${Number(heroProduct.price).toFixed(2)}</span>}
               </div>
             </div>
-            <div className="ss-hero-marquee"><span>SELFCARE SINNERS · BEAUTY EDITORIAL · ROUTINE READY · MOBILE FIRST · TRUSTED CHECKOUT · SELFCARE SINNERS · BEAUTY EDITORIAL · ROUTINE READY · MOBILE FIRST · TRUSTED CHECKOUT · </span></div>
+            <div className="ss-hero-marquee"><span>SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · </span></div>
           </div>
         </section>
 
@@ -102,7 +128,7 @@ export function HomePage() {
 
         <section className="uix-home-block uix-home-block--split" aria-label="Comprar por necesidad">
           <div className="uix-editorial-story">
-            <p className="uix-eyebrow">Skin concern index</p>
+            <p className="uix-eyebrow">Necesidades de piel</p>
             <h2>Encuentra producto por lo que tu piel necesita.</h2>
             <p>Un storefront premium no obliga a pensar en categorías técnicas. Primero ayuda al usuario a reconocerse: hidratación, manchas, acné, barrera o protección solar.</p>
           </div>
@@ -118,26 +144,27 @@ export function HomePage() {
             <p className="ss-section-note">Catálogo limpio, cálido y fácil de explorar. Busca por rutina, tipo de piel o producto y compra sin fricción.</p>
           </div>
 
+          <div className="uix-mobile-catalog-tools">
+            <SearchBar initialValue={filters.search} onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} />
+            <button type="button" className="uix-mobile-filter-trigger" aria-expanded={isMobileFiltersOpen} aria-controls="storefront-filters" onClick={() => setIsMobileFiltersOpen((open) => !open)}>
+              {isMobileFiltersOpen ? <X size={17} /> : <SlidersHorizontal size={17} />} Filtros {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
+            </button>
+          </div>
+
           <div className="ss-shop-layout">
-            <aside className="ss-filter-rail">
-              <SearchBar onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} />
-              <div style={{ height: '.8rem' }} />
+            <aside id="storefront-filters" className={`ss-filter-rail ${isMobileFiltersOpen ? 'is-mobile-open' : ''}`}>
+              <div className="uix-desktop-filter-search"><SearchBar initialValue={filters.search} onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} /></div>
               <ProductFilters filters={filters} setFilters={(f: any) => {
                 if (typeof f === 'function') setFilters((prev) => ({ ...f(prev), page: 1 }));
                 else setFilters({ ...f, page: 1 });
-              }} categories={config.categories} />
+              }} categories={config.categories} onReset={resetFilters} />
             </aside>
 
-            <div>
+            <div className="uix-catalog-results">
               {isProductsLoading ? (
-                <div className="p-12 text-center">Cargando productos...</div>
+                <UixStatePanel tone="loading" title="Cargando productos" description="Estamos actualizando los resultados del catálogo." compact />
               ) : currentProducts.length === 0 ? (
-                <div className="p-12 text-center">
-                  <p className="ss-topline">Sin resultados</p>
-                  <h3 className="ss-section-title ss-display" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>No encontramos<br />productos</h3>
-                  <p className="ss-section-note" style={{ margin: '1rem auto' }}>No encontramos productos con esos filtros. Limpia la búsqueda y vuelve al catálogo.</p>
-                  <button className="ss-btn" onClick={resetFilters} type="button">Limpiar filtros</button>
-                </div>
+                <UixStatePanel tone="empty" title="No encontramos productos" description="Prueba con otra búsqueda o limpia los filtros para volver a ver el catálogo completo." actionText="Limpiar filtros" onAction={resetFilters} />
               ) : (
                 <>
                   <div className="ss-collection-grid">

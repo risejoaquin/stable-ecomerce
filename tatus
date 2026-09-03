@@ -1,0 +1,25 @@
+warning: in the working copy of 'src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/storefront/Pagination.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/storefront/ProductFilters.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/storefront/SearchBar.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/NotFoundPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/legal/ContactPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/legal/PrivacyPolicyPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/legal/ReturnPolicyPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/legal/TermsAndConditionsPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/store/HomePage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/store/ProductDetailPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/styles/uix-soft-premium-system.css', LF will be replaced by CRLF the next time Git touches it
+ src/App.tsx                                  |  26 [32m+++[m[31m-[m
+ src/components/storefront/Pagination.tsx     |  31 [32m++[m[31m---[m
+ src/components/storefront/ProductFilters.tsx |  75 [32m++++[m[31m--------[m
+ src/components/storefront/SearchBar.tsx      |  30 [32m+++[m[31m--[m
+ src/pages/NotFoundPage.tsx                   |  25 [32m++[m[31m--[m
+ src/pages/legal/ContactPage.tsx              |  99 [32m+++++++[m[31m--------[m
+ src/pages/legal/PrivacyPolicyPage.tsx        |  45 [32m++++[m[31m---[m
+ src/pages/legal/ReturnPolicyPage.tsx         |  43 [32m++++[m[31m---[m
+ src/pages/legal/TermsAndConditionsPage.tsx   |  45 [32m++++[m[31m---[m
+ src/pages/store/HomePage.tsx                 |  69 [32m+++++++[m[31m----[m
+ src/pages/store/ProductDetailPage.tsx        |   5 [32m+[m[31m-[m
+ src/styles/uix-soft-premium-system.css       | 177 [32m+++++++++++++++++++++++++++[m
+ 12 files changed, 429 insertions(+), 241 deletions(-)

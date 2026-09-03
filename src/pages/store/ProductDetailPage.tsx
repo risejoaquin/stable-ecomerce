@@ -20,6 +20,7 @@ import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { EditorialProductCard } from '../../components/editorial/EditorialProductCard';
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
 import { trackMarketingEvent } from '../../lib/analytics';
+import { UixStatePanel } from '../../components/uix/UixStatePanel';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -48,8 +49,8 @@ export function ProductDetailPage() {
   );
   const similarProducts = similarProductsResult?.data?.filter((p: any) => p.id !== product?.id).slice(0, 4) || [];
 
-  if (isStoreLoading || isProductLoading) return <div className="ss-editorial-shell flex items-center justify-center">Cargando producto...</div>;
-  if (!product) return <div className="ss-editorial-shell flex items-center justify-center">Producto no encontrado</div>;
+  if (isStoreLoading || isProductLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Cargando producto" description="Estamos preparando los detalles, disponibilidad y opciones de compra." /></div>;
+  if (!product) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="empty" title="Producto no encontrado" description="Este producto ya no está disponible o el enlace cambió." actionText="Volver a la tienda" actionTo="/" /></div>;
 
   const currentStore = store || { name: 'Selfcare Sinners', config: {}, description: '' };
   const variants = Array.isArray(product.variants) ? product.variants : [];

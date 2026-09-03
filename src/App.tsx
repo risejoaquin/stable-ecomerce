@@ -204,6 +204,20 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   const [couponError, setCouponError] = React.useState('');
   const checkout = useCheckout(storeId);
 
+  React.useEffect(() => {
+    if (!isCartOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsCartOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isCartOpen, setIsCartOpen]);
+
   if (!isCartOpen) return null;
 
   let currentDiscount = 0;
@@ -263,14 +277,14 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   return (
     <div className="premium-cart-overlay">
       <div className="premium-cart-scrim" onClick={() => setIsCartOpen(false)}></div>
-      <aside className="premium-cart-drawer animate-in slide-in-from-right duration-300">
+      <aside className="premium-cart-drawer animate-in slide-in-from-right duration-300" role="dialog" aria-modal="true" aria-labelledby="premium-cart-title">
         <header className="premium-cart-header">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] opacity-50 font-black">Selfcare Sinners</p>
-            <h2 className="font-serif text-2xl font-black">Tu carrito</h2>
+            <h2 id="premium-cart-title" className="font-serif text-2xl font-black">Tu carrito</h2>
             <p className="text-sm opacity-60">{itemCount} artículo{itemCount === 1 ? '' : 's'} listo{itemCount === 1 ? '' : 's'} para checkout seguro.</p>
           </div>
-          <button onClick={() => setIsCartOpen(false)} className="text-gray-500 hover:text-black text-2xl leading-none">&times;</button>
+          <button onClick={() => setIsCartOpen(false)} className="premium-cart-close" type="button" aria-label="Cerrar carrito">&times;</button>
         </header>
 
         <div className="premium-cart-body">
@@ -288,12 +302,12 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                 <h4 className="font-bold text-sm text-[var(--color-text)] line-clamp-2">{item.name}</h4>
                 <p className="text-gray-500 text-sm mt-1">MXN ${Number(item.price).toFixed(2)}</p>
                 <div className="flex items-center gap-3 mt-3">
-                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="premium-qty-control">-</button>
+                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="premium-qty-control" type="button" aria-label={`Reducir cantidad de ${item.name}`}>-</button>
                   <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="premium-qty-control">+</button>
+                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="premium-qty-control" type="button" aria-label={`Aumentar cantidad de ${item.name}`}>+</button>
                 </div>
               </div>
-              <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors self-start mt-2"><span className="material-symbols-outlined text-xl">delete</span></button>
+              <button onClick={() => removeItem(item.id)} className="premium-cart-remove" type="button" aria-label={`Eliminar ${item.name} del carrito`}><span className="material-symbols-outlined text-xl" aria-hidden="true">delete</span></button>
             </div>
           ))}
         </div>

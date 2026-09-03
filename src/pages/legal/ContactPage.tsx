@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { SEO } from '../../components/SEO';
 import { toast } from 'react-hot-toast';
-import { useStoreConfig } from '../../hooks/useStoreConfig';
+import { Mail, MessageCircle, Send } from 'lucide-react';
+import { UixPageShell } from '../../components/uix/UixPageShell';
 
 export function ContactPage() {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: store } = useStoreConfig();
-  const themeColor = store?.config?.themeColor || '#6B705C';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,68 +17,54 @@ export function ContactPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
-      if (!res.ok) throw new Error('Failed to send message');
-      toast.success('Message sent successfully! We will get back to you soon.');
+      if (!res.ok) throw new Error('No fue posible enviar el mensaje');
+      toast.success('Mensaje enviado. Te responderemos lo antes posible.');
       setFormData({ name: '', email: '', message: '' });
-    } catch (err) {
-      toast.error('Could not send message. Please try again later.');
+    } catch {
+      toast.error('No pudimos enviar tu mensaje. Inténtalo nuevamente más tarde.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      <SEO title="Contáctanos" />
-      <div className="max-w-2xl mx-auto px-4 sm:px-8 py-8 sm:py-16">
-        <h1 className="text-3xl font-serif font-bold mb-4 text-center">Contáctanos</h1>
-        <p className="text-gray-500 text-center mb-12">¿Tienes alguna pregunta o comentario? Nos encantaría escucharte.</p>
-        
-        <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Nombre</label>
-            <input 
-              required
-              type="text" 
-              value={formData.name}
-              onChange={e => setFormData({...formData, name: e.target.value})}
-              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-opacity-50 outline-none"
-              style={{ outlineColor: themeColor, borderColor: themeColor }}
-              placeholder="Your name"
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Correo</label>
-            <input 
-              required
-              type="email" 
-              value={formData.email}
-              onChange={e => setFormData({...formData, email: e.target.value})}
-              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-opacity-50 outline-none"
-              placeholder="your@email.com"
-            />
-          </div>
-          <div className="mb-8">
-            <label className="block text-sm font-medium mb-2">Mensaje</label>
-            <textarea 
-              required
-              rows={5}
-              value={formData.message}
-              onChange={e => setFormData({...formData, message: e.target.value})}
-              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-opacity-50 outline-none resize-none"
-              placeholder="How can we help?"
-            />
-          </div>
-          <button 
-            type="submit" 
-            disabled={isSubmitting}
-            className="w-full py-4 text-white rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: themeColor }}
-          >
-            {isSubmitting ? 'Sending...' : 'Send Message'}
+    <UixPageShell mainClassName="uix-customer-page">
+      <SEO title="Contáctanos" description="Contacta al equipo de Selfcare Sinners para soporte de compras y pedidos." canonicalPath="/contact" />
+      <section className="uix-customer-hero">
+        <div>
+          <p className="uix-eyebrow">Soporte Selfcare Sinners</p>
+          <h1>Estamos para ayudarte</h1>
+          <p>Cuéntanos qué necesitas. Si tu consulta es sobre una compra, agrega tu ID de pedido para poder ayudarte más rápido.</p>
+        </div>
+        <div className="uix-contact-proof"><Mail size={18} /><span>Soporte por correo</span></div>
+      </section>
+
+      <section className="uix-contact-layout">
+        <aside className="uix-contact-side">
+          <MessageCircle size={24} />
+          <p className="uix-eyebrow">Antes de escribir</p>
+          <h2>Incluye contexto suficiente.</h2>
+          <p>Correo de compra, ID de pedido y una descripción concreta nos ayudan a resolver tu solicitud sin mensajes adicionales.</p>
+        </aside>
+
+        <form onSubmit={handleSubmit} className="uix-contact-form">
+          <label>
+            <span>Nombre</span>
+            <input required type="text" autoComplete="name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Tu nombre" />
+          </label>
+          <label>
+            <span>Correo</span>
+            <input required type="email" autoComplete="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="tu@email.com" />
+          </label>
+          <label>
+            <span>Mensaje</span>
+            <textarea required rows={6} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="¿Cómo podemos ayudarte?" />
+          </label>
+          <button type="submit" disabled={isSubmitting} className="uix-action-primary uix-contact-submit">
+            {isSubmitting ? 'Enviando...' : <><Send size={16} /> Enviar mensaje</>}
           </button>
         </form>
-      </div>
-    </>
+      </section>
+    </UixPageShell>
   );
 }

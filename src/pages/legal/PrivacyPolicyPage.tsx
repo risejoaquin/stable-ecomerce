@@ -1,26 +1,33 @@
 import React from 'react';
 import { SEO } from '../../components/SEO';
+import { UixPageShell } from '../../components/uix/UixPageShell';
+
+const sections = [
+  ['1. Información que recopilamos', 'Recopilamos la información que nos proporcionas directamente cuando creas o modificas tu cuenta, realizas una compra, solicitas soporte o te comunicas con nosotros. Esto puede incluir nombre, correo electrónico, teléfono, dirección postal, método de pago y cualquier otro dato que decidas proporcionar.'],
+  ['2. Uso de la información', 'Podemos usar la información recopilada para proporcionar, mantener y mejorar nuestros servicios; procesar pagos; enviar recibos y comunicaciones relacionadas con pedidos; prestar soporte; autenticar usuarios; desarrollar funciones de seguridad y comunicar actualizaciones administrativas o del servicio.'],
+  ['3. Intercambio de información', 'Podemos compartir información con proveedores que participan en la operación del servicio, por ejemplo procesamiento de pagos, correo transaccional, infraestructura y soporte. También puede existir información que decidas publicar voluntariamente en espacios públicos de nuestros servicios.'],
+];
 
 export function PrivacyPolicyPage() {
   return (
-    <>
-      <SEO title="Política de Privacidad" />
-      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-slate">
-        <h1 className="text-3xl font-serif font-bold mb-8">Política de Privacidad</h1>
-        <p className="mb-4 text-gray-600">Última actualización: {new Date().toLocaleDateString()}</p>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">1. Información que Recopilamos</h2>
-          <p className="text-gray-600">We collect information you provide directly to us, such as when you create or modify your account, request on-demand services, contact customer support, or otherwise communicate with us. This information may include: name, email, phone number, postal address, profile picture, payment method, and other information you choose to provide.</p>
-        </section>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">2. Uso de la Información</h2>
-          <p className="text-gray-600">We may use the information we collect about you to provide, maintain, and improve our services, including, for example, to facilitate payments, send receipts, provide products and services you request, develop new features, provide customer support to Users, develop safety features, authenticate users, and send product updates and administrative messages.</p>
-        </section>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">3. Intercambio de Información</h2>
-          <p className="text-gray-600">We may share the information we collect about you as described in this Statement or as described at the time of collection or sharing, including as follows: With third party Service Providers; With the general public if you submit content in a public forum, such as blog comments, social media posts, or other features of our Services that are viewable by the general public.</p>
-        </section>
-      </div>
-    </>
+    <UixPageShell mainClassName="uix-customer-page">
+      <SEO title="Política de Privacidad" description="Cómo Selfcare Sinners recopila, usa y protege la información de clientes." canonicalPath="/privacy" />
+      <section className="uix-customer-hero uix-legal-hero">
+        <div>
+          <p className="uix-eyebrow">Transparencia</p>
+          <h1>Política de Privacidad</h1>
+          <p>Información clara sobre los datos utilizados para operar tu cuenta, compra y soporte.</p>
+        </div>
+        <span className="uix-legal-updated">Última actualización: 3 de septiembre de 2026</span>
+      </section>
+      <section className="uix-legal-stack">
+        {sections.map(([title, body]) => (
+          <article key={title} className="uix-legal-card">
+            <h2>{title}</h2>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+    </UixPageShell>
   );
 }
