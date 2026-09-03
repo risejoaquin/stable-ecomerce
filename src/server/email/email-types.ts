@@ -18,7 +18,16 @@ export type EmailStatus =
   | 'sent'
   | 'failed'
   | 'failed_validation'
-  | 'suppressed';
+  | 'suppressed'
+  | 'queued'
+  | 'processing'
+  | 'delivered'
+  | 'bounced'
+  | 'complained'
+  | 'delivery_delayed'
+  | 'opened'
+  | 'clicked'
+  | 'cancelled';
 
 export type EmailSendInput = {
   to: string;

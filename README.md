@@ -1,3 +1,25 @@
+# EMAIL PRODUCTION B — Queue, Webhooks & Deliverability
+
+Entrega regenerada completa. Incluye cola formal de correos, locking, dedupe, retries, suppression list y webhook Resend.
+
+## Validación rápida
+
+```powershell
+Unblock-File .\scripts\qa\smoke-email-production-b.ps1
+.\scripts\qa\smoke-email-production-b.ps1
+npm install
+npm run build
+```
+
+## Migración
+
+```sql
+scripts/db/042_email_production_b_queue_webhooks_deliverability.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+---
+
 # EMAIL PRODUCTION A — Safety + Service Consolidation
 
 Entrega generada después de EMERGENCY-DRY-05. Consolida el servicio central de emails, políticas por propósito, request_id/dedupe_key, layout premium base y endpoint admin de health para email.

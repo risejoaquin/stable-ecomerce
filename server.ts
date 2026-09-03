@@ -21,6 +21,9 @@ import { EmailService } from './src/server/email/email-service.js';
 import { buildSoftPremiumEmailLayout } from './src/server/email/email-template-system.js';
 import { buildAppLink, escapeHtml, normalizeRecipientEmail, safeText } from './src/server/email/email-sanitize.js';
 import { writeEmailEvent } from './src/server/email/email-events.js';
+import { enqueueEmail } from './src/server/email/email-queue.js';
+import { processEmailQueueBatch } from './src/server/email/email-worker.js';
+import { processResendWebhookEvent } from './src/server/email/email-webhooks.js';
 
 // Setup Sentry
 Sentry.init({
@@ -3497,6 +3500,18 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     }
   }));
 
+
+
+  app.post('/api/webhooks/resend', express.json({ type: '*/*' }), asyncHandler(async (req: any, res) => {
+    try {
+      const result = await processResendWebhookEvent({ supabase, event: req.body || {} });
+      res.json({ received: true, ...result });
+    } catch (error: any) {
+      logger.error({ err: error }, 'Resend webhook processing failed');
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  }));
+
   app.get('/api/admin/email/events', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
     if (!supabase) return res.json({ data: [], total: 0 });
     try {
@@ -3518,6 +3533,39 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       mockAllowed: process.env.EMAIL_ALLOW_MOCKS === 'true' || process.env.NODE_ENV !== 'production',
       productionSafe: process.env.NODE_ENV !== 'production' || Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM)
     });
+  }));
+
+
+  app.get('/api/admin/email/queue', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ data: [], total: 0 });
+    const { data, count, error } = await supabase
+      .from('email_queue')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({ data: data || [], total: count || 0 });
+  }));
+
+  app.post('/api/admin/email/queue/process', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
+    if (!supabase) return res.json({ claimed: 0, results: [] });
+    const result = await processEmailQueueBatch({ supabase, emailService, logger });
+    res.json(result);
+  }));
+
+  app.post('/api/admin/email/queue/enqueue-test', requireAuth(), requireAdmin(), asyncHandler(async (req: any, res) => {
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+    const to = String(req.body?.to || req.user?.email || '').trim();
+    const subject = 'Prueba de cola de correo — Selfcare Sinners';
+    const html = buildSoftPremiumEmailLayout({
+      title: 'Correo de prueba',
+      preheader: 'Validación de Email Production B',
+      body: '<p>Este mensaje valida la cola de correos, dedupe y delivery worker.</p>',
+      ctaLabel: 'Abrir tienda',
+      ctaHref: buildAppLink('/')
+    });
+    const queued = await enqueueEmail({ supabase, input: { to, subject, html, purpose: 'generic', metadata: { source: 'admin_test_send' } } });
+    res.json({ queued });
   }));
 
   app.get('/api/admin/support/messages', requireAuth(), asyncHandler(async (_req: any, res) => {
