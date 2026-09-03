@@ -24,6 +24,7 @@ import { writeEmailEvent } from './src/server/email/email-events.js';
 import { enqueueEmail } from './src/server/email/email-queue.js';
 import { processEmailQueueBatch } from './src/server/email/email-worker.js';
 import { processResendWebhookEvent } from './src/server/email/email-webhooks.js';
+import { buildEmailTemplatePreview, listEmailTemplates } from './src/server/email/email-admin-center.js';
 
 // Setup Sentry
 Sentry.init({
@@ -3566,6 +3567,34 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     });
     const queued = await enqueueEmail({ supabase, input: { to, subject, html, purpose: 'generic', metadata: { source: 'admin_test_send' } } });
     res.json({ queued });
+  }));
+
+
+  app.get('/api/admin/email/templates', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
+    res.json({ data: listEmailTemplates(), total: listEmailTemplates().length });
+  }));
+
+  app.post('/api/admin/email/templates/preview', requireAuth(), requireAdmin(), asyncHandler(async (req: any, res) => {
+    const purpose = String(req.body?.purpose || 'generic') as any;
+    res.json(buildEmailTemplatePreview(purpose));
+  }));
+
+  app.post('/api/admin/email/send-test', requireAuth(), requireAdmin(), adminEmailLimiter, asyncHandler(async (req: any, res) => {
+    const to = normalizeRecipientEmail(req.body?.to || '');
+    if (!to || !to.includes('@')) return res.status(400).json({ error: 'Valid destination email required' });
+    const purpose = String(req.body?.purpose || 'generic') as any;
+    const preview = buildEmailTemplatePreview(purpose);
+    const queued = await enqueueEmail({
+      supabase,
+      input: {
+        to,
+        subject: preview.subject,
+        html: preview.html,
+        purpose,
+        metadata: { source: 'admin_email_center_test_send', template: purpose }
+      }
+    });
+    res.json({ success: true, queued });
   }));
 
   app.get('/api/admin/support/messages', requireAuth(), asyncHandler(async (_req: any, res) => {

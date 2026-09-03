@@ -33,6 +33,7 @@ import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
 import { AdminCommercialPage } from './pages/admin/AdminCommercialPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
+import { AdminEmailCenterPage } from './pages/admin/AdminEmailCenterPage';
 import { HomePage } from './pages/store/HomePage';
 import { ProfilePage } from './pages/store/ProfilePage';
 import { TrackOrderPage } from './pages/store/TrackOrderPage';
@@ -363,6 +364,7 @@ function AdminLayout() {
           <div className="ss-admin-nav-group">
             <p>Crecimiento</p>
             <Link to="/admin/commercial" className={navItemClass('/admin/commercial')}>Comercial</Link>
+            <Link to="/admin/email" className={navItemClass('/admin/email')}>Email Center</Link>
             <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
           </div>
         </nav>
@@ -449,6 +451,7 @@ export default function App() {
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="commercial" element={<AdminCommercialPage />} />
+            <Route path="email" element={<AdminEmailCenterPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
         </Routes>

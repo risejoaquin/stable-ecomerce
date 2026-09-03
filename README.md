@@ -333,3 +333,42 @@ ALLOWED_ORIGINS=https://selfcaresinners.com,https://www.selfcaresinners.com
 - No ejecutar `npm audit fix` a ciegas; revisar primero con `npm audit`.
 - No tocar Stripe/webhooks/Supabase sin smoke específico.
 - Los hotfixes DRY deben compilar antes de continuar UIX o Email Production.
+
+---
+
+# EMAIL PRODUCTION C — Admin Email Center + Premium Templates
+
+Estado objetivo: cerrar administración operativa del sistema de correos.
+
+Incluye:
+
+- `src/pages/admin/AdminEmailCenterPage.tsx`
+- `src/hooks/useAdminEmail.ts`
+- `src/server/email/email-admin-center.ts`
+- `scripts/db/043_email_production_c_admin_center_templates.sql`
+- `scripts/qa/smoke-email-production-c.ps1`
+- `docs/email/EMAIL_PRODUCTION_C_ADMIN_EMAIL_CENTER_PREMIUM_TEMPLATES.md`
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-email-production-c.ps1
+.\scripts\qa\smoke-email-production-c.ps1
+npm install
+npm run build
+```
+
+Migración:
+
+```sql
+scripts/db/043_email_production_c_admin_center_templates.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+Deploy:
+
+```powershell
+git add .
+git commit -m "Email Production C admin email center premium templates"
+git push origin main
+```

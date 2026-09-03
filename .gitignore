@@ -115,3 +115,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Email production local QA artifacts
+email-preview-*.html
+email-center-*.json
+email-queue-dump-*.json
+resend-webhook-sample-*.json
