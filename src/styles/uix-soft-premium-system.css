@@ -3331,3 +3331,26 @@ svg {
   .uix-product-grid { grid-template-columns: 1fr; }
   .uix-state-panel { align-items: flex-start; }
 }
+
+/* ===== PERFORMANCE/FRONTEND D: route splitting loading surface ===== */
+.uix-route-loading {
+  min-height: 42vh;
+  display: grid;
+  place-items: center;
+  gap: 0.85rem;
+  color: var(--color-text, #2f2b25);
+  background: var(--color-background, #f8f3ea);
+}
+
+.uix-route-loading__mark {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-primary, #686d57);
+  color: #fffaf0;
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.08em;
+  box-shadow: 0 18px 45px rgba(55, 48, 38, 0.14);
+}

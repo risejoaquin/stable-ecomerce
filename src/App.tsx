@@ -1,53 +1,54 @@
 import { SignIn, SignUp } from './components/AuthMock';
 
-import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
-import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
-import { ReturnPolicyPage } from './pages/legal/ReturnPolicyPage';
-import { ContactPage } from './pages/legal/ContactPage';
-import { NotFoundPage } from './pages/NotFoundPage';
 import { CookieConsent } from './components/CookieConsent';
 import { useAuthSafe as useAuth } from './hooks/useAuthSafe';
-import { RecoverCartPage } from './pages/store/RecoverCartPage';
-import { VerifyEmailPage } from './pages/store/VerifyEmailPage';
-import { WishlistPage } from './pages/store/WishlistPage';
 import { ThemeProvider } from './components/ThemeProvider';
 import { useValidateCoupon } from './hooks/useCoupon';
-import { CouponsPage } from './pages/admin/CouponsPage';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { ProductDetailPage } from './pages/store/ProductDetailPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { HelmetProvider } from 'react-helmet-async';
-import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } from './components/AuthMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
-import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { Suspense, useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { ProductsPage } from './pages/admin/ProductsPage';
-import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
-import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
-import { AdminCommercialPage } from './pages/admin/AdminCommercialPage';
-import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
-import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
-import { AdminEmailCenterPage } from './pages/admin/AdminEmailCenterPage';
-import { HomePage } from './pages/store/HomePage';
-import { ProfilePage } from './pages/store/ProfilePage';
-import { TrackOrderPage } from './pages/store/TrackOrderPage';
-import { MyOrdersPage } from './pages/store/MyOrdersPage';
-import { CheckoutSuccessPage } from './pages/store/CheckoutSuccessPage';
-import { ResetPasswordPage } from './pages/store/ResetPasswordPage';
-import { FaqPage } from './pages/store/FaqPage';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
-import type { Product, StoreConfig } from './types';
 import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
 import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
 import { trackMarketingEvent } from './lib/analytics';
 import { AdminCommandNav } from './components/admin/uix/AdminCommandNav';
+import {
+  LazyAdminCategoriesPage,
+  LazyAdminCommercialPage,
+  LazyAdminCustomersPage,
+  LazyAdminDashboard,
+  LazyAdminEmailCenterPage,
+  LazyAdminOrdersPage,
+  LazyAdminSettingsPage,
+  LazyCheckoutSuccessPage,
+  LazyContactPage,
+  LazyCouponsPage,
+  LazyFaqPage,
+  LazyHomePage,
+  LazyMyOrdersPage,
+  LazyNotFoundPage,
+  LazyPrivacyPolicyPage,
+  LazyProductDetailPage,
+  LazyProductsPage,
+  LazyProfilePage,
+  LazyRecoverCartPage,
+  LazyResetPasswordPage,
+  LazyReturnPolicyPage,
+  LazyTermsAndConditionsPage,
+  LazyTrackOrderPage,
+  LazyVerifyEmailPage,
+  LazyWishlistPage,
+} from './routes/lazy-routes';
 
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
@@ -369,33 +370,42 @@ function AdminLayout() {
 }
 
 
+function RouteLoadingFallback() {
+  return (
+    <div className="uix-route-loading" role="status" aria-live="polite">
+      <span className="uix-route-loading__mark">SS</span>
+      <p>Cargando experiencia...</p>
+    </div>
+  );
+}
 
 export default function App() {
   const routerContent = (
     <BrowserRouter>
       <CartProvider>
+        <Suspense fallback={<RouteLoadingFallback />} >
         <Routes>
           {/* Public Storefront */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/recover" element={<RecoverCartPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsAndConditionsPage />} />
-          <Route path="/returns" element={<ReturnPolicyPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/" element={<LazyHomePage />} />
+          <Route path="/recover" element={<LazyRecoverCartPage />} />
+          <Route path="/verify-email" element={<LazyVerifyEmailPage />} />
+          <Route path="/privacy" element={<LazyPrivacyPolicyPage />} />
+          <Route path="/terms" element={<LazyTermsAndConditionsPage />} />
+          <Route path="/returns" element={<LazyReturnPolicyPage />} />
+          <Route path="/contact" element={<LazyContactPage />} />
+          <Route path="/faq" element={<LazyFaqPage />} />
           <Route path="/sign-in/*" element={<SignIn />} />
           <Route path="/sign-up/*" element={<SignUp />} />
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="*" element={<LazyNotFoundPage />} />
   
-          <Route path="/product/:id" element={<ProductDetailPage />} />
-          <Route path="/product/:id/:slug" element={<ProductDetailPage />} />
-          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/track" element={<TrackOrderPage />} />
-          <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
-          <Route path="/profile" element={<SignedIn><ProfilePage /></SignedIn>} />
-          <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
+          <Route path="/product/:id" element={<LazyProductDetailPage />} />
+          <Route path="/product/:id/:slug" element={<LazyProductDetailPage />} />
+          <Route path="/checkout/success" element={<LazyCheckoutSuccessPage />} />
+          <Route path="/reset-password" element={<LazyResetPasswordPage />} />
+          <Route path="/track" element={<LazyTrackOrderPage />} />
+          <Route path="/my-orders" element={<SignedIn><LazyMyOrdersPage /></SignedIn>} />
+          <Route path="/profile" element={<SignedIn><LazyProfilePage /></SignedIn>} />
+          <Route path="/wishlist" element={<SignedIn><LazyWishlistPage /></SignedIn>} />
           
           {/* Admin Panel */}
           <Route path="/admin" element={
@@ -408,17 +418,18 @@ export default function App() {
               <SignedOut><RedirectToSignIn /></SignedOut>
             </>
           }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="categories" element={<AdminCategoriesPage />} />
-            <Route path="coupons" element={<CouponsPage />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
-            <Route path="customers" element={<AdminCustomersPage />} />
-            <Route path="commercial" element={<AdminCommercialPage />} />
-            <Route path="email" element={<AdminEmailCenterPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
+            <Route index element={<LazyAdminDashboard />} />
+            <Route path="products" element={<LazyProductsPage />} />
+            <Route path="categories" element={<LazyAdminCategoriesPage />} />
+            <Route path="coupons" element={<LazyCouponsPage />} />
+            <Route path="orders" element={<LazyAdminOrdersPage />} />
+            <Route path="customers" element={<LazyAdminCustomersPage />} />
+            <Route path="commercial" element={<LazyAdminCommercialPage />} />
+            <Route path="email" element={<LazyAdminEmailCenterPage />} />
+            <Route path="settings" element={<LazyAdminSettingsPage />} />
           </Route>
         </Routes>
+        </Suspense>
       </CartProvider>
       <CookieConsent />
     </BrowserRouter>
