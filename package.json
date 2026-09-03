@@ -33,7 +33,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
-    "dompurify": "^3.4.11",
+    "dompurify": "^3.4.14",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
@@ -50,7 +50,7 @@
     "react-dom": "^19.0.1",
     "react-helmet-async": "^3.0.0",
     "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.18.1",
+    "react-router-dom": "^7.18.2",
     "recharts": "^3.9.2",
     "resend": "^6.17.2",
     "stripe": "^22.3.0",
@@ -80,5 +80,15 @@
     "typescript": "~5.8.2",
     "vite-plugin-compression": "^0.5.1",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.9",
+    "browserslist": "4.28.8",
+    "ip-address": "10.5.0",
+    "nanoid": "3.3.18",
+    "postcss": "8.5.28",
+    "qs": "6.16.0",
+    "react-router": "7.18.2",
+    "undici": "7.29.0"
   }
 }
