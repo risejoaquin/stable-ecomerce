@@ -18,7 +18,9 @@ import multer from 'multer';
 import { z } from 'zod';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
 import { EmailService } from './src/server/email/email-service.js';
+import { buildSoftPremiumEmailLayout } from './src/server/email/email-template-system.js';
 import { buildAppLink, escapeHtml, normalizeRecipientEmail, safeText } from './src/server/email/email-sanitize.js';
+import { writeEmailEvent } from './src/server/email/email-events.js';
 
 // Setup Sentry
 Sentry.init({
@@ -3299,44 +3301,28 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
 
   // Post-launch 04: content, email, reviews and retention operations.
   function normalizeLifecycleEmail(value: any) {
-    return String(value || '').trim().toLowerCase();
+    return normalizeRecipientEmail(value);
   }
 
   function retentionEmailLayout(title: string, body: string, ctaLabel?: string, ctaHref?: string) {
-    const safeTitle = title || 'Selfcare Sinners';
-    const cta = ctaLabel && ctaHref ? `<p style="margin:28px 0"><a href="${ctaHref}" style="background:#111827;color:#ffffff;padding:12px 18px;border-radius:14px;text-decoration:none;font-weight:700">${ctaLabel}</a></p>` : '';
-    return `
-      <div style="font-family:Inter,Arial,sans-serif;background:#f8f4ef;padding:24px;color:#1f2937">
-        <div style="max-width:620px;margin:auto;background:#fff;border-radius:24px;padding:28px;border:1px solid #eadfd3">
-          <p style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#9a7b5f;margin:0 0 10px">Selfcare Sinners</p>
-          <h1 style="font-size:26px;margin:0 0 16px;color:#111827">${safeTitle}</h1>
-          <div style="font-size:15px;line-height:1.65;color:#374151">${body}</div>
-          ${cta}
-          <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-          <p style="font-size:12px;color:#6b7280;margin:0">Recibes este mensaje por tu compra, solicitud o suscripción en Selfcare Sinners.</p>
-        </div>
-      </div>`;
+    return buildSoftPremiumEmailLayout({ title, preheader: 'Actualización de tu experiencia Selfcare Sinners.', body, ctaLabel, ctaHref });
   }
 
   async function recordEmailEventSafe(payload: any) {
-    if (!supabase) return;
-    try {
-      await supabase.from('email_events').insert({
-        store_id: payload.store_id || null,
-        order_id: payload.order_id || null,
-        user_id: payload.user_id || null,
-        email: payload.email || null,
-        event_type: payload.event_type || 'transactional',
-        provider: 'resend',
-        provider_message_id: payload.provider_message_id || null,
-        subject: payload.subject || null,
-        status: payload.status || 'sent',
-        error_message: payload.error_message || null,
-        metadata: payload.metadata || {}
-      });
-    } catch (e) {
-      logger.error({ err: e }, 'Failed to record email event');
-    }
+    await writeEmailEvent({
+      supabase,
+      to: normalizeRecipientEmail(payload.email),
+      subject: String(payload.subject || 'Selfcare Sinners'),
+      purpose: payload.event_type || 'generic',
+      status: payload.status || 'sent',
+      providerId: payload.provider_message_id || null,
+      errorMessage: payload.error_message || null,
+      entityType: payload.order_id ? 'order' : payload.user_id ? 'user' : null,
+      entityId: payload.order_id || payload.user_id || null,
+      metadata: { ...(payload.metadata || {}), store_id: payload.store_id || null },
+      dedupeKey: payload.dedupe_key || payload.metadata?.dedupeKey || null,
+      requestId: payload.request_id || null
+    });
   }
 
   app.get('/api/public/content/pages', asyncHandler(async (req: any, res) => {
@@ -3511,7 +3497,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     }
   }));
 
-  app.get('/api/admin/email/events', requireAuth(), asyncHandler(async (_req: any, res) => {
+  app.get('/api/admin/email/events', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
     if (!supabase) return res.json({ data: [], total: 0 });
     try {
       const storeId = await getPrimaryStoreId();
@@ -3522,6 +3508,16 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  }));
+
+  app.get('/api/admin/email/service-health', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
+    res.json({
+      provider: 'resend',
+      configured: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM),
+      appUrl: buildAppLink('/').replace(/\/$/, ''),
+      mockAllowed: process.env.EMAIL_ALLOW_MOCKS === 'true' || process.env.NODE_ENV !== 'production',
+      productionSafe: process.env.NODE_ENV !== 'production' || Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM)
+    });
   }));
 
   app.get('/api/admin/support/messages', requireAuth(), asyncHandler(async (_req: any, res) => {
@@ -3537,7 +3533,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     }
   }));
 
-  app.post('/api/admin/orders/:id/review-request', requireAuth(), asyncHandler(async (req: any, res) => {
+  app.post('/api/admin/orders/:id/review-request', requireAuth(), requireAdmin(), asyncHandler(async (req: any, res) => {
     if (!supabase) return res.json({ success: true });
     try {
       const storeId = await getPrimaryStoreId();
@@ -3551,7 +3547,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       const reviewUrl = buildAppLink('/my-orders');
       const subject = '¿Cómo fue tu experiencia con Selfcare Sinners?';
       const html = retentionEmailLayout('Cuéntanos cómo te fue', '<p>Tu pedido ya avanzó en el flujo de entrega. Tu opinión ayuda a otros clientes a comprar con más confianza.</p><p>Deja una reseña honesta sobre tu experiencia y producto.</p>', 'Dejar reseña', reviewUrl);
-      const provider = await sendEmail({ to: email, subject, html, purpose: 'generic', entityType: 'order', entityId: orderId, throwOnError: false });
+      const provider = await sendEmail({ to: email, subject, html, purpose: 'review_request', entityType: 'order', entityId: orderId, metadata: { dedupeKey: `review_request:${orderId}:${email}` }, throwOnError: false });
       const status = provider?.success ? 'sent' : 'failed';
       const { data: requestRow, error: rrError } = await supabase.from('review_requests').upsert({
         store_id: storeId,
@@ -3562,7 +3558,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
         metadata: { provider }
       }, { onConflict: 'order_id,customer_email' }).select().single();
       if (rrError) throw rrError;
-      await recordEmailEventSafe({ store_id: storeId, order_id: orderId, email, event_type: 'review_request', subject, status, provider_message_id: provider?.id || null, error_message: provider?.error?.message || null, metadata: { reviewUrl } });
+      await recordEmailEventSafe({ store_id: storeId, order_id: orderId, email, event_type: 'review_request', subject, status, provider_message_id: provider?.id || null, error_message: provider?.error || null, metadata: { reviewUrl } });
       await supabase.from('lifecycle_events').insert({ store_id: storeId, order_id: orderId, email, event_type: 'review_request_sent', lifecycle_stage: 'post_purchase', status: status === 'sent' ? 'completed' : 'failed', completed_at: new Date().toISOString(), metadata: { reviewRequestId: requestRow?.id || null } });
       await writeAuditLog({ actorUserId: req.auth.userId, action: 'review_request_sent', entityType: 'order', entityId: orderId, metadata: { email, status } });
       res.json({ success: status === 'sent', status, reviewRequest: requestRow });

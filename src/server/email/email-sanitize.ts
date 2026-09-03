@@ -21,8 +21,22 @@ export function safeText(value?: unknown, fallback = ''): string {
   return escapeHtml(text || fallback);
 }
 
+export function safeSubject(value?: unknown, fallback = 'Selfcare Sinners'): string {
+  const text = String(value ?? fallback)
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return (text || fallback).slice(0, 180);
+}
+
+export function safeHtmlBody(value?: unknown): string {
+  const html = String(value ?? '').trim();
+  if (!html) return '';
+  return html;
+}
+
 export function getCanonicalAppUrl(): string {
-  const raw = process.env.VITE_APP_URL || process.env.APP_URL || 'https://selfcaresinners.com';
+  const raw = process.env.APP_URL || process.env.VITE_APP_URL || 'https://selfcaresinners.com';
   return String(raw).replace(/\/+$/, '');
 }
 

@@ -1,3 +1,25 @@
+# EMAIL PRODUCTION A — Safety + Service Consolidation
+
+Entrega generada después de EMERGENCY-DRY-05. Consolida el servicio central de emails, políticas por propósito, request_id/dedupe_key, layout premium base y endpoint admin de health para email.
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-email-production-a.ps1
+.\scripts\qa\smoke-email-production-a.ps1
+npm install
+npm run build
+```
+
+Migración Supabase:
+
+```sql
+scripts/db/041_email_production_a_safety_service_contract.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+---
+
 
 
 ---

@@ -6,8 +6,19 @@ export type EmailPurpose =
   | 'admin_new_order'
   | 'coupon_sent'
   | 'abandoned_cart_recovery'
+  | 'review_request'
+  | 'newsletter_welcome'
+  | 'support_received'
   | 'contact_admin'
   | 'generic';
+
+export type EmailStatus =
+  | 'requested'
+  | 'mocked'
+  | 'sent'
+  | 'failed'
+  | 'failed_validation'
+  | 'suppressed';
 
 export type EmailSendInput = {
   to: string;
@@ -18,11 +29,15 @@ export type EmailSendInput = {
   entityId?: string | null;
   metadata?: Record<string, unknown>;
   throwOnError?: boolean;
+  dedupeKey?: string;
 };
 
 export type EmailSendResult = {
   id?: string;
+  eventId?: string;
+  dedupeKey?: string;
   mocked?: boolean;
   success: boolean;
+  status?: EmailStatus;
   error?: string;
 };
