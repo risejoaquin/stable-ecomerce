@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell, CreditCard, Grid3X3, Heart, Home, LayoutDashboard, LogIn, LogOut, MapPin, Package, Settings, ShoppingBag, TicketPercent, UserRound, X } from 'lucide-react';
 import { SignInButton } from '../AuthMock';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
+import { logoutUser } from '../../lib/auth-session';
 
 const mobileAccountLinks = [
   { to: '/profile', label: 'Mi perfil', icon: UserRound },
@@ -15,13 +16,6 @@ const mobileAccountLinks = [
   { to: '/profile#configuracion', label: 'Configuración', icon: Settings },
 ];
 
-function closeSession() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('guest_email');
-  window.dispatchEvent(new Event('auth:logout'));
-  window.location.href = '/';
-}
 
 export function MobileEditorialNav({ cartCount = 0, onCartOpen }: { cartCount?: number; onCartOpen?: () => void }) {
   const [accountOpen, setAccountOpen] = React.useState(false);
@@ -90,7 +84,7 @@ export function MobileEditorialNav({ cartCount = 0, onCartOpen }: { cartCount?: 
               ))}
             </div>
 
-            <button type="button" className="ss-mobile-account-logout" onClick={closeSession}>
+            <button type="button" className="ss-mobile-account-logout" onClick={() => logoutUser({ redirectTo: '/' })}>
               <LogOut size={18} aria-hidden="true" />
               <span>Cerrar sesión</span>
             </button>

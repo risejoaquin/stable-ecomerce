@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Bell, CreditCard, Heart, LayoutDashboard, LogIn, LogOut, MapPin, Package, Settings, ShoppingBag, TicketPercent, UserRound } from 'lucide-react';
 import { SignInButton } from '../AuthMock';
 import { useAuthSafe } from '../../hooks/useAuthSafe';
+import { logoutUser } from '../../lib/auth-session';
 
 type EditorialHeaderProps = {
   cartCount?: number;
@@ -21,13 +22,6 @@ const accountLinks = [
   { to: '/profile#configuracion', label: 'Configuración', description: 'Seguridad y privacidad', icon: Settings },
 ];
 
-function closeSession() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('guest_email');
-  window.dispatchEvent(new Event('auth:logout'));
-  window.location.href = '/';
-}
 
 function AccountDropdown() {
   const { isSignedIn, role } = useAuthSafe();
@@ -105,7 +99,7 @@ function AccountDropdown() {
             ))}
           </div>
 
-          <button className="ss-account-logout" type="button" role="menuitem" onClick={closeSession}>
+          <button className="ss-account-logout" type="button" role="menuitem" onClick={() => logoutUser({ redirectTo: '/' })}>
             <LogOut size={17} aria-hidden="true" />
             <span>Cerrar sesión</span>
           </button>

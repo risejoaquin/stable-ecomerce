@@ -4221,19 +4221,8 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
     res.send(csv);
   }));
 
-  app.post('/api/admin/catalog/validate-import', requireAuth(), asyncHandler(async (req: any, res) => {
-    try {
-      const rows = Array.isArray(req.body?.products) ? req.body.products : parseCatalogCsvPL07(req.body?.csv || '');
-      const results = rows.map((row: any, index: number) => {
-        const validation = validateCatalogRowPL07(row);
-        return { rowNumber: row.row_number || index + 1, name: row.name || null, slug: slugify(row.slug || row.name || `row-${index + 1}`), ...validation };
-      });
-      const validRows = results.filter((r) => r.valid).length;
-      res.json({ status: 'ok', totalRows: rows.length, validRows, invalidRows: rows.length - validRows, results });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  }));
+  // EMERGENCY-DRY-01: duplicate /api/admin/catalog/validate-import removed.
+  // Keep the single canonical handler registered earlier in this file.
 
   app.post('/api/admin/catalog/bulk-import', requireAuth(), asyncHandler(async (req: any, res) => {
     if (!supabase) return res.json({ success: true, imported: 0 });

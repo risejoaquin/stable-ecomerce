@@ -1,3 +1,22 @@
+# EMERGENCY-DRY-01 — Route Collision + Centralized Logout
+
+Corrige duplicación crítica antes de continuar roadmap:
+
+- elimina ruta duplicada `POST /api/admin/catalog/validate-import`
+- centraliza logout en `src/lib/auth-session.ts`
+- hace que Header, MobileNav y AuthMock usen una sola función `logoutUser()`
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-emergency-dry-01.ps1
+.\scripts\qa\smoke-emergency-dry-01.ps1
+npm install
+npm run build
+```
+
+---
+
 # URGENT-FLOW-01 — Logout + Account Navigation Discoverability
 
 Cambio urgente previo a continuar el roadmap por macrofases.

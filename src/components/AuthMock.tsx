@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
 import { LogOut, User, Package, Heart, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { logoutUser } from '../lib/auth-session';
 
 // Un simple store global para el modal de auth
 let openAuthModal: ((mode: 'signin' | 'signup' | 'forgot-password') => void) | null = null;
@@ -196,10 +197,7 @@ export const UserButton = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSignOut = () => {
-    localStorage.removeItem('auth_token');
-    window.location.reload();
-  };
+  const handleSignOut = () => logoutUser({ redirectTo: '/' });
 
   return (
     <div className="relative" ref={dropdownRef}>
