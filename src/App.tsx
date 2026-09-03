@@ -203,11 +203,15 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
   const [appliedCoupon, setAppliedCoupon] = React.useState<any | null>(null);
   const [couponError, setCouponError] = React.useState('');
   const checkout = useCheckout(storeId);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
     if (!isCartOpen) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsCartOpen(false);
     };
@@ -215,6 +219,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
+      previousFocusRef.current?.focus();
     };
   }, [isCartOpen, setIsCartOpen]);
 
@@ -284,7 +289,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
             <h2 id="premium-cart-title" className="font-serif text-2xl font-black">Tu carrito</h2>
             <p className="text-sm opacity-60">{itemCount} artículo{itemCount === 1 ? '' : 's'} listo{itemCount === 1 ? '' : 's'} para checkout seguro.</p>
           </div>
-          <button onClick={() => setIsCartOpen(false)} className="premium-cart-close" type="button" aria-label="Cerrar carrito">&times;</button>
+          <button ref={closeButtonRef} onClick={() => setIsCartOpen(false)} className="premium-cart-close" type="button" aria-label="Cerrar carrito">&times;</button>
         </header>
 
         <div className="premium-cart-body">
@@ -316,15 +321,15 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
           <footer className="premium-cart-footer flex flex-col gap-4">
             {!isSignedIn && (
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Correo para checkout invitado</label>
-                <input type="email" placeholder="tu@email.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="premium-field text-sm" />
+                <label htmlFor="guest-checkout-email" className="block text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Correo para checkout invitado</label>
+                <input id="guest-checkout-email" type="email" placeholder="tu@email.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="premium-field text-sm" autoComplete="email" inputMode="email" />
               </div>
             )}
             <div className="flex gap-2">
               <input type="text" placeholder="Código promocional" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="premium-field flex-1 text-sm" id="coupon-input" />
-              <button onClick={validateCoupon} className="px-4 py-3 bg-gray-200 text-gray-800 rounded-2xl text-sm font-black hover:bg-gray-300 transition-colors">Aplicar</button>
+              <button type="button" onClick={validateCoupon} className="px-4 py-3 bg-gray-200 text-gray-800 rounded-2xl text-sm font-black hover:bg-gray-300 transition-colors">Aplicar</button>
             </div>
-            {couponError && <p className="text-sm text-red-600">{couponError}</p>}
+            {couponError && <p className="text-sm text-red-600" role="alert" aria-live="polite">{couponError}</p>}
             {isCouponActive && appliedCoupon && <p className="text-sm text-green-700 font-bold">Cupón {appliedCoupon.code} aplicado.</p>}
             <div className="flex flex-col gap-2 border-b border-gray-200 pb-4 text-sm">
               <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>MXN ${total.toFixed(2)}</span></div>
@@ -333,7 +338,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
             </div>
             <div className="flex justify-between font-black text-xl"><span>Total</span><span>MXN ${finalTotal.toFixed(2)}</span></div>
             <CheckoutConfidenceStrip />
-            <button onClick={startCheckout} disabled={checkout.isPending} style={{ backgroundColor: buttonColor || themeColor }} className="premium-primary-action mt-2">
+            <button type="button" onClick={startCheckout} disabled={checkout.isPending} aria-busy={checkout.isPending} style={{ backgroundColor: buttonColor || themeColor }} className="premium-primary-action mt-2">
               {checkout.isPending ? 'Procesando...' : 'Continuar a pago seguro'}
             </button>
             <ConversionMicrocopy type="checkout" />

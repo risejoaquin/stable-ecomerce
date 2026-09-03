@@ -7,6 +7,7 @@ import { useApiClient } from '../../api/useApiClient';
 import { UixPageShell } from '../../components/uix/UixPageShell';
 import { UixStatePanel } from '../../components/uix/UixStatePanel';
 import { UixStatusBadge } from '../../components/uix/UixStatusBadge';
+import { toast } from 'react-hot-toast';
 
 export function MyOrdersPage() {
   const apiClient = useApiClient();
@@ -22,12 +23,17 @@ export function MyOrdersPage() {
       return res.url;
     },
     onSuccess: (url) => {
+      if (!url || typeof url !== 'string') {
+        toast.error('No pudimos abrir el pago seguro. Intenta de nuevo.');
+        return;
+      }
       window.location.href = url;
-    }
+    },
+    onError: () => toast.error('No pudimos reanudar el pago. Intenta de nuevo.')
   });
 
   return (
-    <UixPageShell mainClassName="uix-customer-page">
+    <UixPageShell mainClassName="uix-customer-page" data-mobile-ux-e="orders-checkout-flow">
       <SEO title="Mis pedidos | Selfcare Sinners" />
       <section className="uix-customer-hero" data-uix-system-c="orders-hero">
         <div>

@@ -4392,3 +4392,19 @@ svg {
   .uix-admin-command-list-row__meta { min-width: 92px; }
   .uix-admin-data-table { min-width: 700px; }
 }
+
+
+/* ===== MOBILE/UX E — Checkout/Cart/Order Flow Mobile QA ===== */
+[data-mobile-ux-e="checkout-success-flow"] .uix-checkout-success__reference {
+  margin-top: .65rem;
+  color: #8d7867;
+  font-size: .78rem;
+}
+@media (max-width: 640px) {
+  .premium-cart-footer .premium-primary-action { min-height: 48px; }
+  .premium-cart-footer .premium-field { min-height: 46px; font-size: 16px; }
+  [data-mobile-ux-e="orders-checkout-flow"] .uix-order-card__footer { align-items: stretch; }
+  [data-mobile-ux-e="orders-checkout-flow"] .uix-order-card__footer > a,
+  [data-mobile-ux-e="orders-checkout-flow"] .uix-order-card__footer > button { justify-content: center; min-height: 46px; }
+}
+/* ===== END MOBILE/UX E ===== */

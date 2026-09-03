@@ -16,7 +16,7 @@ const labels: Record<string, string> = {
 export function TrackOrderPage() {
   const location = useLocation();
   const initialOrderId = useMemo(() => new URLSearchParams(location.search).get('order_id') || '', [location.search]);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('guest_email') || '' : '');
   const [orderId, setOrderId] = useState(initialOrderId);
   const [shouldFetch, setShouldFetch] = useState(false);
   const apiClient = useApiClient();
@@ -37,7 +37,7 @@ export function TrackOrderPage() {
   const isTerminal = ['cancelado', 'refunded'].includes(order?.status);
 
   return (
-    <UixPageShell mainClassName="uix-customer-page" data-mobile-ux-c="track-order-premium">
+    <UixPageShell mainClassName="uix-customer-page" data-mobile-ux-c="track-order-premium" data-mobile-ux-e="order-flow-qa">
       <SEO title="Rastrear pedido | Selfcare Sinners" description="Consulta el estado, timeline y tracking de tu pedido Selfcare Sinners." />
 
       <section className="uix-customer-hero uix-track-hero">

@@ -50,7 +50,7 @@ export function RecoverCartPage() {
   }, [token, navigate, setItems]);
 
   return (
-    <UixPageShell mainClassName="uix-customer-page" data-mobile-ux-c="recover-cart-premium">
+    <UixPageShell mainClassName="uix-customer-page" data-mobile-ux-c="recover-cart-premium" data-mobile-ux-e="recover-cart-flow">
       <SEO title="Recuperar carrito | Selfcare Sinners" description="Recupera de forma segura tu carrito Selfcare Sinners." />
       <section className="uix-auth-result-card">
         <div className={`uix-auth-result uix-auth-result--${status}`} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">
