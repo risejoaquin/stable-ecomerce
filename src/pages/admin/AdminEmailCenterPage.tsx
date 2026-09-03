@@ -47,7 +47,7 @@ export function AdminEmailCenterPage() {
   };
 
   return (
-    <div className="ss-email-center-page">
+    <div className="ss-email-center-page uix-admin-email-responsive" data-mobile-ux-d="email-center">
       <section className="ss-email-center-hero">
         <div>
           <p className="ss-admin-kicker">Email production center</p>

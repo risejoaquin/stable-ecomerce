@@ -23,7 +23,7 @@ export function AdminCommandNav() {
   }, {});
 
   return (
-    <aside className="uix-admin-command-nav" aria-label="Navegación de administración">
+    <aside className="uix-admin-command-nav" aria-label="Navegación de administración" data-mobile-ux-d="admin-nav">
       <div className="uix-admin-command-nav__brand">
         <span>SS</span>
         <div>
@@ -37,7 +37,7 @@ export function AdminCommandNav() {
           {items.map(({ to, label, icon: Icon }) => {
             const active = to === '/admin' ? location.pathname === to : location.pathname.startsWith(to);
             return (
-              <Link key={to} to={to} className={active ? 'is-active' : ''}>
+              <Link key={to} to={to} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}>
                 <Icon size={16} />
                 <span>{label}</span>
               </Link>

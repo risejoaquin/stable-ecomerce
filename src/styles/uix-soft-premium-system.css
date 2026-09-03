@@ -4259,3 +4259,136 @@ svg {
   .uix-account-auth-card__visual h1 { font-size: 2.15rem; }
   .uix-order-line strong:last-child { overflow-wrap: anywhere; }
 }
+
+
+/* ===== MOBILE/UX D: Admin Mobile/Tablet Adaptability ===== */
+.uix-admin-responsive-page {
+  min-width: 0;
+  padding: clamp(18px, 3vw, 40px);
+  overflow-x: clip;
+}
+.uix-admin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.uix-admin-responsive-state {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  color: #7c6d61;
+  font-weight: 800;
+}
+.uix-admin-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.uix-admin-data-table { min-width: 760px; }
+.uix-admin-modal-card { min-width: 0; }
+.uix-admin-email-responsive { min-width: 0; }
+
+@media (max-width: 1180px) {
+  .uix-admin-command-nav {
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(72, 51, 38, .12);
+    scrollbar-width: thin;
+  }
+  .uix-admin-command-nav__brand {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 4px 14px 4px 0;
+    border: 0;
+    border-right: 1px solid rgba(72, 51, 38, .12);
+    background: rgba(255, 252, 246, .96);
+  }
+  .uix-admin-command-nav nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0;
+  }
+  .uix-admin-command-nav nav p { display: none; }
+  .uix-admin-command-nav a {
+    min-height: 42px;
+    white-space: nowrap;
+    padding: 9px 11px;
+  }
+  .uix-admin-command-nav a:hover,
+  .uix-admin-command-nav a.is-active { transform: none; }
+  .uix-admin-topbar { position: sticky; top: 66px; z-index: 30; }
+  .uix-admin-command-chart-grid { grid-template-columns: 1fr; }
+  .ss-email-table { overflow-x: auto; }
+  .ss-email-table-head,
+  .ss-email-table-row { min-width: 680px; }
+}
+
+@media (max-width: 820px) {
+  .uix-admin-topbar {
+    top: 66px;
+    min-height: 0;
+    padding: 14px 16px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .uix-admin-topbar__actions { width: 100%; }
+  .uix-admin-topbar__actions button { flex: 1 1 150px; }
+  .uix-admin-content { padding: 14px; overflow-x: clip; }
+  .uix-admin-responsive-page { padding: 14px; }
+  .uix-admin-page-header { align-items: stretch; flex-direction: column; }
+  .uix-admin-page-header > button { width: 100%; justify-content: center; }
+  .uix-admin-inline-form { flex-direction: column; }
+  .uix-admin-inline-form > * { width: 100%; }
+  .uix-admin-orders-page > .flex.gap-2 { overflow-x: auto; padding-bottom: 6px; flex-wrap: nowrap; }
+  .uix-admin-orders-page > .flex.gap-2 > button { flex: 0 0 auto; }
+  .uix-admin-command-section,
+  .uix-admin-command-panel,
+  .uix-admin-command-hero,
+  .uix-admin-command-alert { border-radius: 24px; }
+  .uix-admin-command-chart { height: 240px; }
+  .uix-admin-modal-overlay { align-items: flex-end !important; padding: 0 !important; }
+  .uix-admin-modal-card {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 92dvh !important;
+    border-radius: 26px 26px 0 0 !important;
+    padding: 20px !important;
+  }
+  .uix-admin-modal-card .grid.grid-cols-2 { grid-template-columns: 1fr !important; }
+  .uix-admin-modal-card .col-span-2 { grid-column: auto !important; }
+  .uix-admin-settings-page > header button { width: 100%; justify-content: center; }
+  .uix-admin-settings-page > .flex.gap-6 { overflow-x: auto; gap: 14px; }
+  .uix-admin-settings-page > .flex.gap-6 > button { flex: 0 0 auto; white-space: nowrap; }
+}
+
+@media (max-width: 560px) {
+  .uix-admin-command-nav__brand small { display: none; }
+  .uix-admin-command-nav__brand > span { width: 38px; height: 38px; }
+  .uix-admin-command-nav a span { display: none; }
+  .uix-admin-command-nav a { width: 42px; padding: 0; justify-content: center; border-radius: 14px; }
+  .uix-admin-topbar { top: 62px; }
+  .uix-admin-command-hero h1 { font-size: clamp(30px, 10vw, 42px); }
+  .uix-admin-command-section__header,
+  .uix-admin-command-panel__header { flex-direction: column; }
+  .uix-admin-command-list-row { align-items: flex-start; }
+  .uix-admin-command-list-row__meta { min-width: 92px; }
+  .uix-admin-data-table { min-width: 700px; }
+}

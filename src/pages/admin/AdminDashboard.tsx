@@ -38,7 +38,7 @@ export function AdminDashboard() {
   const pendingOrders = Number(operations?.orders?.pending || 0);
 
   return (
-    <div className="uix-admin-command-center">
+    <div className="uix-admin-command-center" data-mobile-ux-d="command-center">
       <section className="uix-admin-command-hero">
         <div>
           <p className="uix-admin-eyebrow">UIX System B</p>

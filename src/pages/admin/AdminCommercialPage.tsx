@@ -48,7 +48,7 @@ export function AdminCommercialPage() {
   const campaignRows = Array.isArray(campaigns) ? campaigns : [];
 
   return (
-    <div className="p-4 sm:p-10 bg-[var(--color-background)] min-h-full flex flex-col gap-8">
+    <div className="uix-admin-responsive-page bg-[var(--color-background)] min-h-full flex flex-col gap-8" data-mobile-ux-d="commercial">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-[var(--color-primary)] font-bold mb-2">Post-launch 02</p>
@@ -79,10 +79,10 @@ export function AdminCommercialPage() {
           <BarChart3 size={20} className="text-gray-400" />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Product views</p><p className="font-bold text-xl">{conversion?.funnel?.productViews || 0}</p></div>
-          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Add to cart</p><p className="font-bold text-xl">{conversion?.funnel?.addToCart || 0}</p></div>
-          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Checkout started</p><p className="font-bold text-xl">{conversion?.funnel?.checkoutStarted || 0}</p></div>
-          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Revenue</p><p className="font-bold text-xl">MXN ${Number(conversion?.funnel?.revenue || 0).toFixed(2)}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Vistas de producto</p><p className="font-bold text-xl">{conversion?.funnel?.productViews || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Añadidos al carrito</p><p className="font-bold text-xl">{conversion?.funnel?.addToCart || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Checkout iniciado</p><p className="font-bold text-xl">{conversion?.funnel?.checkoutStarted || 0}</p></div>
+          <div className="rounded-xl bg-gray-50 p-4"><p className="text-xs text-gray-500">Ingresos</p><p className="font-bold text-xl">MXN ${Number(conversion?.funnel?.revenue || 0).toFixed(2)}</p></div>
         </div>
       </section>
 
@@ -107,7 +107,7 @@ export function AdminCommercialPage() {
             <BarChart3 size={20} className="text-gray-400" />
           </div>
           <div className="overflow-auto">
-            <table className="w-full text-left text-sm">
+            <table className="uix-admin-data-table w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
                 <tr>
                   <th className="p-4">Producto</th>

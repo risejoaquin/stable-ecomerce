@@ -18,10 +18,10 @@ export function ProductsPage() {
     mutationFn: (id: string) => apiClient.delete(`/admin/products/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      toast.success('Product deleted successfully');
+      toast.success('Producto eliminado correctamente');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete product');
+      toast.error(error.message || 'No se pudo eliminar el producto');
     }
   });
 
@@ -35,19 +35,19 @@ export function ProductsPage() {
   };
 
   return (
-    <div className="p-10 flex flex-col gap-6 h-full relative">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-2xl text-[var(--color-text)]">Products</h2>
+    <div className="uix-admin-responsive-page uix-admin-products-page flex flex-col gap-6 h-full relative" data-mobile-ux-d="products">
+      <div className="uix-admin-page-header">
+        <h2 className="font-serif text-2xl text-[var(--color-text)]">Productos</h2>
         <button 
           onClick={() => { setEditingProduct(null); setIsFormOpen(true); }}
           className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#5a5e4d] transition-colors"
         >
-          Add Product
+          Agregar producto
         </button>
       </div>
       <div className="bg-white rounded-[24px] border border-[#E5E5E1] flex-1 p-6 overflow-auto">
         {isLoading ? (
-          <p>Loading...</p>
+          <p className="uix-admin-responsive-state" role="status">Cargando productos...</p>
         ) : (
           <ProductTable 
             products={products || []} 

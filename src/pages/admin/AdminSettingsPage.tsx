@@ -102,7 +102,7 @@ export function AdminSettingsPage() {
   if (isLoading) return <div className="p-4 sm:p-10">Cargando configuración...</div>;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[var(--color-background)]">
+    <div className="uix-admin-responsive-page uix-admin-settings-page flex h-full flex-col overflow-hidden bg-[var(--color-background)]" data-mobile-ux-d="settings">
       <header className="px-4 sm:px-10 py-4 sm:py-6 border-b border-[#E5E5E1] bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
           <h2 className="font-serif text-2xl text-[var(--color-text)]">Personalización de Tienda</h2>

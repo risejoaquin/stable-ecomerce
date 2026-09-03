@@ -40,11 +40,11 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
     mutationFn: (data: any) => product ? apiClient.put(`/admin/products/${product.id}`, data) : apiClient.post('/admin/products', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      toast.success(product ? 'Product updated successfully' : 'Product created successfully');
+      toast.success(product ? 'Producto actualizado correctamente' : 'Producto creado correctamente');
       onClose();
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to save product');
+      toast.error(error.message || 'No se pudo guardar el producto');
     }
   });
 
@@ -69,7 +69,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
         toast.error(data.error);
       }
     } catch(err) {
-      toast.error('Upload failed');
+      toast.error('La carga falló');
     } finally {
       setUploading(false);
     }
@@ -90,11 +90,11 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-[24px] p-8 w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+    <div className="uix-admin-modal-overlay fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4" role="presentation">
+      <div className="uix-admin-modal-card bg-white rounded-[24px] p-8 w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="uix-product-form-title">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="font-serif text-2xl text-[var(--color-text)]">{product ? 'Edit Product' : 'New Product'}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-black">
+          <h3 id="uix-product-form-title" className="font-serif text-2xl text-[var(--color-text)]">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-black" type="button" aria-label="Cerrar formulario de producto">
             <X size={24} />
           </button>
         </div>
@@ -104,19 +104,19 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-bold text-[var(--color-secondary)] mb-1">Name</label>
+                <label className="block text-xs font-bold text-[var(--color-secondary)] mb-1">Nombre</label>
                 <input 
                   className="w-full bg-[var(--color-background)] border border-[#E5E5E1] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[var(--color-primary)]" 
                   value={name} onChange={e => setName(e.target.value)} 
-                  placeholder="E.g. T-Shirt"
+                  placeholder="Ej. Sérum hidratante"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-secondary)] mb-1">Brand</label>
+                <label className="block text-xs font-bold text-[var(--color-secondary)] mb-1">Marca</label>
                 <input 
                   className="w-full bg-[var(--color-background)] border border-[#E5E5E1] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[var(--color-primary)]" 
                   value={brand} onChange={e => setBrand(e.target.value)} 
-                  placeholder="E.g. Nike"
+                  placeholder="Ej. Selfcare Sinners"
                 />
               </div>
               <div>
@@ -338,7 +338,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
             disabled={saveProduct.isPending || !name}
             className="bg-[#1a1a1a] text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
-            {saveProduct.isPending ? 'Saving...' : 'Save Product'}
+            {saveProduct.isPending ? 'Guardando...' : 'Guardar producto'}
           </button>
         </div>
       </div>

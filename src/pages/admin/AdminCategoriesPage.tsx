@@ -83,7 +83,7 @@ export function AdminCategoriesPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
+    <div className="uix-admin-responsive-page max-w-4xl mx-auto" data-mobile-ux-d="categories">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="font-serif text-3xl font-bold text-[var(--color-text)]">Categorías</h2>
@@ -93,7 +93,7 @@ export function AdminCategoriesPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-[#E5E5E1] p-6 mb-8">
         <h3 className="font-bold mb-4">Añadir Nueva Categoría</h3>
-        <form onSubmit={handleAdd} className="flex gap-4">
+        <form onSubmit={handleAdd} className="uix-admin-inline-form flex gap-4">
           <input 
             type="text" 
             placeholder="Nombre de la categoría (ej. Zapatos)" 
@@ -115,7 +115,7 @@ export function AdminCategoriesPage() {
         {categories.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No hay categorías. Crea una arriba.</div>
         ) : (
-          <table className="w-full text-left">
+          <table className="uix-admin-data-table w-full text-left">
             <thead className="bg-gray-50 border-b border-[#E5E5E1]">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nombre</th>
