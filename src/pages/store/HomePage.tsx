@@ -14,24 +14,9 @@ import { EditorialProductCard } from '../../components/editorial/EditorialProduc
 import { EditorialLookbookSection } from '../../components/editorial/EditorialLookbookSection';
 import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
+import { trackMarketingEvent, trackPageView } from '../../lib/analytics';
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
-
-function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
-  try {
-    const sessionKey = 'ss_marketing_session_id';
-    let sessionId = localStorage.getItem(sessionKey);
-    if (!sessionId) {
-      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem(sessionKey, sessionId);
-    }
-    fetch('/api/analytics/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'skoot_editorial_storefront', metadata })
-    }).catch(() => undefined);
-  } catch (_) {}
-}
 
 export function HomePage() {
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
@@ -40,7 +25,7 @@ export function HomePage() {
   const { items, setIsCartOpen } = useCart();
 
   useEffect(() => {
-    trackMarketingEvent('page_view', { page: 'home', redesign: 'soft_premium_skincare' });
+    trackPageView('home', { redesign: 'soft_premium_skincare' }, { source: 'soft_premium_storefront' });
   }, []);
 
   if (isStoreLoading) return <div className="ss-editorial-shell flex items-center justify-center">Cargando Selfcare Sinners...</div>;
@@ -74,7 +59,7 @@ export function HomePage() {
                 Skincare consciente para resultados reales. Una experiencia cálida, clara y premium desde que descubres tu rutina hasta que completas tu compra.
               </p>
               <div className="ss-hero-actions">
-                <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click')}>Descubre tu rutina <ArrowRight size={16} /></a>
+                <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click', { page: 'home' }, { source: 'soft_premium_storefront' })}>Descubre tu rutina <ArrowRight size={16} /></a>
                 <a href="#lookbook" className="ss-btn-outline">Ver rituales <Eye size={16} /></a>
               </div>
             </div>

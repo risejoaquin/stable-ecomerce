@@ -19,22 +19,7 @@ import { EditorialHeader } from '../../components/editorial/EditorialHeader';
 import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { EditorialProductCard } from '../../components/editorial/EditorialProductCard';
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
-
-function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
-  try {
-    const sessionKey = 'ss_marketing_session_id';
-    let sessionId = localStorage.getItem(sessionKey);
-    if (!sessionId) {
-      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem(sessionKey, sessionId);
-    }
-    fetch('/api/analytics/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'skoot_editorial_product_detail', product_id: metadata.product_id, metadata })
-    }).catch(() => undefined);
-  } catch (_) {}
-}
+import { trackMarketingEvent } from '../../lib/analytics';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -54,7 +39,7 @@ export function ProductDetailPage() {
   });
 
   useEffect(() => {
-    if (id) trackMarketingEvent('product_view', { product_id: id, redesign: 'skoot_editorial' });
+    if (id) trackMarketingEvent('product_view', { product_id: id, redesign: 'skoot_editorial' }, { source: 'product_detail' });
   }, [id]);
 
   const { data: similarProductsResult } = useSearchProducts(
@@ -99,7 +84,7 @@ export function ProductDetailPage() {
         sku
       });
     }
-    trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price, quantity, variant: activeVariant?.name });
+    trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price, quantity, variant: activeVariant?.name }, { source: 'product_detail' });
     toast.success('Agregado al carrito');
     setIsCartOpen(true);
   };

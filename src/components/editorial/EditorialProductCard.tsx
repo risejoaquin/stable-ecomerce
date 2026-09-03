@@ -4,22 +4,7 @@ import { Heart, Plus } from 'lucide-react';
 import { productCanonicalPath } from '../../lib/seo';
 import { useCart } from '../../App';
 import { WishlistButton } from '../storefront/WishlistButton';
-
-function trackMarketingEvent(type: string, metadata: Record<string, any> = {}) {
-  try {
-    const sessionKey = 'ss_marketing_session_id';
-    let sessionId = localStorage.getItem(sessionKey);
-    if (!sessionId) {
-      sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem(sessionKey, sessionId);
-    }
-    fetch('/api/analytics/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_type: type, session_id: sessionId, source: 'editorial_storefront', metadata })
-    }).catch(() => undefined);
-  } catch (_) {}
-}
+import { trackMarketingEvent } from '../../lib/analytics';
 
 export function EditorialProductCard({ product }: { product: any }) {
   const { addItem } = useCart();
@@ -34,7 +19,7 @@ export function EditorialProductCard({ product }: { product: any }) {
       return;
     }
     addItem({ id: product.id, productId: product.id, name: product.name, price, quantity: 1, image: product.images?.[0] });
-    trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price });
+    trackMarketingEvent('add_to_cart', { product_id: product.id, product_name: product.name, price }, { source: 'product_card' });
     toast.success('Agregado al carrito');
   };
 
