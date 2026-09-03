@@ -1,24 +1,24 @@
-import { StoreHeader } from '../../components/storefront/StoreHeader';
-import { EmptyState } from '../../components/EmptyState';
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useApiClient } from '../../api/useApiClient';
+import { Package, Search, ShoppingBag, Truck } from 'lucide-react';
 import { SEO } from '../../components/SEO';
-import { useStoreConfig } from '../../hooks/useStoreConfig';
-import { Package, Search } from 'lucide-react';
+import { useApiClient } from '../../api/useApiClient';
+import { UixPageShell } from '../../components/uix/UixPageShell';
+import { UixStatePanel } from '../../components/uix/UixStatePanel';
+import { UixStatusBadge } from '../../components/uix/UixStatusBadge';
 
 export function MyOrdersPage() {
   const apiClient = useApiClient();
-  const { data: store } = useStoreConfig();
 
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading, error } = useQuery({
     queryKey: ['my-orders'],
     queryFn: () => apiClient.get('/orders/my'),
   });
 
   const resumeCheckout = useMutation({
     mutationFn: async (orderId: string) => {
-      const res = await apiClient.post("/checkout", { orderId });
+      const res = await apiClient.post('/checkout', { orderId });
       return res.url;
     },
     onSuccess: (url) => {
@@ -26,100 +26,83 @@ export function MyOrdersPage() {
     }
   });
 
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'pagado': return 'bg-emerald-100 text-emerald-800';
-      case 'empacado': return 'bg-purple-100 text-purple-800';
-      case 'enviado': return 'bg-blue-100 text-blue-800';
-      case 'entregado': return 'bg-teal-100 text-teal-800';
-      case 'cancelado': return 'bg-red-100 text-red-800';
-      case 'pendiente':
-      default: return 'bg-yellow-100 text-yellow-800';
-    }
-  };
-
-  const themeColor = store?.config?.themeColor || '#6B705C';
-
   return (
-    <div className="min-h-screen bg-[var(--color-background)] flex flex-col font-sans">
+    <UixPageShell mainClassName="uix-customer-page">
       <SEO title="Mis pedidos | Selfcare Sinners" />
-      <StoreHeader />
-      
-      <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 flex flex-col">
-        <h1 className="font-serif text-3xl mb-8 text-[var(--color-text)]">Mis Pedidos</h1>
-        
-        {isLoading ? <p className="text-gray-500">Cargando tus pedidos...</p> : (
-          orders?.length === 0 ? (
-            <div className="text-center py-20">
-              <Package size={48} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500 text-lg">No has realizado ningún pedido todavía.</p>
-              <a href="/" className="mt-4 inline-block text-[var(--color-primary)] hover:underline font-medium">Seguir comprando</a>
-            </div>
-          ) : (
-            <div className="grid gap-6">
-              {orders?.map((order: any) => (
-                <div key={order.id} className="bg-white p-6 rounded-2xl border border-[#E5E5E1]">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 pb-4 border-b border-gray-100">
-                    <div>
-                      <h2 className="text-lg font-bold">Pedido #{order.id.split('-')[0]}</h2>
-                      <p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString()}</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(order.status)}`}>
-                      {order.status.replace('_', ' ')}
-                    </span>
-                  </div>
+      <section className="uix-customer-hero" data-uix-system-c="orders-hero">
+        <div>
+          <p className="uix-eyebrow">Centro de cuenta</p>
+          <h1>Mis pedidos</h1>
+          <p>Consulta compras, tracking, pagos pendientes y el historial de productos que forman parte de tu ritual.</p>
+        </div>
+        <Link to="/track" className="uix-action-secondary"><Truck size={16} /> Rastrear pedido</Link>
+      </section>
 
-                  {order.tracking_number && (
-                    <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                      <p className="text-sm font-bold text-gray-700 mb-1">Tracking Number</p>
-                      <p className="font-mono text-gray-600">{order.tracking_number}</p>
-                    </div>
-                  )}
+      {isLoading && <UixStatePanel tone="loading" title="Cargando tus pedidos" description="Estamos preparando tu historial de compras." />}
+      {error && <UixStatePanel tone="error" title="No pudimos cargar tus pedidos" description="Intenta de nuevo o contacta soporte si el problema continúa." actionText="Ir a soporte" actionTo="/contact" />}
+      {!isLoading && !error && (!orders || orders.length === 0) && (
+        <UixStatePanel tone="empty" title="Todavía no tienes pedidos" description="Explora el catálogo y empieza tu primera rutina Selfcare Sinners." actionText="Seguir comprando" actionTo="/" />
+      )}
 
-                  <div className="space-y-4">
-                    {order.order_items?.map((item: any) => (
-                      <div key={item.id} className="flex items-center gap-4">
-                        {item.products?.images?.[0] ? (
-                          <img src={item.products.images[0]} alt="" className="w-12 h-12 rounded object-cover border" />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-gray-400"><Package size={20}/></div>
-                        )}
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.products?.name || 'Product'}</p>
-                          <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
-                        </div>
-                        <p className="font-medium text-sm">MXN ${(item.unit_price * item.quantity).toFixed(2)}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center gap-6 font-bold text-lg">
-                    {order.status === 'pendiente' ? (
-                      <button 
-                        onClick={() => resumeCheckout.mutate(order.id)}
-                        disabled={resumeCheckout.isPending && resumeCheckout.variables === order.id}
-                        className="bg-black text-white px-6 py-2 rounded-xl text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
-                      >
-                        {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Procesando...' : 'Completar pago'}
-                      </button>
-                    ) : (
-                      <a
-                        href={`/track?order_id=${order.id}`}
-                        className="inline-flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors"
-                      >
-                        <Search size={15} /> Rastrear
-                      </a>
-                    )}
-                    <div className="flex gap-6">
-                      <span className="text-gray-500">Total</span>
-                      <span>MXN ${Number(order.total).toFixed(2)}</span>
-                    </div>
+      {!isLoading && !error && orders?.length > 0 && (
+        <section className="uix-order-stack" data-uix-system-c="orders-list">
+          {orders.map((order: any) => (
+            <article key={order.id} className="uix-order-card">
+              <header className="uix-order-card__header">
+                <div>
+                  <p className="uix-eyebrow">Pedido #{String(order.id).split('-')[0]}</p>
+                  <h2>{new Date(order.created_at).toLocaleDateString()}</h2>
+                  <span>{order.order_items?.length || 0} producto{(order.order_items?.length || 0) === 1 ? '' : 's'}</span>
+                </div>
+                <UixStatusBadge status={order.status} />
+              </header>
+
+              {order.tracking_number && (
+                <div className="uix-order-card__tracking">
+                  <Truck size={17} />
+                  <div>
+                    <strong>Tracking</strong>
+                    <span>{order.tracking_number}</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )
-        )}
-      </div>
-    </div>
+              )}
+
+              <div className="uix-order-card__items">
+                {order.order_items?.map((item: any) => (
+                  <div key={item.id} className="uix-order-line">
+                    {item.products?.images?.[0] ? (
+                      <img src={item.products.images[0]} alt={item.products?.name || 'Producto'} loading="lazy" />
+                    ) : (
+                      <div className="uix-order-line__placeholder"><Package size={18} /></div>
+                    )}
+                    <div>
+                      <strong>{item.products?.name || item.product_snapshot?.name || 'Producto'}</strong>
+                      <span>Cantidad: {item.quantity}</span>
+                    </div>
+                    <strong>MXN ${(Number(item.unit_price) * Number(item.quantity)).toFixed(2)}</strong>
+                  </div>
+                ))}
+              </div>
+
+              <footer className="uix-order-card__footer">
+                {order.status === 'pendiente' ? (
+                  <button
+                    type="button"
+                    onClick={() => resumeCheckout.mutate(order.id)}
+                    disabled={resumeCheckout.isPending && resumeCheckout.variables === order.id}
+                    className="uix-action-primary"
+                  >
+                    <ShoppingBag size={16} /> {resumeCheckout.isPending && resumeCheckout.variables === order.id ? 'Procesando...' : 'Completar pago'}
+                  </button>
+                ) : (
+                  <Link to={`/track?order_id=${order.id}`} className="uix-action-secondary"><Search size={16} /> Rastrear</Link>
+                )}
+                <div className="uix-order-total"><span>Total</span><strong>MXN ${Number(order.total).toFixed(2)}</strong></div>
+              </footer>
+            </article>
+          ))}
+        </section>
+      )}
+    </UixPageShell>
   );
 }

@@ -126,3 +126,5 @@ resend-webhook-sample-*.json
 *.local-preview.png
 *.visual-diff.png
 .uix-cache/
+# UIX / generated local artifacts
+*.local-screenshot.png

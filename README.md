@@ -1,3 +1,34 @@
+
+
+---
+
+# UIX SYSTEM C — Full Storefront/Admin/Profile Consistency Polish
+
+Estado objetivo: cerrar consistencia visual y funcional entre storefront, perfil, wishlist, pedidos, FAQ, carrito y admin.
+
+## Validación rápida
+
+```powershell
+Unblock-File .\scripts\qa\smoke-uix-system-c.ps1
+.\scripts\qa\smoke-uix-system-c.ps1
+npm install
+npm run build
+```
+
+## Cambios principales
+
+- `src/components/uix/UixPageShell.tsx`
+- `src/components/uix/UixStatePanel.tsx`
+- `src/components/uix/UixStatusBadge.tsx`
+- `/my-orders` alineado a UIX soft premium
+- `/wishlist` alineado a UIX soft premium
+- `/faq` alineado a UIX soft premium
+- estados loading/empty/error/success centralizados
+- badges de estado centralizados
+- CSS canónico actualizado en `src/styles/uix-soft-premium-system.css`
+
+No toca Stripe, Supabase, webhooks, pagos ni backend crítico.
+
 # EMAIL PRODUCTION B — Queue, Webhooks & Deliverability
 
 Entrega regenerada completa. Incluye cola formal de correos, locking, dedupe, retries, suppression list y webhook Resend.

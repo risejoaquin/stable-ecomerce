@@ -1,7 +1,8 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { StoreHeader } from '../../components/storefront/StoreHeader';
+import { Mail } from 'lucide-react';
 import { SEO } from '../../components/SEO';
-import { useStoreConfig } from '../../hooks/useStoreConfig';
+import { UixPageShell } from '../../components/uix/UixPageShell';
 
 const faqs = [
   ['¿Necesito crear cuenta para comprar?', 'No. Puedes comprar como invitado con tu correo. Si tienes cuenta, tus pedidos quedan vinculados a Mi cuenta.'],
@@ -23,32 +24,33 @@ const faqJsonLd = {
 };
 
 export function FaqPage() {
-  const { data: store } = useStoreConfig();
-  const themeColor = store?.config?.themeColor || '#6B705C';
   return (
-    <div className="min-h-screen bg-[var(--color-background)] flex flex-col">
+    <UixPageShell mainClassName="uix-customer-page">
       <SEO title="FAQ" description="Preguntas frecuentes de compra, pagos, pedidos, rastreo y devoluciones." canonicalPath="/faq" jsonLd={faqJsonLd} />
-      <StoreHeader />
-      <main className="max-w-4xl mx-auto w-full px-4 sm:px-8 py-12">
-        <p className="text-xs uppercase tracking-[0.25em] font-black opacity-50 mb-3">Ayuda</p>
-        <h1 className="font-serif text-4xl sm:text-5xl mb-4">Preguntas frecuentes</h1>
-        <p className="opacity-70 mb-8">Información clara para comprar en Selfcare Sinners con menos fricción.</p>
-        <div className="space-y-4">
-          {faqs.map(([q, a]) => (
-            <article key={q} className="bg-white border border-[#E5E5E1] rounded-3xl p-6">
-              <h2 className="font-black text-lg mb-2">{q}</h2>
-              <p className="opacity-70 leading-relaxed">{a}</p>
-            </article>
-          ))}
+      <section className="uix-customer-hero" data-uix-system-c="faq-hero">
+        <div>
+          <p className="uix-eyebrow">Ayuda</p>
+          <h1>Preguntas frecuentes</h1>
+          <p>Información clara para comprar, pagar, rastrear y solicitar ayuda sin fricción.</p>
         </div>
-        <div className="mt-8 bg-white border border-[#E5E5E1] rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="font-black text-xl">¿No encontraste respuesta?</h2>
-            <p className="opacity-65">Escríbenos desde contacto y agrega tu ID de pedido si aplica.</p>
-          </div>
-          <Link to="/contact" className="px-5 py-3 rounded-2xl text-white font-black" style={{ backgroundColor: themeColor }}>Contactar</Link>
+        <Link to="/contact" className="uix-action-secondary"><Mail size={16} /> Contactar soporte</Link>
+      </section>
+      <section className="uix-faq-grid" data-uix-system-c="faq-grid">
+        {faqs.map(([q, a]) => (
+          <article key={q} className="uix-faq-card">
+            <h2>{q}</h2>
+            <p>{a}</p>
+          </article>
+        ))}
+      </section>
+      <section className="uix-support-cta">
+        <div>
+          <p className="uix-eyebrow">Soporte real</p>
+          <h2>¿No encontraste respuesta?</h2>
+          <p>Escríbenos desde contacto y agrega tu ID de pedido si aplica.</p>
         </div>
-      </main>
-    </div>
+        <Link to="/contact" className="uix-action-primary">Contactar</Link>
+      </section>
+    </UixPageShell>
   );
 }
