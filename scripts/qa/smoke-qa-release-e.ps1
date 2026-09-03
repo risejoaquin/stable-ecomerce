@@ -36,6 +36,10 @@ Assert-File "docs\release\ACCESSIBILITY_RESPONSIVE_FINAL_CHECKLIST.md" "accessib
 
 Assert-Contains "src\App.tsx" "Suspense" "App uses React Suspense"
 Assert-Contains "vite.config.ts" "manualChunks" "Vite manualChunks configured"
+
+$viteConfig = Get-Content "vite.config.ts" -Raw
+if ($viteConfig -match "vendor-react") { Fail "Vite config must not generate vendor-react circular chunk" } else { Pass "Vite vendor-react circular chunk removed" }
+if ($viteConfig -match "Cannot set properties of undefined") { Pass "Vite blank screen regression is documented" } else { Fail "Vite blank screen regression note missing" }
 Assert-Contains "src\styles\uix-soft-premium-system.css" "QA RELEASE E" "QA release CSS marker exists"
 Assert-Contains "src\components\qa\FinalReleaseReadinessPanel.tsx" "QA / RELEASE E" "final release panel labels phase"
 Assert-Contains "src\components\qa\FinalReleaseReadinessPanel.tsx" "Email production" "final release panel covers email production"
@@ -47,8 +51,8 @@ Assert-Contains "src\lib\auth-session.ts" "logoutUser" "Central logout remains a
 
 if ($BaseUrl.Trim().Length -gt 0) {
   try {
-    $home = Invoke-WebRequest -Uri $BaseUrl -UseBasicParsing -TimeoutSec 20
-    if ($home.StatusCode -ge 200 -and $home.StatusCode -lt 400) { Pass "production home responds" } else { Fail "production home returned $($home.StatusCode)" }
+    $homeResponse = Invoke-WebRequest -Uri $BaseUrl -UseBasicParsing -TimeoutSec 20
+    if ($homeResponse.StatusCode -ge 200 -and $homeResponse.StatusCode -lt 400) { Pass "production home responds" } else { Fail "production home returned $($homeResponse.StatusCode)" }
   } catch {
     Fail "production home request failed: $($_.Exception.Message)"
   }

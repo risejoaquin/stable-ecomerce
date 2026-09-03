@@ -92,3 +92,45 @@ npm run build
 - QA/RELEASE E: preparado para cierre
 
 Resultado esperado: `PASS qa release e final regression accessibility production closure checks`.
+
+
+## QA RELEASE E HOTFIX 01 — PowerShell production smoke variable fix
+
+Corrige el smoke `scripts/qa/smoke-qa-release-e.ps1` para no usar `$home`, porque en PowerShell `HOME` es una variable reservada/constante en algunos entornos.
+
+Cambio aplicado:
+
+- `$home` -> `$homeResponse`
+
+Validación esperada:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+```
+
+Resultado esperado adicional:
+
+```txt
+PASS production home responds
+PASS qa release e final regression accessibility production closure checks
+```
+
+
+## QA RELEASE E HOTFIX 02 — Vite Vendor Circular Chunk
+
+Corrige el blank screen de producción causado por la advertencia de Rollup/Vite:
+
+```txt
+Circular chunk: vendor -> vendor-react -> vendor
+```
+
+La corrección deja React, React DOM, React Router y lucide-react dentro del mismo chunk `vendor` para evitar inicialización circular entre chunks.
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+npm run build
+```

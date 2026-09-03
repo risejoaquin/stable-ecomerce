@@ -13,17 +13,32 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor-react';
-              if (id.includes('@tanstack')) return 'vendor-query';
-              if (id.includes('recharts')) return 'vendor-charts';
-              if (id.includes('lucide-react')) return 'vendor-icons';
-              if (id.includes('@supabase') || id.includes('@stripe')) return 'vendor-commerce';
+            const normalizedId = id.replace(/\\/g, '/');
+
+            if (normalizedId.includes('/node_modules/')) {
+              // Keep React, React DOM, React Router and lucide-react inside the same
+              // stable vendor chunk. Splitting those libraries separately caused a
+              // production-only circular chunk in Rollup and a blank screen in the
+              // browser with: Cannot set properties of undefined (setting 'Activity').
+              if (
+                normalizedId.includes('/react/') ||
+                normalizedId.includes('/react-dom/') ||
+                normalizedId.includes('/react-router/') ||
+                normalizedId.includes('/react-router-dom/') ||
+                normalizedId.includes('/lucide-react/')
+              ) {
+                return 'vendor';
+              }
+
+              if (normalizedId.includes('/@tanstack/')) return 'vendor-query';
+              if (normalizedId.includes('/recharts/')) return 'vendor-charts';
+              if (normalizedId.includes('/@supabase/') || normalizedId.includes('/@stripe/')) return 'vendor-commerce';
               return 'vendor';
             }
-            if (id.includes('/src/pages/admin/')) return 'admin-pages';
-            if (id.includes('/src/pages/store/')) return 'storefront-pages';
-            if (id.includes('/src/server/email/') || id.includes('/src/hooks/useAdminEmail')) return 'email-admin';
+
+            if (normalizedId.includes('/src/pages/admin/')) return 'admin-pages';
+            if (normalizedId.includes('/src/pages/store/')) return 'storefront-pages';
+            if (normalizedId.includes('/src/server/email/') || normalizedId.includes('/src/hooks/useAdminEmail')) return 'email-admin';
           },
         },
       },
