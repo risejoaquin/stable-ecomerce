@@ -47,6 +47,7 @@ import type { Product, StoreConfig } from './types';
 import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
 import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
 import { trackMarketingEvent } from './lib/analytics';
+import { AdminCommandNav } from './components/admin/uix/AdminCommandNav';
 
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
@@ -330,80 +331,43 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
 
 function AdminLayout() { 
   const { user } = useUser();
-  const location = useLocation();
-
-  const navItemClass = (path: string) => {
-    const isActive = location.pathname === path;
-    return `ss-admin-nav-link px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'is-active' : ''}`;
-  };
 
   return (
-    <div className="ss-admin-shell flex flex-col md:flex-row min-h-screen font-sans">
-      <aside className="ss-admin-sidebar w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r py-6 md:py-10 px-6 flex flex-col shrink-0">
-        <div className="ss-admin-sidebar-head mb-8">
-          <span className="ss-admin-console-pill">Admin</span>
-          <h1 className="ss-admin-brand text-2xl">Selfcare Sinners</h1>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Operations Console</p>
-        </div>
-        <nav className="ss-admin-nav flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
-          <div className="ss-admin-nav-group">
-            <p>Command center</p>
-            <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
-          </div>
-          <div className="ss-admin-nav-group">
-            <p>Operación</p>
-            <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
-            <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
-          </div>
-          <div className="ss-admin-nav-group">
-            <p>Catálogo</p>
-            <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
-            <Link to="/admin/categories" className={navItemClass('/admin/categories')}>Categorías</Link>
-            <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
-          </div>
-          <div className="ss-admin-nav-group">
-            <p>Crecimiento</p>
-            <Link to="/admin/commercial" className={navItemClass('/admin/commercial')}>Comercial</Link>
-            <Link to="/admin/email" className={navItemClass('/admin/email')}>Email Center</Link>
-            <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
-          </div>
-        </nav>
-        <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
-          <div className="flex items-center gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[var(--color-secondary)]"></div>
-                <div>
-                  <p className="text-sm font-bold">{user?.fullName || 'Elena Moss'}</p>
-                  <p className="text-[11px] opacity-60">Store Owner • {user?.id?.slice(0,8) || 'Admin'}</p>
-                </div>
-              </div>
-          </div>
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="ss-admin-header h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b shrink-0">
+    <div className="uix-admin-shell">
+      <AdminCommandNav />
+      <main className="uix-admin-main">
+        <header className="uix-admin-topbar">
           <div>
-            <p className="ss-admin-kicker">Panel organizado</p>
-            <h2 className="ss-soft-serif text-xl">Selfcare Sinners Admin</h2>
+            <p className="uix-admin-eyebrow">Panel organizado</p>
+            <h2>Selfcare Sinners Admin</h2>
+            <span>{user?.fullName || 'Administrador'} · Operations console</span>
           </div>
-          <div className="flex gap-3 flex-wrap">
-            <button onClick={() => {
-              toast.promise(queryClient.invalidateQueries(), {
-                loading: 'Syncing catalog...',
-                success: 'Catalog synced successfully!',
-                error: 'Failed to sync catalog'
-              });
-            }} className="ss-account-secondary text-xs">Sync Catalog</button>
-            <button onClick={() => window.open('/', '_blank')} className="ss-account-action text-xs">View Live Store</button>
+          <div className="uix-admin-topbar__actions">
+            <button
+              onClick={() => {
+                toast.promise(queryClient.invalidateQueries(), {
+                  loading: 'Sincronizando datos...',
+                  success: 'Datos actualizados.',
+                  error: 'No se pudieron actualizar los datos'
+                });
+              }}
+              className="uix-admin-secondary-action"
+            >
+              Sincronizar
+            </button>
+            <button onClick={() => window.open('/', '_blank')} className="uix-admin-primary-action">
+              Ver tienda
+            </button>
           </div>
         </header>
-        <div className="flex-1 overflow-auto">
+        <div className="uix-admin-content">
           <Outlet />
         </div>
       </main>
     </div>
   );
 }
+
 
 
 export default function App() {

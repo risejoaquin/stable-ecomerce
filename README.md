@@ -393,3 +393,33 @@ Unblock-File .\scripts\qa\smoke-uix-system-a.ps1
 .\scripts\qa\smoke-uix-system-a.ps1
 npm run build
 ```
+
+---
+
+# UIX SYSTEM B — Admin Command Center Architecture
+
+Estado objetivo: reorganizar el panel de administración como command center operativo.
+
+Incluye:
+
+- `src/components/admin/uix/AdminCommandNav.tsx`
+- `src/components/admin/uix/AdminCommandAlert.tsx`
+- `src/components/admin/uix/AdminCommandSection.tsx`
+- `src/components/admin/uix/AdminCommandMetric.tsx`
+- `src/components/admin/uix/AdminCommandPanel.tsx`
+- `src/components/admin/uix/AdminCommandList.tsx`
+- `src/pages/admin/AdminDashboard.tsx`
+- `docs/design/UIX_SYSTEM_B_ADMIN_COMMAND_CENTER_ARCHITECTURE.md`
+- `scripts/qa/smoke-uix-system-b.ps1`
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-uix-system-b.ps1
+.\scripts\qa\smoke-uix-system-b.ps1
+npm install
+npm run build
+```
+
+Resultado esperado: `PASS uix system b admin command center checks`.
+

@@ -1,33 +1,20 @@
 import React from 'react';
-import { useAdminSales, useTopProducts, useRecentOrders, useCouponsAnalytics, useOperationsSummary } from '../../hooks/useAnalytics';
-import { AlertTriangle, Activity, DollarSign, ShoppingCart, TrendingUp, Users, Tag, Package, ShieldCheck, Zap } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Activity, AlertTriangle, DollarSign, Package, ShoppingCart, ShieldCheck, Tag, TrendingUp, Users, Zap } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useAdminSales, useCouponsAnalytics, useOperationsSummary, useRecentOrders, useTopProducts } from '../../hooks/useAnalytics';
+import { AdminCommandAlert } from '../../components/admin/uix/AdminCommandAlert';
+import { AdminCommandList, AdminCommandListRow } from '../../components/admin/uix/AdminCommandList';
+import { AdminCommandMetric } from '../../components/admin/uix/AdminCommandMetric';
+import { AdminCommandPanel } from '../../components/admin/uix/AdminCommandPanel';
+import { AdminCommandSection } from '../../components/admin/uix/AdminCommandSection';
 
-const formatCurrency = (val: number) => `MXN $${Number(val || 0).toFixed(2)}`;
-
-const MetricCard = ({ title, value, note, icon: Icon, tone = 'neutral' }: any) => (
-  <div className={`ss-admin-metric-card ${tone}`}>
-    <div className="ss-admin-metric-icon"><Icon size={20} /></div>
-    <div className="min-w-0">
-      <p className="ss-admin-kicker">{title}</p>
-      <p className="ss-admin-metric-value">{value}</p>
-      {note && <p className="ss-admin-muted">{note}</p>}
-    </div>
-  </div>
-);
-
-const Panel = ({ title, eyebrow, action, children, className = '' }: any) => (
-  <section className={`ss-admin-panel ${className}`}>
-    <div className="ss-admin-panel-head">
-      <div>
-        {eyebrow && <p className="ss-admin-kicker">{eyebrow}</p>}
-        <h3>{title}</h3>
-      </div>
-      {action && <span className="ss-admin-panel-action">{action}</span>}
-    </div>
-    {children}
-  </section>
-);
+const formatCurrency = (value: number | string | null | undefined) => `MXN $${Number(value || 0).toFixed(2)}`;
+const formatStatus = (value?: string) => String(value || 'pendiente').replace(/_/g, ' ');
+const formatDate = (value?: string) => {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-MX');
+};
 
 export function AdminDashboard() {
   const { data: sales, isLoading: isSalesLoading } = useAdminSales();
@@ -37,184 +24,152 @@ export function AdminDashboard() {
   const { data: operations, isLoading: isOperationsLoading } = useOperationsSummary();
 
   if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading || isOperationsLoading) {
-    return <div className="ss-admin-loading">Cargando command center...</div>;
+    return <div className="uix-admin-loading">Cargando command center...</div>;
   }
 
-  const alertCount = operations?.alerts?.length || 0;
-  const lowStock = operations?.inventory?.lowStockProducts || [];
-  const stripeEvents = operations?.recentStripeEvents || [];
-  const auditEvents = operations?.recentAuditLogs || operations?.audit?.recent || [];
+  const alerts = Array.isArray(operations?.alerts) ? operations.alerts : [];
+  const lowStock = Array.isArray(operations?.inventory?.lowStockProducts) ? operations.inventory.lowStockProducts : [];
+  const stripeEvents = Array.isArray(operations?.recentStripeEvents) ? operations.recentStripeEvents : [];
+  const auditEvents = Array.isArray(operations?.recentAuditLogs) ? operations.recentAuditLogs : Array.isArray(operations?.audit?.recent) ? operations.audit.recent : [];
   const top = Array.isArray(topProducts) ? topProducts : [];
-  const activeCoupons = Array.isArray(coupons) ? coupons.filter((c: any) => c.current_uses > 0) : [];
+  const recent = Array.isArray(recentOrders) ? recentOrders : [];
+  const activeCoupons = Array.isArray(coupons) ? coupons.filter((coupon: any) => Number(coupon.current_uses || 0) > 0) : [];
+  const failedWebhooks = Number(operations?.payments?.failedStripeEvents || 0);
+  const pendingOrders = Number(operations?.orders?.pending || 0);
 
   return (
-    <div className="ss-admin-dashboard">
-      <section className="ss-admin-hero-panel">
+    <div className="uix-admin-command-center">
+      <section className="uix-admin-command-hero">
         <div>
-          <p className="ss-admin-kicker">Operations command center</p>
-          <h1>Panel ejecutivo de tienda</h1>
-          <p className="ss-admin-hero-copy">
-            Revenue, pedidos, inventario, webhooks y actividad operativa organizados por prioridad. Lo urgente primero, lo analítico después.
+          <p className="uix-admin-eyebrow">UIX System B</p>
+          <h1>Command center administrativo</h1>
+          <p>
+            Panel organizado por prioridad real: primero riesgos, después ventas, operación, catálogo, clientes y sistema.
           </p>
         </div>
-        <div className="ss-admin-hero-status">
-          <span className={alertCount > 0 ? 'is-warning' : 'is-ok'}>{alertCount > 0 ? `${alertCount} alertas` : 'Operación estable'}</span>
-          <strong>{formatCurrency(operations?.payments?.revenueToday || 0)}</strong>
-          <small>Ingresos de hoy</small>
+        <div className="uix-admin-command-hero__status">
+          <span className={alerts.length || failedWebhooks || pendingOrders ? 'is-warning' : 'is-ok'}>
+            {alerts.length || failedWebhooks || pendingOrders ? 'Revisión necesaria' : 'Operación estable'}
+          </span>
+          <strong>{formatCurrency(operations?.payments?.revenueToday)}</strong>
+          <small>Ingresos capturados hoy</small>
         </div>
       </section>
 
-      {alertCount > 0 && (
-        <Panel title="Alertas que requieren atención" eyebrow="Prioridad operativa" className="ss-admin-alert-panel">
-          <div className="ss-admin-alert-grid">
-            {operations.alerts.map((alert: any) => (
-              <div key={alert.code} className="ss-admin-alert-item">
-                <span>{alert.level}</span>
-                <p>{alert.message}</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+      <AdminCommandAlert alerts={alerts} />
 
-      <section className="ss-admin-section-block">
-        <div className="ss-admin-section-title">
-          <p className="ss-admin-kicker">Hoy</p>
-          <h2>Salud operativa</h2>
+      <AdminCommandSection eyebrow="Ahora" title="Prioridades críticas">
+        <div className="uix-admin-command-metric-grid is-critical">
+          <AdminCommandMetric label="Pedidos pendientes" value={pendingOrders} detail="Fulfillment y atención" icon={ShoppingCart} priority={pendingOrders > 0 ? 'warning' : 'success'} />
+          <AdminCommandMetric label="Stock bajo" value={lowStock.length} detail="Riesgo de venta perdida" icon={Package} priority={lowStock.length > 0 ? 'warning' : 'success'} />
+          <AdminCommandMetric label="Webhooks con error" value={failedWebhooks} detail="Stripe / pagos" icon={AlertTriangle} priority={failedWebhooks > 0 ? 'critical' : 'success'} />
+          <AdminCommandMetric label="Ingresos hoy" value={formatCurrency(operations?.payments?.revenueToday)} detail="Revenue del día" icon={Activity} priority="revenue" />
         </div>
-        <div className="ss-admin-metric-grid critical">
-          <MetricCard title="Ingresos hoy" value={formatCurrency(operations?.payments?.revenueToday || 0)} note="Revenue capturado" icon={Activity} tone="revenue" />
-          <MetricCard title="Pedidos pendientes" value={operations?.orders?.pending || 0} note="Requieren seguimiento" icon={ShoppingCart} tone="orders" />
-          <MetricCard title="Stock bajo" value={lowStock.length} note="Productos en riesgo" icon={Package} tone="stock" />
-          <MetricCard title="Webhooks con error" value={operations?.payments?.failedStripeEvents || 0} note="Stripe / pagos" icon={AlertTriangle} tone="risk" />
-        </div>
-      </section>
+      </AdminCommandSection>
 
-      <section className="ss-admin-section-block">
-        <div className="ss-admin-section-title">
-          <p className="ss-admin-kicker">Negocio</p>
-          <h2>KPIs comerciales</h2>
+      <AdminCommandSection eyebrow="Negocio" title="Indicadores comerciales">
+        <div className="uix-admin-command-metric-grid">
+          <AdminCommandMetric label="Ingresos totales" value={formatCurrency(sales?.total_revenue)} detail="Histórico" icon={DollarSign} priority="revenue" />
+          <AdminCommandMetric label="Órdenes totales" value={sales?.total_orders || 0} detail="Ventas acumuladas" icon={ShoppingCart} />
+          <AdminCommandMetric label="Ticket promedio" value={formatCurrency(sales?.average_order_value)} detail="AOV" icon={TrendingUp} />
+          <AdminCommandMetric label="Clientes únicos" value={sales?.total_customers || 0} detail="Compradores" icon={Users} />
         </div>
-        <div className="ss-admin-metric-grid">
-          <MetricCard title="Ingresos totales" value={formatCurrency(sales?.total_revenue)} note="Histórico" icon={DollarSign} tone="revenue" />
-          <MetricCard title="Ventas totales" value={sales?.total_orders || 0} note="Órdenes acumuladas" icon={ShoppingCart} tone="orders" />
-          <MetricCard title="Ticket promedio" value={formatCurrency(sales?.average_order_value)} note="AOV" icon={TrendingUp} tone="growth" />
-          <MetricCard title="Clientes únicos" value={sales?.total_customers || 0} note="Compradores" icon={Users} tone="customers" />
-        </div>
-      </section>
+      </AdminCommandSection>
 
-      <section className="ss-admin-chart-grid">
-        <Panel title="Ventas últimos 30 días" eyebrow="Revenue diario" action="Tendencia">
-          <div className="ss-admin-chart-box">
-            {sales?.sales_by_day && sales.sales_by_day.length > 0 ? (
+      <section className="uix-admin-command-chart-grid">
+        <AdminCommandPanel title="Ventas últimos 30 días" label="Revenue diario" action="Tendencia">
+          <div className="uix-admin-command-chart">
+            {sales?.sales_by_day?.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={sales.sales_by_day}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(74,55,40,.12)" />
                   <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip formatter={(value: any) => [`$${value}`, 'Ingresos']} contentStyle={{ borderRadius: 16, border: '1px solid rgba(74,55,40,.12)', boxShadow: '0 14px 34px rgba(75,56,40,.10)' }} />
-                  <Line type="monotone" dataKey="revenue" name="Ingresos" stroke="#2b1d17" strokeWidth={3} dot={{ r: 3, fill: '#2b1d17', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                  <Tooltip formatter={(value: any) => [`$${value}`, 'Ingresos']} contentStyle={{ borderRadius: 16, border: '1px solid rgba(74,55,40,.12)' }} />
+                  <Line type="monotone" dataKey="revenue" name="Ingresos" stroke="#2b1d17" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
-            ) : <div className="ss-admin-empty">Sin datos de ventas recientes.</div>}
+            ) : <p className="uix-admin-command-empty">Sin datos de ventas recientes.</p>}
           </div>
-        </Panel>
+        </AdminCommandPanel>
 
-        <Panel title="Ingresos mensuales" eyebrow="Performance" action="Mes a mes">
-          <div className="ss-admin-chart-box">
-            {sales?.sales_by_month && sales.sales_by_month.length > 0 ? (
+        <AdminCommandPanel title="Ingresos mensuales" label="Performance" action="Mes a mes">
+          <div className="uix-admin-command-chart">
+            {sales?.sales_by_month?.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sales.sales_by_month}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(74,55,40,.12)" />
                   <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
                   <Tooltip formatter={(value: any) => [`$${value}`, 'Ingresos']} cursor={{ fill: 'rgba(169,134,99,.08)' }} contentStyle={{ borderRadius: 16, border: '1px solid rgba(74,55,40,.12)' }} />
                   <Bar dataKey="revenue" name="Ingresos" fill="#a98663" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div className="ss-admin-empty">Sin datos de ingresos mensuales.</div>}
+            ) : <p className="uix-admin-command-empty">Sin datos de ingresos mensuales.</p>}
           </div>
-        </Panel>
+        </AdminCommandPanel>
       </section>
 
-      <section className="ss-admin-lower-grid">
-        <Panel title="Órdenes recientes" eyebrow="Fulfillment" action="Últimas ventas">
-          <div className="ss-admin-list">
-            {recentOrders && recentOrders.length > 0 ? recentOrders.slice(0, 6).map((o: any) => (
-              <div key={o.id} className="ss-admin-list-row">
-                <div>
-                  <strong>{o.customer_email || 'Invitado'}</strong>
-                  <span>{new Date(o.created_at).toLocaleDateString()}</span>
-                </div>
-                <div className="text-right">
-                  <strong>{formatCurrency(o.total)}</strong>
-                  <em>{String(o.status || 'pendiente').replace('_', ' ')}</em>
-                </div>
-              </div>
-            )) : <p className="ss-admin-empty">Sin órdenes todavía.</p>}
-          </div>
-        </Panel>
+      <AdminCommandSection eyebrow="Operación diaria" title="Fulfillment, pagos y catálogo">
+        <div className="uix-admin-command-panel-grid">
+          <AdminCommandPanel title="Órdenes recientes" label="Fulfillment" action="Últimas ventas">
+            <AdminCommandList empty="Sin órdenes todavía.">
+              {recent.slice(0, 6).map((order: any) => (
+                <AdminCommandListRow key={order.id} title={order.customer_email || 'Invitado'} subtitle={formatDate(order.created_at)} meta={formatCurrency(order.total)} status={formatStatus(order.status)} tone={order.status === 'paid' || order.status === 'completed' || order.status === 'entregado' ? 'ok' : 'warning'} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
 
-        <Panel title="Stock bajo" eyebrow="Inventario" action={`${lowStock.length} alertas`}>
-          <div className="ss-admin-list">
-            {lowStock.length > 0 ? lowStock.slice(0, 6).map((p: any) => (
-              <div key={p.id} className="ss-admin-list-row compact">
-                <div><strong>{p.name}</strong><span>SKU / producto</span></div>
-                <em className="is-risk">{p.stock} disponibles</em>
-              </div>
-            )) : <p className="ss-admin-empty">Sin productos en bajo stock.</p>}
-          </div>
-        </Panel>
+          <AdminCommandPanel title="Stock bajo" label="Inventario" action={`${lowStock.length} alertas`}>
+            <AdminCommandList empty="Sin productos en bajo stock.">
+              {lowStock.slice(0, 6).map((product: any) => (
+                <AdminCommandListRow key={product.id} title={product.name} subtitle="Producto en riesgo" status={`${product.stock} disponibles`} tone="danger" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
 
-        <Panel title="Stripe y webhooks" eyebrow="Pagos" action="Últimos eventos">
-          <div className="ss-admin-list">
-            {stripeEvents.length > 0 ? stripeEvents.slice(0, 5).map((event: any) => (
-              <div key={event.id} className="ss-admin-list-row compact">
-                <div><strong>{event.type}</strong>{event.error_message && <span>{event.error_message}</span>}</div>
-                <em className={event.processed_at && !event.error_message ? 'is-ok' : 'is-risk'}>{event.processed_at && !event.error_message ? 'OK' : 'Revisar'}</em>
-              </div>
-            )) : <p className="ss-admin-empty">Sin eventos recientes.</p>}
-          </div>
-        </Panel>
+          <AdminCommandPanel title="Stripe y webhooks" label="Pagos" action="Últimos eventos">
+            <AdminCommandList empty="Sin eventos recientes.">
+              {stripeEvents.slice(0, 5).map((event: any) => (
+                <AdminCommandListRow key={event.id} title={event.type} subtitle={event.error_message || formatDate(event.created_at)} status={event.processed_at && !event.error_message ? 'OK' : 'Revisar'} tone={event.processed_at && !event.error_message ? 'ok' : 'danger'} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+        </div>
+      </AdminCommandSection>
 
-        <Panel title="Productos top" eyebrow="Catálogo" action="Más vendidos">
-          <div className="ss-admin-list">
-            {top.length > 0 ? top.slice(0, 5).map((p: any, i: number) => (
-              <div key={p.id || i} className="ss-admin-list-row compact">
-                <div><strong>{p.name || p.product_name}</strong><span>{p.total_sold || p.quantity || 0} unidades</span></div>
-                <em>{formatCurrency(p.revenue || p.total_revenue || 0)}</em>
-              </div>
-            )) : <p className="ss-admin-empty">Aún no hay ranking de productos.</p>}
-          </div>
-        </Panel>
+      <AdminCommandSection eyebrow="Crecimiento" title="Catálogo, promociones y clientes">
+        <div className="uix-admin-command-panel-grid">
+          <AdminCommandPanel title="Productos top" label="Catálogo" action="Más vendidos">
+            <AdminCommandList empty="Aún no hay ranking de productos.">
+              {top.slice(0, 5).map((product: any, index: number) => (
+                <AdminCommandListRow key={product.id || index} title={product.name || product.product_name || 'Producto'} subtitle={`${product.total_sold || product.quantity || 0} unidades`} meta={formatCurrency(product.revenue || product.total_revenue)} status="Top" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
 
-        <Panel title="Cupones activos" eyebrow="Promociones" action="Uso real">
-          <div className="ss-admin-list">
-            {activeCoupons.length > 0 ? activeCoupons.slice(0, 5).map((c: any, i: number) => (
-              <div key={c.id || i} className="ss-admin-list-row compact">
-                <div><strong>{c.code}</strong><span>{c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : formatCurrency(c.discount_value)}</span></div>
-                <em>{c.current_uses} usos</em>
-              </div>
-            )) : <p className="ss-admin-empty">Ningún cupón ha sido usado todavía.</p>}
-          </div>
-        </Panel>
+          <AdminCommandPanel title="Cupones activos" label="Promociones" action="Uso real">
+            <AdminCommandList empty="Ningún cupón ha sido usado todavía.">
+              {activeCoupons.slice(0, 5).map((coupon: any, index: number) => (
+                <AdminCommandListRow key={coupon.id || index} title={coupon.code} subtitle={coupon.discount_type === 'percentage' ? `${coupon.discount_value}% OFF` : formatCurrency(coupon.discount_value)} status={`${coupon.current_uses} usos`} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
 
-        <Panel title="Auditoría reciente" eyebrow="Seguridad" action="Trazabilidad">
-          <div className="ss-admin-list">
-            {auditEvents.length > 0 ? auditEvents.slice(0, 5).map((a: any, i: number) => (
-              <div key={a.id || i} className="ss-admin-list-row compact">
-                <div><strong>{a.action || a.event_type || 'Evento'}</strong><span>{a.resource || a.entity_type || a.created_at || 'Actividad operativa'}</span></div>
-                <ShieldCheck size={16} />
-              </div>
-            )) : <p className="ss-admin-empty">Sin eventos de auditoría recientes.</p>}
-          </div>
-        </Panel>
-      </section>
+          <AdminCommandPanel title="Auditoría reciente" label="Sistema" action="Trazabilidad">
+            <AdminCommandList empty="Sin eventos de auditoría recientes.">
+              {auditEvents.slice(0, 5).map((event: any, index: number) => (
+                <AdminCommandListRow key={event.id || index} title={event.action || event.event_type || 'Evento'} subtitle={event.resource || event.entity_type || formatDate(event.created_at)} status={<ShieldCheck size={15} />} tone="ok" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+        </div>
+      </AdminCommandSection>
 
-      <section className="ss-admin-next-actions">
-        <div><Zap size={18} /><strong>Prioridad</strong><span>Revisar alertas, stock bajo y webhooks antes de optimizar campañas.</span></div>
-        <div><Tag size={18} /><strong>Comercial</strong><span>Validar productos top, cupones usados y ticket promedio.</span></div>
-        <div><Activity size={18} /><strong>Operación</strong><span>Usar el dashboard como command center diario, no como lista desordenada de métricas.</span></div>
+      <section className="uix-admin-command-actions">
+        <div><Zap size={18} /><strong>Primero riesgo</strong><span>Alertas, pagos, stock y pedidos pendientes antes de campañas.</span></div>
+        <div><Tag size={18} /><strong>Después conversión</strong><span>Productos top, cupones y AOV para decidir mejoras comerciales.</span></div>
+        <div><Activity size={18} /><strong>Finalmente sistema</strong><span>Auditoría, emails y salud operativa para sostener crecimiento.</span></div>
       </section>
     </div>
   );
