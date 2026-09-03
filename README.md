@@ -1,3 +1,17 @@
+# EMERGENCY-DRY-04.1 — CSS Build Fix
+
+Corrige fallo de build en Railway/PostCSS causado por secuencias literales `\n` dentro de `src/styles/uix-soft-premium-system.css`.
+
+Validación rápida:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-emergency-dry-04.ps1
+.\scripts\qa\smoke-emergency-dry-04.ps1
+npm run build
+```
+
+---
+
 # EMERGENCY-DRY-04 — CSS/System Collision Cleanup
 
 Estado: generado para validación.

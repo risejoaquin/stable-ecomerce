@@ -15,7 +15,8 @@
   5. soft-beauty-theme.css
 */
 
-\n/* ===== BEGIN LEGACY SOURCE: src/styles/premium-storefront.css ===== */
+
+/* ===== BEGIN LEGACY SOURCE: src/styles/premium-storefront.css ===== */
 :root {
   --ss-cream: #fbf7f1;
   --ss-warm-white: #fffdf8;
@@ -299,8 +300,10 @@
     box-shadow: 0 18px 40px rgba(31, 27, 24, 0.22);
   }
 }
-\n/* ===== END LEGACY SOURCE: src/styles/premium-storefront.css ===== */
-\n/* ===== BEGIN LEGACY SOURCE: src/styles/checkout-conversion.css ===== */
+
+/* ===== END LEGACY SOURCE: src/styles/premium-storefront.css ===== */
+
+/* ===== BEGIN LEGACY SOURCE: src/styles/checkout-conversion.css ===== */
 /* MACRO UI B — Checkout & Conversion Experience Redesign
    Premium conversion layer for cart, checkout, post-purchase and customer account surfaces. */
 :root {
@@ -520,8 +523,10 @@
   .checkout-trust-strip { grid-template-columns: 1fr; }
   .premium-cart-item { align-items: flex-start; }
 }
-\n/* ===== END LEGACY SOURCE: src/styles/checkout-conversion.css ===== */
-\n/* ===== BEGIN LEGACY SOURCE: src/styles/final-visual-polish.css ===== */
+
+/* ===== END LEGACY SOURCE: src/styles/checkout-conversion.css ===== */
+
+/* ===== BEGIN LEGACY SOURCE: src/styles/final-visual-polish.css ===== */
 /* MACRO UI C — Final Visual QA, Storefront Integration & Conversion Polish
    Purpose: unify the premium storefront and checkout conversion redesign into one
    cohesive visual system without changing business logic. */
@@ -734,8 +739,10 @@ label {
 @media (min-width: 769px) {
   .mobile-only { display: none !important; }
 }
-\n/* ===== END LEGACY SOURCE: src/styles/final-visual-polish.css ===== */
-\n/* ===== BEGIN LEGACY SOURCE: src/styles/skoot-editorial-redesign.css ===== */
+
+/* ===== END LEGACY SOURCE: src/styles/final-visual-polish.css ===== */
+
+/* ===== BEGIN LEGACY SOURCE: src/styles/skoot-editorial-redesign.css ===== */
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
@@ -1365,8 +1372,10 @@ label {
   .ss-buy-row { grid-template-columns: 1fr; }
   .ss-variant-grid { grid-template-columns: 1fr; }
 }
-\n/* ===== END LEGACY SOURCE: src/styles/skoot-editorial-redesign.css ===== */
-\n/* ===== BEGIN LEGACY SOURCE: src/styles/soft-beauty-theme.css ===== */
+
+/* ===== END LEGACY SOURCE: src/styles/skoot-editorial-redesign.css ===== */
+
+/* ===== BEGIN LEGACY SOURCE: src/styles/soft-beauty-theme.css ===== */
 /*
   UIX04 — Soft Premium Skincare Theme
   Applies the selected beige skincare design language across storefront, profile and admin.
@@ -2398,7 +2407,8 @@ body {
     display: none;
   }
 }
-\n/* ===== END LEGACY SOURCE: src/styles/soft-beauty-theme.css ===== */
+
+/* ===== END LEGACY SOURCE: src/styles/soft-beauty-theme.css ===== */
 
 /* ===== EMERGENCY-DRY-04 CANONICAL OVERRIDES ===== */
 :root {
