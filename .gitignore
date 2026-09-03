@@ -121,3 +121,8 @@ email-preview-*.html
 email-center-*.json
 email-queue-dump-*.json
 resend-webhook-sample-*.json
+
+# UIX local generated inspection files
+*.local-preview.png
+*.visual-diff.png
+.uix-cache/

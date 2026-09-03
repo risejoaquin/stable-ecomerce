@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Eye, PackageCheck, ShieldCheck, Sparkles, Truck } from 'lucide-react';
+import { ArrowRight, Eye } from 'lucide-react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
 import { useCart, CartDrawer } from '../../App';
@@ -15,6 +15,11 @@ import { EditorialLookbookSection } from '../../components/editorial/EditorialLo
 import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
 import { trackMarketingEvent, trackPageView } from '../../lib/analytics';
+import { UixSectionHeader } from '../../components/uix/UixSectionHeader';
+import { StorefrontTrustStrip } from '../../components/storefront/uix/StorefrontTrustStrip';
+import { RoutineCards } from '../../components/storefront/uix/RoutineCards';
+import { ShopByConcern } from '../../components/storefront/uix/ShopByConcern';
+import { StorefrontNewsletter } from '../../components/storefront/uix/StorefrontNewsletter';
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
 
@@ -63,11 +68,10 @@ export function HomePage() {
                 <a href="#lookbook" className="ss-btn-outline">Ver rituales <Eye size={16} /></a>
               </div>
             </div>
-            <div className="ss-trust-editorial">
-              <div><ShieldCheck size={20} /><strong>Pago seguro</strong><p>Stripe, confirmación y protección del checkout.</p></div>
-              <div><PackageCheck size={20} /><strong>Stock real</strong><p>Inventario validado antes de cerrar la compra.</p></div>
-              <div><Truck size={20} /><strong>Tracking</strong><p>Rastreo con correo e ID de orden.</p></div>
-              <div><Sparkles size={20} /><strong>Ingredientes limpios</strong><p>Rutinas claras con fórmulas seguras.</p></div>
+            <div className="uix-hero-proof">
+              <span>Envíos claros</span>
+              <span>Pago seguro</span>
+              <span>Rutinas simples</span>
             </div>
           </div>
           <div className="ss-hero-media">
@@ -85,41 +89,24 @@ export function HomePage() {
           </div>
         </section>
 
-        <section className="ss-home-curated-row" aria-label="Beneficios principales">
-          <article>
-            <span>01</span>
-            <strong>Rutina clara</strong>
-            <p>Compra por objetivo: luminosidad, hidratación, balance o barrera.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <strong>Producto protagonista</strong>
-            <p>Cards limpias, imágenes amplias y decisiones de compra sin ruido.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <strong>Confianza antes del pago</strong>
-            <p>Envío, cambios, seguridad y soporte visibles durante todo el journey.</p>
-          </article>
+        <StorefrontTrustStrip />
+
+        <section className="uix-home-block" aria-label="Rutinas recomendadas">
+          <UixSectionHeader
+            eyebrow="Compra por ritual"
+            title={<>Rutinas listas para decidir más rápido.</>}
+            note="La home ya no empieza como catálogo genérico: guía al cliente por objetivo, contexto y beneficio antes de mostrar todo el inventario."
+          />
+          <RoutineCards />
         </section>
 
-        <section className="ss-home-editorial-grid" aria-label="Experiencia principal">
-          <div className="ss-home-feature-card large">
-            <p className="ss-topline">The skin edit</p>
-            <h2 className="ss-display">Skincare que se siente cuidado, no saturado.</h2>
-            <p>Una página principal con intención: primero propuesta de valor, después confianza, rutinas, productos y cierre de compra.</p>
-            <a href="#shop" className="ss-btn">Comprar ahora <ArrowRight size={16} /></a>
+        <section className="uix-home-block uix-home-block--split" aria-label="Comprar por necesidad">
+          <div className="uix-editorial-story">
+            <p className="uix-eyebrow">Skin concern index</p>
+            <h2>Encuentra producto por lo que tu piel necesita.</h2>
+            <p>Un storefront premium no obliga a pensar en categorías técnicas. Primero ayuda al usuario a reconocerse: hidratación, manchas, acné, barrera o protección solar.</p>
           </div>
-          <div className="ss-home-feature-card">
-            <p className="ss-topline">Bestsellers</p>
-            <h3>Lo más elegido</h3>
-            <p>Acceso rápido a productos destacados sin obligar al usuario a filtrar desde cero.</p>
-          </div>
-          <div className="ss-home-feature-card muted">
-            <p className="ss-topline">Mobile-first</p>
-            <h3>Menos fricción</h3>
-            <p>CTA claros, navegación inferior y carrito visible para comprar desde celular.</p>
-          </div>
+          <ShopByConcern />
         </section>
 
         <main id="shop" className="ss-editorial-section ss-shop-section-organized">
@@ -182,6 +169,8 @@ export function HomePage() {
             <div><strong>Tracking</strong><p>Consulta tu pedido con correo e ID.</p><Link to="/track" className="ss-mini-btn">Rastrear</Link></div>
           </div>
         </section>
+
+        <StorefrontNewsletter />
 
         <EditorialFooter storeName={currentStore.name || DEFAULT_BRAND} />
         <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />

@@ -372,3 +372,24 @@ git add .
 git commit -m "Email Production C admin email center premium templates"
 git push origin main
 ```
+
+---
+
+## UIX SYSTEM A — Storefront + Home Architecture
+
+Estado: generado para validación.
+
+Incluye:
+
+- Reorganización de la home como flujo comercial completo.
+- Componentes UIX base para storefront.
+- Corrección preventiva de `@import` dentro de `uix-soft-premium-system.css`.
+- Validación: `scripts/qa/smoke-uix-system-a.ps1`.
+
+Comandos:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-uix-system-a.ps1
+.\scripts\qa\smoke-uix-system-a.ps1
+npm run build
+```
