@@ -1,3 +1,34 @@
+# EMERGENCY-DRY-03 — Abandoned Cart Race Condition Fix
+
+Corrige la condición de carrera del job de recuperación de carritos abandonados.
+
+## Validación rápida
+
+1. Aplicar migración en Supabase:
+
+```sql
+scripts/db/040_emergency_dry_03_abandoned_cart_recovery_locking.sql
+NOTIFY pgrst, 'reload schema';
+```
+
+2. Ejecutar smoke local:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-emergency-dry-03.ps1
+.\scripts\qa\smoke-emergency-dry-03.ps1
+npm run build
+```
+
+3. Deploy:
+
+```powershell
+git add .
+git commit -m "Emergency DRY 03 fix abandoned cart race condition"
+git push origin main
+```
+
+---
+
 # Selfcare Sinners Ecommerce
 
 Ecommerce premium de skincare con storefront, cuenta de cliente, admin panel, pagos Stripe, Supabase PostgreSQL, emails Resend y deploy Railway.

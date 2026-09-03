@@ -3160,7 +3160,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
             if (existing) {
               await supabase
                 .from('abandoned_carts')
-                .update({ items, updated_at: new Date().toISOString(), reminder_sent: false })
+                .update({ items, updated_at: new Date().toISOString(), reminder_sent: false, reminder_sent_at: null, recovery_lock_id: null, recovery_locked_until: null, recovery_last_error: null })
                 .eq('id', existing.id);
             } else {
               await supabase
@@ -3191,58 +3191,110 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
           }
         }));
 
-  // --- CRON JOB ABANDONED CART ---
-  setInterval(async () => {
+  // --- CONTROLLED ABANDONED CART RECOVERY JOB ---
+  // Race-condition fix: carts are claimed atomically in PostgreSQL before email send.
+  // This prevents duplicate recovery emails when Railway runs more than one instance.
+  const ABANDONED_CART_RECOVERY_BATCH_SIZE = Number(process.env.ABANDONED_CART_RECOVERY_BATCH_SIZE || 25);
+  const ABANDONED_CART_RECOVERY_DELAY_HOURS = Number(process.env.ABANDONED_CART_RECOVERY_DELAY_HOURS || 2);
+  const ABANDONED_CART_RECOVERY_INTERVAL_MS = Number(process.env.ABANDONED_CART_RECOVERY_INTERVAL_MS || 60 * 60 * 1000);
+
+  async function releaseAbandonedCartRecoveryLock(cartId: string, lockToken: string, errorMessage: string) {
+    await supabase
+      .from('abandoned_carts')
+      .update({
+        recovery_lock_id: null,
+        recovery_locked_until: null,
+        recovery_last_error: String(errorMessage || 'Recovery email failed').slice(0, 1000),
+        recovery_last_attempt_at: new Date().toISOString()
+      })
+      .eq('id', cartId)
+      .eq('recovery_lock_id', lockToken);
+  }
+
+  async function markAbandonedCartRecoverySent(cartId: string, lockToken: string) {
+    await supabase
+      .from('abandoned_carts')
+      .update({
+        reminder_sent: true,
+        reminder_sent_at: new Date().toISOString(),
+        recovery_lock_id: null,
+        recovery_locked_until: null,
+        recovery_last_error: null,
+        recovery_last_attempt_at: new Date().toISOString()
+      })
+      .eq('id', cartId)
+      .eq('recovery_lock_id', lockToken);
+  }
+
+  async function runAbandonedCartRecoveryJob() {
     try {
-      if (!supabase || !resend) return;
-      
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-      const { data: carts, error } = await supabase
-        .from('abandoned_carts')
-        .select('*')
-        .eq('reminder_sent', false)
-        .not('email', 'is', null)
-        .lt('updated_at', twoHoursAgo);
-        
+      if (!supabase || process.env.ABANDONED_CART_RECOVERY_DISABLED === 'true') return;
+
+      const lockToken = `abandoned-cart-${process.pid}-${Date.now()}-${crypto.randomUUID()}`;
+      const olderThan = new Date(Date.now() - ABANDONED_CART_RECOVERY_DELAY_HOURS * 60 * 60 * 1000).toISOString();
+      const { data: carts, error } = await supabase.rpc('claim_abandoned_carts_for_recovery', {
+        batch_limit: ABANDONED_CART_RECOVERY_BATCH_SIZE,
+        lock_token: lockToken,
+        older_than: olderThan
+      });
+
       if (error) {
-        logger.error({ err: error }, 'Error fetching abandoned carts:');
+        logger.error({ err: error }, 'Error claiming abandoned carts for recovery. Apply scripts/db/040_emergency_dry_03_abandoned_cart_recovery_locking.sql');
         return;
       }
-      
-      for (const cart of carts || []) {
-        if (!cart.items || cart.items.length === 0) continue;
-        
-        // Ensure email is valid
-        if (!cart.email || !cart.email.includes('@')) continue;
 
-        const recoverUrl = buildAppLink('/recover', { token: cart.id });
-        
-        const itemsHtml = cart.items.map((i: any) => `
-          <div class="order-item">
-            <span>${safeText(i.quantity)}x ${safeText(i.name, 'Producto')}</span>
-            <span>${safeText(i.price)}</span>
-          </div>
-        `).join('');
-        
-        await sendEmail({
-          to: cart.email,
-          subject: 'Complete your purchase',
-          html: getAbandonedCartEmail(recoverUrl, itemsHtml),
-          purpose: 'abandoned_cart_recovery',
-          entityType: 'abandoned_cart',
-          entityId: cart.id,
-          throwOnError: false
-        });
-        
-        await supabase
-          .from('abandoned_carts')
-          .update({ reminder_sent: true })
-          .eq('id', cart.id);
+      for (const cart of carts || []) {
+        try {
+          const items = Array.isArray(cart.items) ? cart.items : [];
+          if (!items.length) {
+            await releaseAbandonedCartRecoveryLock(cart.id, lockToken, 'Skipped: empty cart items');
+            continue;
+          }
+
+          const email = normalizeRecipientEmail(cart.email);
+          if (!email || !email.includes('@')) {
+            await releaseAbandonedCartRecoveryLock(cart.id, lockToken, 'Skipped: invalid email');
+            continue;
+          }
+
+          const recoverUrl = buildAppLink('/recover', { token: cart.id });
+          const itemsHtml = items.map((i: any) => `
+            <div class="order-item">
+              <span>${safeText(i.quantity)}x ${safeText(i.name, 'Producto')}</span>
+              <span>${safeText(i.price)}</span>
+            </div>
+          `).join('');
+
+          const result = await sendEmail({
+            to: email,
+            subject: 'Completa tu compra en Selfcare Sinners',
+            html: getAbandonedCartEmail(recoverUrl, itemsHtml),
+            purpose: 'abandoned_cart_recovery',
+            entityType: 'abandoned_cart',
+            entityId: cart.id,
+            metadata: { lockToken, dedupeKey: `abandoned_cart_recovery:${cart.id}` },
+            throwOnError: false
+          });
+
+          if (!result?.success) {
+            await releaseAbandonedCartRecoveryLock(cart.id, lockToken, result?.error || 'Email provider returned failure');
+            continue;
+          }
+
+          await markAbandonedCartRecoverySent(cart.id, lockToken);
+        } catch (cartError: any) {
+          logger.error({ err: cartError, cartId: cart?.id }, 'Abandoned cart recovery item failed');
+          if (cart?.id) await releaseAbandonedCartRecoveryLock(cart.id, lockToken, cartError?.message || 'Abandoned cart recovery item failed');
+        }
       }
     } catch (e) {
-      logger.error({ err: e }, 'Cron job error:');
+      logger.error({ err: e }, 'Abandoned cart recovery job error');
     }
-  }, 60 * 60 * 1000); // run every hour
+  }
+
+  if (process.env.ABANDONED_CART_RECOVERY_DISABLED !== 'true') {
+    setInterval(runAbandonedCartRecoveryJob, ABANDONED_CART_RECOVERY_INTERVAL_MS);
+  }
 
 
   // Post-launch 04: content, email, reviews and retention operations.
