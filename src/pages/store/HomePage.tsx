@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Eye, SlidersHorizontal, X } from 'lucide-react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
@@ -58,7 +58,7 @@ export function HomePage() {
   }, [filters, setSearchParams]);
 
 
-  if (isStoreLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Preparando Selfcare Sinners" description="Estamos cargando el catálogo y la experiencia de tienda." /></div>;
+  if (isStoreLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Preparando Selfcare Sinners" description="Estamos cargando el catÃ¡logo y la experiencia de tienda." /></div>;
 
   const currentStore = store || { name: DEFAULT_BRAND, config: {}, description: 'Skincare consciente para resultados reales, rutinas claras y una experiencia premium.' };
   const config = currentStore.config || {};
@@ -79,7 +79,7 @@ export function HomePage() {
         jsonLd={[organizationJsonLd(), websiteJsonLd()]}
       />
       <div className="ss-editorial-shell" data-mobile-ux-f="storefront-final-regression">
-        <a className="uix-skip-link" href="#shop">Saltar al catálogo</a>
+        <a className="uix-skip-link" href="#shop">Saltar al catÃ¡logo</a>
         <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
 
         <section className="ss-hero">
@@ -88,7 +88,7 @@ export function HomePage() {
               <p className="ss-topline">Ritual consciente</p>
               <h1 className="ss-hero-title ss-display">Tu piel,<br />tu ritual,<br />tu momento.</h1>
               <p className="ss-hero-lede">
-                Skincare consciente para resultados reales. Una experiencia cálida, clara y premium desde que descubres tu rutina hasta que completas tu compra.
+                Skincare consciente para resultados reales. Una experiencia cÃ¡lida, clara y premium desde que descubres tu rutina hasta que completas tu compra.
               </p>
               <div className="ss-hero-actions">
                 <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click', { page: 'home' }, { source: 'soft_premium_storefront' })}>Descubre tu rutina <ArrowRight size={16} /></a>
@@ -96,23 +96,23 @@ export function HomePage() {
               </div>
             </div>
             <div className="uix-hero-proof">
-              <span>Envíos claros</span>
+              <span>EnvÃ­os claros</span>
               <span>Pago seguro</span>
               <span>Rutinas simples</span>
             </div>
           </div>
           <div className="ss-hero-media">
             <div className="ss-hero-image-frame">
-              {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
+              {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} fetchPriority="high" loading="eager" decoding="async" /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
               <div className="ss-hero-overlay">
                 <div>
-                  <p className="ss-card-kicker">Selección destacada</p>
-                  <strong>{heroProduct?.name || 'Selección editorial'}</strong>
+                  <p className="ss-card-kicker">SelecciÃ³n destacada</p>
+                  <strong>{heroProduct?.name || 'SelecciÃ³n editorial'}</strong>
                 </div>
                 {heroProduct && <span>MXN ${Number(heroProduct.price).toFixed(2)}</span>}
               </div>
             </div>
-            <div className="ss-hero-marquee"><span>SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · </span></div>
+            <div className="ss-hero-marquee"><span>SELFCARE SINNERS Â· RUTINAS CLARAS Â· COMPRA SEGURA Â· SKINCARE CONSCIENTE Â· SELFCARE SINNERS Â· RUTINAS CLARAS Â· COMPRA SEGURA Â· SKINCARE CONSCIENTE Â· </span></div>
           </div>
         </section>
 
@@ -121,8 +121,8 @@ export function HomePage() {
         <section className="uix-home-block" aria-label="Rutinas recomendadas">
           <UixSectionHeader
             eyebrow="Compra por ritual"
-            title={<>Rutinas listas para decidir más rápido.</>}
-            note="La home ya no empieza como catálogo genérico: guía al cliente por objetivo, contexto y beneficio antes de mostrar todo el inventario."
+            title={<>Rutinas listas para decidir mÃ¡s rÃ¡pido.</>}
+            note="La home ya no empieza como catÃ¡logo genÃ©rico: guÃ­a al cliente por objetivo, contexto y beneficio antes de mostrar todo el inventario."
           />
           <RoutineCards />
         </section>
@@ -131,7 +131,7 @@ export function HomePage() {
           <div className="uix-editorial-story">
             <p className="uix-eyebrow">Necesidades de piel</p>
             <h2>Encuentra producto por lo que tu piel necesita.</h2>
-            <p>Un storefront premium no obliga a pensar en categorías técnicas. Primero ayuda al usuario a reconocerse: hidratación, manchas, acné, barrera o protección solar.</p>
+            <p>Un storefront premium no obliga a pensar en categorÃ­as tÃ©cnicas. Primero ayuda al usuario a reconocerse: hidrataciÃ³n, manchas, acnÃ©, barrera o protecciÃ³n solar.</p>
           </div>
           <ShopByConcern />
         </section>
@@ -142,7 +142,7 @@ export function HomePage() {
               <p className="ss-topline">Tienda</p>
               <h2 className="ss-section-title ss-display">Todos los<br />productos</h2>
             </div>
-            <p className="ss-section-note">Catálogo limpio, cálido y fácil de explorar. Busca por rutina, tipo de piel o producto y compra sin fricción.</p>
+            <p className="ss-section-note">CatÃ¡logo limpio, cÃ¡lido y fÃ¡cil de explorar. Busca por rutina, tipo de piel o producto y compra sin fricciÃ³n.</p>
           </div>
 
           <div className="uix-mobile-catalog-tools">
@@ -163,9 +163,9 @@ export function HomePage() {
 
             <div className="uix-catalog-results">
               {isProductsLoading ? (
-                <UixStatePanel tone="loading" title="Cargando productos" description="Estamos actualizando los resultados del catálogo." compact />
+                <UixStatePanel tone="loading" title="Cargando productos" description="Estamos actualizando los resultados del catÃ¡logo." compact />
               ) : currentProducts.length === 0 ? (
-                <UixStatePanel tone="empty" title="No encontramos productos" description="Prueba con otra búsqueda o limpia los filtros para volver a ver el catálogo completo." actionText="Limpiar filtros" onAction={resetFilters} />
+                <UixStatePanel tone="empty" title="No encontramos productos" description="Prueba con otra bÃºsqueda o limpia los filtros para volver a ver el catÃ¡logo completo." actionText="Limpiar filtros" onAction={resetFilters} />
               ) : (
                 <>
                   <div className="ss-collection-grid">
@@ -188,12 +188,12 @@ export function HomePage() {
               <p className="ss-topline">Antes de pagar</p>
               <h2 className="ss-section-title ss-display">Compra con<br />claridad</h2>
             </div>
-            <p className="ss-section-note">La experiencia visual se mantiene serena y confiable: ayuda visible, políticas claras, tracking y seguridad antes del pago.</p>
+            <p className="ss-section-note">La experiencia visual se mantiene serena y confiable: ayuda visible, polÃ­ticas claras, tracking y seguridad antes del pago.</p>
           </div>
           <div className="ss-trust-editorial">
             <div><strong>FAQ</strong><p>Respuestas visibles antes de comprar.</p><Link to="/faq" className="ss-mini-btn">Ver FAQ</Link></div>
             <div><strong>Contacto</strong><p>Canal claro para dudas o soporte.</p><Link to="/contact" className="ss-mini-btn">Contactar</Link></div>
-            <div><strong>Devoluciones</strong><p>Políticas accesibles para reducir fricción.</p><Link to="/returns" className="ss-mini-btn">Política</Link></div>
+            <div><strong>Devoluciones</strong><p>PolÃ­ticas accesibles para reducir fricciÃ³n.</p><Link to="/returns" className="ss-mini-btn">PolÃ­tica</Link></div>
             <div><strong>Tracking</strong><p>Consulta tu pedido con correo e ID.</p><Link to="/track" className="ss-mini-btn">Rastrear</Link></div>
           </div>
         </section>
@@ -207,3 +207,4 @@ export function HomePage() {
     </>
   );
 }
+

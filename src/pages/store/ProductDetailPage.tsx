@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
@@ -27,11 +27,12 @@ export function ProductDetailPage() {
   const apiClient = useApiClient();
   const { setIsCartOpen, addItem, items } = useCart();
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
-  const { data: ratingData } = useProductRating(id || '');
+  const { data: ratingData } = useProductRating(secondaryContentReady ? (id || '') : '');
   const { isSignedIn } = useAuth();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [secondaryContentReady, setSecondaryContentReady] = useState(false);
 
   const { data: product, isLoading: isProductLoading } = useQuery({
     queryKey: ['product', id],
@@ -40,17 +41,33 @@ export function ProductDetailPage() {
   });
 
   useEffect(() => {
+    if (!product?.id) return;
+
+    setSecondaryContentReady(false);
+    const browser = window as any;
+    const activateSecondaryContent = () => setSecondaryContentReady(true);
+
+    if (typeof browser.requestIdleCallback === 'function') {
+      const idleId = browser.requestIdleCallback(activateSecondaryContent, { timeout: 1500 });
+      return () => browser.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(activateSecondaryContent, 750);
+    return () => window.clearTimeout(timeoutId);
+  }, [product?.id]);
+
+  useEffect(() => {
     if (id) trackMarketingEvent('product_view', { product_id: id, redesign: 'skoot_editorial' }, { source: 'product_detail' });
   }, [id]);
 
   const { data: similarProductsResult } = useSearchProducts(
-    store?.slug,
+    secondaryContentReady ? store?.slug : undefined,
     { category: (product?.categories && product.categories.length > 0) ? product.categories[0] : (product?.category || ''), pageSize: 4 },
   );
   const similarProducts = similarProductsResult?.data?.filter((p: any) => p.id !== product?.id).slice(0, 4) || [];
 
   if (isStoreLoading || isProductLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Cargando producto" description="Estamos preparando los detalles, disponibilidad y opciones de compra." /></div>;
-  if (!product) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="empty" title="Producto no encontrado" description="Este producto ya no está disponible o el enlace cambió." actionText="Volver a la tienda" actionTo="/" /></div>;
+  if (!product) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="empty" title="Producto no encontrado" description="Este producto ya no estÃ¡ disponible o el enlace cambiÃ³." actionText="Volver a la tienda" actionTo="/" /></div>;
 
   const currentStore = store || { name: 'Selfcare Sinners', config: {}, description: '' };
   const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -65,7 +82,7 @@ export function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (hasVariants && !activeVariant) {
-      toast.error('Selecciona una opción disponible primero');
+      toast.error('Selecciona una opciÃ³n disponible primero');
       return;
     }
     if (!inStock) {
@@ -107,13 +124,13 @@ export function ProductDetailPage() {
           <section className="ss-gallery-panel">
             <div className="ss-main-product-image">
               <WishlistButton productId={product.id} className="absolute top-4 right-4 z-10 ss-mini-btn" />
-              {product.images?.[selectedImageIndex] ? <img src={product.images[selectedImageIndex]} alt={product.name} /> : <div className="absolute inset-0 flex items-center justify-center opacity-40">Sin imagen</div>}
+              {product.images?.[selectedImageIndex] ? <img src={product.images[selectedImageIndex]} alt={product.name} fetchPriority="high" loading="eager" decoding="async" /> : <div className="absolute inset-0 flex items-center justify-center opacity-40">Sin imagen</div>}
             </div>
             {product.images?.length > 1 && (
               <div className="grid grid-cols-4 gap-2 mt-3">
                 {product.images.map((img: string, idx: number) => (
                   <button key={idx} onClick={() => setSelectedImageIndex(idx)} className="ss-editorial-thumb border" style={{ aspectRatio: '1/1', borderColor: selectedImageIndex === idx ? '#0b0b0a' : 'rgba(11,11,10,.13)' }} type="button">
-                    <img src={img} alt={`${product.name} ${idx + 1}`} />
+                    <img src={img} alt={`${product.name} ${idx + 1}`} loading="lazy" fetchPriority="low" decoding="async" />
                   </button>
                 ))}
               </div>
@@ -134,7 +151,7 @@ export function ProductDetailPage() {
 
             {hasVariants && (
               <div style={{ marginTop: '2rem' }}>
-                <p className="ss-card-kicker">Elige opción</p>
+                <p className="ss-card-kicker">Elige opciÃ³n</p>
                 <div className="ss-variant-grid">
                   {variants.map((variant: any, idx: number) => {
                     const selected = activeVariant?.name === variant.name;
@@ -151,7 +168,7 @@ export function ProductDetailPage() {
 
             <div className="ss-buy-row">
               <div className="ss-qty-box">
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} type="button">−</button>
+                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} type="button">âˆ’</button>
                 <span>{quantity}</span>
                 <button onClick={() => setQuantity(Math.min(Math.max(availableStock, 1), quantity + 1))} type="button">+</button>
               </div>
@@ -163,13 +180,13 @@ export function ProductDetailPage() {
             <div className="ss-trust-editorial" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginTop: '1.5rem' }}>
               <div><ShieldCheck size={18} /><strong>Pago seguro</strong><p>Stripe protegido.</p></div>
               <div><Truck size={18} /><strong>Tracking</strong><p>Pedido rastreable.</p></div>
-              <div><Sparkles size={18} /><strong>Rutina</strong><p>Selección cuidada.</p></div>
+              <div><Sparkles size={18} /><strong>Rutina</strong><p>SelecciÃ³n cuidada.</p></div>
             </div>
 
             <div className="ss-accordions">
               <div className="ss-accordion-item">
-                <h3>Descripción</h3>
-                <p>{product.long_description || product.description || 'Producto elegido para una rutina clara, estética y fácil de sostener.'}</p>
+                <h3>DescripciÃ³n</h3>
+                <p>{product.long_description || product.description || 'Producto elegido para una rutina clara, estÃ©tica y fÃ¡cil de sostener.'}</p>
               </div>
               {Array.isArray(ingredients) && ingredients.length > 0 && (
                 <div className="ss-accordion-item">
@@ -181,8 +198,8 @@ export function ProductDetailPage() {
                 <h3>Compra con claridad</h3>
                 <ul>
                   <li><CheckCircle2 size={14} style={{ display: 'inline', marginRight: '.45rem' }} />Total visible antes del pago.</li>
-                  <li><CheckCircle2 size={14} style={{ display: 'inline', marginRight: '.45rem' }} />Confirmación por correo.</li>
-                  <li><CheckCircle2 size={14} style={{ display: 'inline', marginRight: '.45rem' }} />Políticas disponibles.</li>
+                  <li><CheckCircle2 size={14} style={{ display: 'inline', marginRight: '.45rem' }} />ConfirmaciÃ³n por correo.</li>
+                  <li><CheckCircle2 size={14} style={{ display: 'inline', marginRight: '.45rem' }} />PolÃ­ticas disponibles.</li>
                 </ul>
               </div>
             </div>
@@ -193,7 +210,7 @@ export function ProductDetailPage() {
           <section className="ss-editorial-section">
             <div className="ss-section-head">
               <div>
-                <p className="ss-topline">También te puede gustar</p>
+                <p className="ss-topline">TambiÃ©n te puede gustar</p>
                 <h2 className="ss-section-title ss-display">Completa<br />tu rutina</h2>
               </div>
             </div>
@@ -207,12 +224,12 @@ export function ProductDetailPage() {
           <div className="ss-section-head">
             <div>
               <p className="ss-topline">Comunidad</p>
-              <h2 className="ss-section-title ss-display">Reseñas</h2>
+              <h2 className="ss-section-title ss-display">ReseÃ±as</h2>
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2"><ReviewList productId={product.id} themeColor="#0b0b0a" /></div>
-            <div>{isSignedIn ? <ReviewForm productId={product.id} themeColor="#0b0b0a" /> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesión para escribir una reseña.</div>}</div>
+            <div>{isSignedIn ? <ReviewForm productId={product.id} themeColor="#0b0b0a" /> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesiÃ³n para escribir una reseÃ±a.</div>}</div>
           </div>
         </section>
 
@@ -223,3 +240,9 @@ export function ProductDetailPage() {
     </>
   );
 }
+
+
+
+
+
+
