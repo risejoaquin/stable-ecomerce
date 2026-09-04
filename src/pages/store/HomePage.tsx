@@ -103,7 +103,7 @@ export function HomePage() {
           </div>
           <div className="ss-hero-media">
             <div className="ss-hero-image-frame">
-              {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} fetchPriority="high" loading="eager" decoding="async" /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
+              {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
               <div className="ss-hero-overlay">
                 <div>
                   <p className="ss-card-kicker">SelecciÃ³n destacada</p>
@@ -207,4 +207,5 @@ export function HomePage() {
     </>
   );
 }
+
 

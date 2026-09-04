@@ -66,7 +66,7 @@ export function ProductDetailPage() {
   );
   const similarProducts = similarProductsResult?.data?.filter((p: any) => p.id !== product?.id).slice(0, 4) || [];
 
-  if (isStoreLoading || isProductLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Cargando producto" description="Estamos preparando los detalles, disponibilidad y opciones de compra." /></div>;
+  if (isProductLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Cargando producto" description="Estamos preparando los detalles, disponibilidad y opciones de compra." /></div>;
   if (!product) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="empty" title="Producto no encontrado" description="Este producto ya no estÃ¡ disponible o el enlace cambiÃ³." actionText="Volver a la tienda" actionTo="/" /></div>;
 
   const currentStore = store || { name: 'Selfcare Sinners', config: {}, description: '' };
@@ -240,6 +240,7 @@ export function ProductDetailPage() {
     </>
   );
 }
+
 
 
 
