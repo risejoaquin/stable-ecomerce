@@ -1,0 +1,29 @@
+{
+  "phase": "POST-UX C",
+  "version": 1,
+  "targets": {
+    "mobile": {
+      "performanceScoreMin": 0.85,
+      "accessibilityScoreMin": 0.95,
+      "bestPracticesScoreMin": 0.95,
+      "seoScoreMin": 0.95,
+      "lcpMsMax": 2500,
+      "clsMax": 0.1,
+      "inpMsMax": 200
+    },
+    "desktop": {
+      "performanceScoreMin": 0.9,
+      "accessibilityScoreMin": 0.95,
+      "bestPracticesScoreMin": 0.95,
+      "seoScoreMin": 0.95,
+      "lcpMsMax": 2500,
+      "clsMax": 0.1,
+      "inpMsMax": 200
+    }
+  },
+  "notes": [
+    "Budgets are targets, not baseline assumptions.",
+    "INP should be read from CrUX field data when available; Lighthouse lab data may not expose a stable INP value.",
+    "Do not close POST-UX C from a single run. Capture at least three runs per strategy and compare median values."
+  ]
+}
