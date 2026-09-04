@@ -32,12 +32,12 @@ export function ProductDetailPage() {
   const apiClient = useApiClient();
   const { setIsCartOpen, addItem, items } = useCart();
   const { data: store, isLoading: isStoreLoading } = useStoreConfig();
+  const [secondaryContentReady, setSecondaryContentReady] = useState(false);
   const { data: ratingData } = useProductRating(secondaryContentReady ? (id || '') : '');
   const { isSignedIn } = useAuth();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [secondaryContentReady, setSecondaryContentReady] = useState(false);
 
   const { data: product, isLoading: isProductLoading } = useQuery({
     queryKey: ['product', id],
