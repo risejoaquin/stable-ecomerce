@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Eye, SlidersHorizontal, X } from 'lucide-react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
@@ -11,16 +11,29 @@ import { SEO } from '../../components/SEO';
 import { organizationJsonLd, websiteJsonLd } from '../../lib/seo';
 import { EditorialHeader } from '../../components/editorial/EditorialHeader';
 import { EditorialProductCard } from '../../components/editorial/EditorialProductCard';
-import { EditorialLookbookSection } from '../../components/editorial/EditorialLookbookSection';
+
 import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
 import { trackMarketingEvent, trackPageView } from '../../lib/analytics';
 import { UixSectionHeader } from '../../components/uix/UixSectionHeader';
 import { StorefrontTrustStrip } from '../../components/storefront/uix/StorefrontTrustStrip';
-import { RoutineCards } from '../../components/storefront/uix/RoutineCards';
-import { ShopByConcern } from '../../components/storefront/uix/ShopByConcern';
-import { StorefrontNewsletter } from '../../components/storefront/uix/StorefrontNewsletter';
+
+
+
 import { UixStatePanel } from '../../components/uix/UixStatePanel';
+
+const LazyEditorialLookbookSection = lazy(() =>
+  import('../../components/editorial/EditorialLookbookSection').then((module) => ({ default: module.EditorialLookbookSection }))
+);
+const LazyRoutineCards = lazy(() =>
+  import('../../components/storefront/uix/RoutineCards').then((module) => ({ default: module.RoutineCards }))
+);
+const LazyShopByConcern = lazy(() =>
+  import('../../components/storefront/uix/ShopByConcern').then((module) => ({ default: module.ShopByConcern }))
+);
+const LazyStorefrontNewsletter = lazy(() =>
+  import('../../components/storefront/uix/StorefrontNewsletter').then((module) => ({ default: module.StorefrontNewsletter }))
+);
 
 const DEFAULT_BRAND = 'Selfcare Sinners';
 
@@ -124,7 +137,7 @@ export function HomePage() {
             title={<>Rutinas listas para decidir más rápido.</>}
             note="La home ya no empieza como catálogo genérico: guía al cliente por objetivo, contexto y beneficio antes de mostrar todo el inventario."
           />
-          <RoutineCards />
+          <Suspense fallback={null}><LazyRoutineCards /></Suspense>
         </section>
 
         <section className="uix-home-block uix-home-block--split" aria-label="Comprar por necesidad">
@@ -133,7 +146,7 @@ export function HomePage() {
             <h2>Encuentra producto por lo que tu piel necesita.</h2>
             <p>Un storefront premium no obliga a pensar en categorías técnicas. Primero ayuda al usuario a reconocerse: hidratación, manchas, acné, barrera o protección solar.</p>
           </div>
-          <ShopByConcern />
+          <Suspense fallback={null}><LazyShopByConcern /></Suspense>
         </section>
 
         <main id="shop" className="ss-editorial-section ss-shop-section-organized">
@@ -180,7 +193,7 @@ export function HomePage() {
           </div>
         </main>
 
-        <EditorialLookbookSection />
+        <Suspense fallback={null}><LazyEditorialLookbookSection /></Suspense>
 
         <section className="ss-editorial-section">
           <div className="ss-section-head">
@@ -198,7 +211,7 @@ export function HomePage() {
           </div>
         </section>
 
-        <StorefrontNewsletter />
+        <Suspense fallback={null}><LazyStorefrontNewsletter /></Suspense>
 
         <EditorialFooter storeName={currentStore.name || DEFAULT_BRAND} />
         <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
@@ -10,8 +10,8 @@ import { useSearchProducts } from '../../hooks/useSearchProducts';
 import { useProductRating } from '../../hooks/useReviews';
 import { useAuthSafe as useAuth } from '../../hooks/useAuthSafe';
 import { SEO } from '../../components/SEO';
-import { ReviewList } from '../../components/reviews/ReviewList';
-import { ReviewForm } from '../../components/reviews/ReviewForm';
+
+
 import { StarRating } from '../../components/reviews/StarRating';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
 import { productCanonicalPath, productJsonLd, stripHtml } from '../../lib/seo';
@@ -21,6 +21,13 @@ import { EditorialProductCard } from '../../components/editorial/EditorialProduc
 import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
 import { trackMarketingEvent } from '../../lib/analytics';
 import { UixStatePanel } from '../../components/uix/UixStatePanel';
+
+const LazyReviewList = lazy(() =>
+  import('../../components/reviews/ReviewList').then((module) => ({ default: module.ReviewList }))
+);
+const LazyReviewForm = lazy(() =>
+  import('../../components/reviews/ReviewForm').then((module) => ({ default: module.ReviewForm }))
+);
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -228,8 +235,8 @@ export function ProductDetailPage() {
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2"><ReviewList productId={product.id} themeColor="#0b0b0a" /></div>
-            <div>{isSignedIn ? <ReviewForm productId={product.id} themeColor="#0b0b0a" /> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesión para escribir una reseña.</div>}</div>
+            <div className="lg:col-span-2"><Suspense fallback={null}><LazyReviewList productId={product.id} themeColor="#0b0b0a" /></Suspense></div>
+            <div>{isSignedIn ? <Suspense fallback={null}><LazyReviewForm productId={product.id} themeColor="#0b0b0a" /></Suspense> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesión para escribir una reseña.</div>}</div>
           </div>
         </section>
 
