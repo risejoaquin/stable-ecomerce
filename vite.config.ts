@@ -89,7 +89,17 @@ export default defineConfig(() => {
               if (
                 normalizedId.includes('/recharts/') ||
                 normalizedId.includes('/d3-') ||
-                normalizedId.includes('/victory-vendor/')
+                normalizedId.includes('/victory-vendor/') ||
+                normalizedId.includes('/@reduxjs/toolkit/') ||
+                normalizedId.includes('/decimal.js-light/') ||
+                normalizedId.includes('/es-toolkit/') ||
+                normalizedId.includes('/eventemitter3/') ||
+                normalizedId.includes('/immer/') ||
+                normalizedId.includes('/react-redux/') ||
+                normalizedId.includes('/redux/') ||
+                normalizedId.includes('/redux-thunk/') ||
+                normalizedId.includes('/reselect/') ||
+                normalizedId.includes('/use-sync-external-store/')
               ) return 'vendor-charts';
               if (normalizedId.includes('/@supabase/') || normalizedId.includes('/@stripe/')) return 'vendor-commerce';
               if (normalizedId.includes('/@sentry/')) return 'vendor-observability';
