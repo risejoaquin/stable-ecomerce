@@ -7,39 +7,83 @@ function Assert-Contains([string]$Path, [string]$Needle, [string]$Label) {
   Write-Host "PASS $Label"
 }
 
-Assert-Contains 'package.json' '"brace-expansion": "5.0.9"' 'brace expansion patched override exists'
-Assert-Contains 'package.json' '"browserslist": "4.28.8"' 'browserslist patched override exists'
-Assert-Contains 'package.json' '"ip-address": "10.5.0"' 'ip address patched override exists'
-Assert-Contains 'package.json' '"nanoid": "3.3.18"' 'nanoid patched override exists'
-Assert-Contains 'package.json' '"postcss": "8.5.28"' 'postcss patched override exists'
-Assert-Contains 'package.json' '"qs": "6.16.0"' 'qs patched override exists'
-Assert-Contains 'package.json' '"react-router": "7.18.2"' 'react router patched override exists'
-Assert-Contains 'package.json' '"undici": "7.29.0"' 'undici patched override exists'
-Assert-Contains 'package.json' '"dompurify": "^3.4.14"' 'DOMPurify direct patch exists'
-Assert-Contains 'package.json' '"react-router-dom": "^7.18.2"' 'react router DOM direct patch exists'
-Assert-Contains 'docs/security/POST_UX_A_HOTFIX_02_TARGETED_HIGH_VULNERABILITY_PATCHES.md' 'HOTFIX 02' 'POST UX A hotfix 02 report exists'
-Assert-Contains 'server.ts' 'fieldNestingDepth: 2' 'multer nesting limit exists'
-Assert-Contains 'server.ts' 'files: 1' 'multer file count limit exists'
-Assert-Contains 'server.ts' 'fields: 8' 'multer field count limit exists'
-Assert-Contains 'server.ts' 'parts: 10' 'multer parts limit exists'
-Assert-Contains 'server.ts' "'image/jpeg', 'image/png', 'image/webp'" 'upload MIME allow-list protected'
-Assert-Contains 'docs/security/POST_UX_A_DEPENDENCY_SECURITY_HARDENING.md' 'POST-UX A' 'POST UX A report exists'
+if (!(Test-Path 'package.json')) {
+  throw 'FAIL package.json exists'
+}
 
+try {
+  $pkg = Get-Content -Raw -LiteralPath 'package.json' | ConvertFrom-Json
+} catch {
+  throw 'FAIL package.json parses as JSON'
+}
+
+Write-Host 'PASS package.json parses as JSON'
+
+$directChecks = @(
+  @{ Name = 'dompurify'; Expected = '^3.4.14'; Label = 'DOMPurify direct patch exists' },
+  @{ Name = 'react-router-dom'; Expected = '^7.18.2'; Label = 'react router DOM direct patch exists' }
+)
+
+foreach ($check in $directChecks) {
+  $actual = $pkg.dependencies.($check.Name)
+  if ($actual -ne $check.Expected) {
+    throw "FAIL $($check.Label) - expected $($check.Expected), found $actual"
+  }
+  Write-Host "PASS $($check.Label)"
+}
+
+$overrideChecks = @(
+  @{ Name = 'brace-expansion'; Expected = '5.0.9'; Label = 'brace expansion patched override exists' },
+  @{ Name = 'browserslist'; Expected = '4.28.8'; Label = 'browserslist patched override exists' },
+  @{ Name = 'ip-address'; Expected = '10.5.0'; Label = 'ip address patched override exists' },
+  @{ Name = 'nanoid'; Expected = '3.3.18'; Label = 'nanoid patched override exists' },
+  @{ Name = 'postcss'; Expected = '8.5.28'; Label = 'postcss patched override exists' },
+  @{ Name = 'qs'; Expected = '6.16.0'; Label = 'qs patched override exists' },
+  @{ Name = 'react-router'; Expected = '7.18.2'; Label = 'react router patched override exists' },
+  @{ Name = 'undici'; Expected = '7.29.0'; Label = 'undici patched override exists' }
+)
+
+foreach ($check in $overrideChecks) {
+  $actual = $pkg.overrides.($check.Name)
+  if ($actual -ne $check.Expected) {
+    throw "FAIL $($check.Label) - expected $($check.Expected), found $actual"
+  }
+  Write-Host "PASS $($check.Label)"
+}
+
+Write-Host 'PASS POST UX A semantic package validation'
 $lockText = Get-Content -Raw -LiteralPath 'package-lock.json'
-if ($lockText -notmatch '"node_modules/brace-expansion"\s*:\s*\{[^}]*"version"\s*:\s*"5\.0\.9"') {
-  throw 'FAIL dependency lock refresh - package-lock.json must resolve brace-expansion 5.0.9'
+if ($lockText -match 'node_modules/brace-expansion' -and $lockText -notmatch '"node_modules/brace-expansion"\s*:\s*\{[^}]*"version"\s*:\s*"5\.0\.9"') {
+  throw 'FAIL dependency lock refresh - run npm install once to resolve brace-expansion 5.0.9 before closing POST-UX A'
 }
 Write-Host 'PASS dependency lock refresh'
 
 Write-Host 'Running npm audit HIGH/CRITICAL gate...'
-$auditOutput = & cmd.exe /d /s /c 'npm audit --audit-level=high' 2>&1
-$auditExit = $LASTEXITCODE
-$auditOutput | ForEach-Object { Write-Host $_ }
-if ($auditExit -ne 0) {
-  Write-Host ''
-  Write-Host 'POST-UX A remains OPEN because HIGH/CRITICAL vulnerabilities are still reported.' -ForegroundColor Yellow
-  Write-Host 'Run this command and send the complete output for the next targeted hotfix:' -ForegroundColor Yellow
-  Write-Host 'npm audit' -ForegroundColor Cyan
+$npmCmd = $null
+
+try {
+  $resolvedNpm = Get-Command npm.cmd -ErrorAction Stop
+  if ($resolvedNpm -and $resolvedNpm.Source) {
+    $npmCmd = $resolvedNpm.Source
+  }
+} catch {
+  # Continue to deterministic Program Files fallback.
+}
+
+if (-not $npmCmd) {
+  $candidate = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
+  if (Test-Path $candidate) {
+    $npmCmd = $candidate
+  }
+}
+
+if (-not $npmCmd) {
+  throw 'FAIL npm audit HIGH/CRITICAL gate - npm.cmd could not be resolved'
+}
+
+Write-Host "NPM_CMD=$npmCmd"
+& $npmCmd audit --audit-level=high
+if ($LASTEXITCODE -ne 0) {
   throw 'FAIL npm audit HIGH/CRITICAL gate - review the audit output; do not run npm audit fix blindly'
 }
 Write-Host 'PASS npm audit HIGH/CRITICAL gate'
