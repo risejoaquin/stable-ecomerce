@@ -102,7 +102,8 @@ export default defineConfig(() => {
             }
 
             if (normalizedId.includes('/src/pages/admin/')) return 'admin-pages';
-            if (normalizedId.includes('/src/pages/store/')) return 'storefront-pages';
+            // Storefront route modules intentionally keep their natural Vite/Rollup
+            // lazy-route boundaries. Do not collapse them into one shared storefront chunk.
             if (normalizedId.includes('/src/server/email/') || normalizedId.includes('/src/hooks/useAdminEmail')) return 'email-admin';
           },
         },
