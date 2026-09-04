@@ -44,8 +44,37 @@ Assert-Contains "src\App.tsx" "Suspense" "App uses React Suspense"
 Assert-Contains "vite.config.ts" "manualChunks" "Vite manualChunks configured"
 
 $viteConfig = Get-Content "vite.config.ts" -Raw
-if ($viteConfig -match "vendor-react") { Fail "Vite config must not generate vendor-react circular chunk" } else { Pass "Vite vendor-react circular chunk removed" }
-if ($viteConfig -match "Cannot set properties of undefined") { Pass "Vite blank screen regression is documented" } else { Fail "Vite blank screen regression note missing" }
+if ($viteConfig -match "vendor-react") {
+  Fail "Vite config must not generate vendor-react circular chunk"
+} else {
+  Pass "Vite vendor-react circular chunk removed"
+}
+
+# POST-UX B: validate the actual stable-vendor contract instead of depending on
+# an old comment string. React, React DOM, React Router and lucide-react must
+# remain grouped in vendor to protect the prior production blank-screen regression.
+$stableVendorGuards = @(
+  "/react/",
+  "/react-dom/",
+  "/react-router/",
+  "/react-router-dom/",
+  "/lucide-react/"
+)
+
+foreach ($guard in $stableVendorGuards) {
+  if ($viteConfig.Contains($guard)) {
+    Pass "Vite stable vendor guard exists: $guard"
+  } else {
+    Fail "Vite stable vendor guard missing: $guard"
+  }
+}
+
+if ($viteConfig -match "return\s+'vendor'") {
+  Pass "Vite stable vendor return protected"
+} else {
+  Fail "Vite stable vendor return missing"
+}
+
 Assert-Contains "src\styles\uix-soft-premium-system.css" "QA RELEASE E" "QA release CSS marker exists"
 Assert-Contains "src\components\qa\FinalReleaseReadinessPanel.tsx" "QA / RELEASE E" "final release panel labels phase"
 Assert-Contains "src\components\qa\FinalReleaseReadinessPanel.tsx" "Email production" "final release panel covers email production"
@@ -66,7 +95,11 @@ Assert-Contains "public\sw.js" "!url.search" "service worker avoids caching quer
 if ($BaseUrl.Trim().Length -gt 0) {
   try {
     $homeResponse = Invoke-WebRequest -Uri $BaseUrl -UseBasicParsing -TimeoutSec 20
-    if ($homeResponse.StatusCode -ge 200 -and $homeResponse.StatusCode -lt 400) { Pass "production home responds" } else { Fail "production home returned $($homeResponse.StatusCode)" }
+    if ($homeResponse.StatusCode -ge 200 -and $homeResponse.StatusCode -lt 400) {
+      Pass "production home responds"
+    } else {
+      Fail "production home returned $($homeResponse.StatusCode)"
+    }
   } catch {
     Fail "production home request failed: $($_.Exception.Message)"
   }
