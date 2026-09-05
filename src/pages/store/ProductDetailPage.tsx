@@ -13,6 +13,7 @@ import { SEO } from '../../components/SEO';
 import { StarRating } from '../../components/reviews/StarRating';
 import { WishlistButton } from '../../components/storefront/WishlistButton';
 import { productCanonicalPath, productJsonLd, stripHtml } from '../../lib/seo';
+import { getResponsiveProductImage } from '../../lib/product-image';
 import { EditorialHeader } from '../../components/editorial/EditorialHeader';
 import { EditorialFooter } from '../../components/editorial/EditorialFooter';
 import { EditorialProductCard } from '../../components/editorial/EditorialProductCard';
@@ -84,6 +85,7 @@ export function ProductDetailPage() {
   const sku = activeVariant?.sku || product.sku;
   const ingredients = product.ingredients || product.config?.ingredients || [];
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+  const mainImage = getResponsiveProductImage(product.images?.[selectedImageIndex]);
 
   const handleAddToCart = () => {
     if (hasVariants && !activeVariant) {
@@ -129,7 +131,7 @@ export function ProductDetailPage() {
           <section className="ss-gallery-panel">
             <div className="ss-main-product-image">
               <WishlistButton productId={product.id} className="absolute top-4 right-4 z-10 ss-mini-btn" />
-              {product.images?.[selectedImageIndex] ? <img src={product.images[selectedImageIndex]} alt={product.name} fetchPriority="high" loading="eager" decoding="async" /> : <div className="absolute inset-0 flex items-center justify-center opacity-40">Sin imagen</div>}
+              {mainImage ? <img src={mainImage.src} srcSet={mainImage.srcSet} sizes={mainImage.sizes} alt={product.name} fetchPriority="high" loading="eager" decoding="async" onError={(event) => { if (mainImage.fallbackSrc && event.currentTarget.src !== mainImage.fallbackSrc) { event.currentTarget.srcset = ''; event.currentTarget.src = mainImage.fallbackSrc; } }} /> : <div className="absolute inset-0 flex items-center justify-center opacity-40">Sin imagen</div>}
             </div>
             {product.images?.length > 1 && (
               <div className="grid grid-cols-4 gap-2 mt-3">

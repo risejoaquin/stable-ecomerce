@@ -15,6 +15,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import * as fs from 'fs';
 import multer from 'multer';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
 import { EmailService } from './src/server/email/email-service.js';
@@ -2399,6 +2400,134 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
         }));
 
   // Image Upload Endpoint
+// POST-UX C HOTFIX 10: responsive product image upload pipeline
+const productImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 8,
+    parts: 10
+  }
+});
+
+app.post(
+  '/api/upload/product-image',
+  mockAuthMiddleware(),
+  requireAdmin(),
+  productImageUpload.single('file'),
+  asyncHandler(async (req, res) => {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Storage is not configured' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Image file is required' });
+    }
+
+    const allowedImageTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/avif'
+    ]);
+
+    if (!allowedImageTypes.has(req.file.mimetype)) {
+      return res.status(400).json({ error: 'Unsupported image format' });
+    }
+
+    const source = sharp(req.file.buffer, { failOn: 'error' }).rotate();
+    const metadata = await source.metadata();
+    const sourceWidth = Number(metadata.width || 0);
+    const sourceHeight = Number(metadata.height || 0);
+
+    if (!sourceWidth || !sourceHeight) {
+      return res.status(400).json({ error: 'Unable to read image dimensions' });
+    }
+
+    const uploadId = crypto.randomUUID();
+    const basePath = `responsive/${uploadId}/w${sourceWidth}`;
+    const uploadedPaths = [];
+
+    const uploadAsset = async (storagePath, buffer, contentType) => {
+      const { error } = await supabase.storage
+        .from('products')
+        .upload(storagePath, buffer, {
+          contentType,
+          cacheControl: '31536000',
+          upsert: false
+        });
+
+      if (error) throw error;
+      uploadedPaths.push(storagePath);
+
+      const { data } = supabase.storage.from('products').getPublicUrl(storagePath);
+      return data.publicUrl;
+    };
+
+    try {
+      const originalPath = `${basePath}/original`;
+      const originalUrl = await uploadAsset(
+        originalPath,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      const standardWidths = [480, 800, 1200].filter((width) => width <= sourceWidth);
+      const targetWidths = standardWidths.length > 0
+        ? standardWidths
+        : [sourceWidth];
+
+      const variants = [];
+
+      for (const width of targetWidths) {
+        const buffer = await sharp(req.file.buffer, { failOn: 'error' })
+          .rotate()
+          .resize({
+            width,
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .webp({
+            quality: width <= 480 ? 78 : width <= 800 ? 80 : 82,
+            effort: 4
+          })
+          .toBuffer();
+
+        const variantPath = `${basePath}/${width}.webp`;
+        const url = await uploadAsset(variantPath, buffer, 'image/webp');
+
+        variants.push({
+          width,
+          url,
+          bytes: buffer.length
+        });
+      }
+
+      const primary = variants[variants.length - 1];
+
+      return res.status(201).json({
+        url: primary.url,
+        originalUrl,
+        responsive: {
+          sourceWidth,
+          sourceHeight,
+          variants
+        }
+      });
+    } catch (error) {
+      if (uploadedPaths.length > 0) {
+        try {
+          await supabase.storage.from('products').remove(uploadedPaths);
+        } catch (cleanupError) {
+          logger.warn({ err: cleanupError, uploadedPaths }, 'Responsive image cleanup failed');
+        }
+      }
+      throw error;
+    }
+  })
+);
+
   app.post('/api/upload', requireAuth(), upload.single('file'), asyncHandler(async (req: any, res) => {
           if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
           if (!supabase) {

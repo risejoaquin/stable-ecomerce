@@ -55,7 +55,7 @@ export function ProductFormModal({ product, onClose }: { product: any, onClose: 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('/api/upload', {
+      const res = await fetch('/api/upload/product-image', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${await getToken() || ''}`
