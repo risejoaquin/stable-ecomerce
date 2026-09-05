@@ -13,7 +13,6 @@ const lazyNamed = <T extends React.ComponentType<any>>(
 export const LazyHomePage = lazyNamed(() => import('../pages/store/HomePage'), 'HomePage');
 export const LazyRecoverCartPage = lazyNamed(() => import('../pages/store/RecoverCartPage'), 'RecoverCartPage');
 export const LazyVerifyEmailPage = lazyNamed(() => import('../pages/store/VerifyEmailPage'), 'VerifyEmailPage');
-export const LazyProductDetailPage = lazyNamed(() => import('../pages/store/ProductDetailPage'), 'ProductDetailPage');
 export const LazyCheckoutSuccessPage = lazyNamed(() => import('../pages/store/CheckoutSuccessPage'), 'CheckoutSuccessPage');
 export const LazyResetPasswordPage = lazyNamed(() => import('../pages/store/ResetPasswordPage'), 'ResetPasswordPage');
 export const LazyTrackOrderPage = lazyNamed(() => import('../pages/store/TrackOrderPage'), 'TrackOrderPage');

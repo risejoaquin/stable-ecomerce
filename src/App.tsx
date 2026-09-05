@@ -22,6 +22,7 @@ import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfide
 import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
 import { trackMarketingEvent } from './lib/analytics';
 import { AdminCommandNav } from './components/admin/uix/AdminCommandNav';
+import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import {
   LazyAdminCategoriesPage,
   LazyAdminCommercialPage,
@@ -38,7 +39,6 @@ import {
   LazyMyOrdersPage,
   LazyNotFoundPage,
   LazyPrivacyPolicyPage,
-  LazyProductDetailPage,
   LazyProductsPage,
   LazyProfilePage,
   LazyRecoverCartPage,
@@ -418,8 +418,8 @@ export default function App() {
           <Route path="/sign-up/*" element={<SignUp />} />
           <Route path="*" element={<LazyNotFoundPage />} />
   
-          <Route path="/product/:id" element={<LazyProductDetailPage />} />
-          <Route path="/product/:id/:slug" element={<LazyProductDetailPage />} />
+          <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/product/:id/:slug" element={<ProductDetailPage />} />
           <Route path="/checkout/success" element={<LazyCheckoutSuccessPage />} />
           <Route path="/reset-password" element={<LazyResetPasswordPage />} />
           <Route path="/track" element={<LazyTrackOrderPage />} />
