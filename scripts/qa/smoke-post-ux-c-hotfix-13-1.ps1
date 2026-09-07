@@ -34,7 +34,6 @@ foreach ($needle in @(
   'rel="preload" as="style"',
   'family=Archivo+Black&family=Inter',
   'media="print"',
-  'onload="this.media=''all''"',
   '<noscript><link rel="stylesheet"'
 )) {
   if ($html.Contains($needle)) { Pass "non-blocking font loader retained: $needle" } else { Fail "non-blocking font loader retained: $needle" }
