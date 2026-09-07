@@ -31,7 +31,7 @@ export function AdminCustomersPage() {
   );
 
   return (
-    <div className="p-4 sm:p-10 flex flex-col gap-6 h-full bg-[var(--color-background)]">
+    <div className="uix-admin-responsive-page flex flex-col gap-6 h-full bg-[var(--color-background)]" data-mobile-ux-d="customers">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-serif text-3xl text-[var(--color-text)] mb-1">Clientes</h2>
@@ -59,11 +59,11 @@ export function AdminCustomersPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="uix-admin-table-scroll flex-1">
           {isLoading ? (
             <div className="p-10 text-center text-gray-500">Cargando clientes...</div>
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <table className="w-full text-left border-collapse">
+            <table className="uix-admin-data-table w-full text-left border-collapse">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">Cliente</th>

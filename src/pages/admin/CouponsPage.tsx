@@ -20,7 +20,7 @@ export function CouponsPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || !formData.discount_value) {
-      toast.error('Code and discount value are required');
+      toast.error('El código y el valor del descuento son obligatorios');
       return;
     }
     
@@ -34,7 +34,7 @@ export function CouponsPage() {
 
     createCoupon.mutate(payload, {
       onSuccess: () => {
-        toast.success('Coupon created');
+        toast.success('Cupón creado');
         setShowForm(false);
         setFormData({ code: '', discount_type: 'percentage', discount_value: '', min_order_amount: '', max_uses: '', expires_at: '' });
       },
@@ -43,66 +43,66 @@ export function CouponsPage() {
   };
 
   return (
-    <div className="p-10 flex flex-col h-full overflow-y-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="font-serif text-2xl text-[var(--color-text)]">Discount Coupons</h2>
+    <div className="uix-admin-responsive-page flex flex-col h-full" data-mobile-ux-d="coupons">
+      <div className="uix-admin-page-header mb-8">
+        <h2 className="font-serif text-2xl text-[var(--color-text)]">Cupones de descuento</h2>
         <button 
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:bg-[#5a5e4d] transition-colors"
         >
-          <Plus size={16} /> Create Coupon
+          <Plus size={16} /> Crear cupón
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-gray-100 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Code</label>
+            <label className="text-sm font-medium text-gray-700">Código</label>
             <input type="text" required value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="border p-2 rounded-lg" placeholder="SUMMER24" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Type</label>
+            <label className="text-sm font-medium text-gray-700">Tipo</label>
             <select value={formData.discount_type} onChange={e => setFormData({...formData, discount_type: e.target.value})} className="border p-2 rounded-lg bg-white">
-              <option value="percentage">Percentage (%)</option>
-              <option value="fixed_amount">Fixed Amount ($)</option>
+              <option value="percentage">Porcentaje (%)</option>
+              <option value="fixed_amount">Monto fijo ($)</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Value</label>
+            <label className="text-sm font-medium text-gray-700">Valor</label>
             <input type="number" required value={formData.discount_value} onChange={e => setFormData({...formData, discount_value: e.target.value})} className="border p-2 rounded-lg" min="0" step="0.01" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Min Order Amount (optional)</label>
+            <label className="text-sm font-medium text-gray-700">Pedido mínimo (opcional)</label>
             <input type="number" value={formData.min_order_amount} onChange={e => setFormData({...formData, min_order_amount: e.target.value})} className="border p-2 rounded-lg" min="0" step="0.01" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Max Uses (optional)</label>
+            <label className="text-sm font-medium text-gray-700">Usos máximos (opcional)</label>
             <input type="number" value={formData.max_uses} onChange={e => setFormData({...formData, max_uses: e.target.value})} className="border p-2 rounded-lg" min="1" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Expiration Date (optional)</label>
+            <label className="text-sm font-medium text-gray-700">Fecha de expiración (opcional)</label>
             <input type="date" value={formData.expires_at} onChange={e => setFormData({...formData, expires_at: e.target.value})} className="border p-2 rounded-lg" />
           </div>
           <div className="md:col-span-2 mt-4 flex justify-end gap-3">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
-            <button type="submit" disabled={createCoupon.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm">{createCoupon.isPending ? 'Saving...' : 'Save Coupon'}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Cancelar</button>
+            <button type="submit" disabled={createCoupon.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm">{createCoupon.isPending ? 'Guardando...' : 'Guardar cupón'}</button>
           </div>
         </form>
       )}
 
       {isLoading ? (
-        <div className="text-gray-500">Loading coupons...</div>
+        <div className="text-gray-500">Cargando cupones...</div>
       ) : (
         <div className="bg-white border border-[#E5E5E1] rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto"><table className="w-full text-left">
+          <div className="uix-admin-table-scroll"><table className="uix-admin-data-table w-full text-left">
             <thead className="bg-[var(--color-background)] border-b border-[#E5E5E1] text-[11px] uppercase tracking-wider text-gray-500 font-bold">
               <tr>
-                <th className="px-6 py-4">Code</th>
-                <th className="px-6 py-4">Discount</th>
-                <th className="px-6 py-4">Usage</th>
-                <th className="px-6 py-4">Expires</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Actions</th>
+                <th className="px-6 py-4">Código</th>
+                <th className="px-6 py-4">Descuento</th>
+                <th className="px-6 py-4">Uso</th>
+                <th className="px-6 py-4">Expira</th>
+                <th className="px-6 py-4">Estado</th>
+                <th className="px-6 py-4">Acciones</th>
               </tr>
             </thead>
             <tbody className="text-sm">
@@ -116,19 +116,19 @@ export function CouponsPage() {
                     {c.current_uses} {c.max_uses ? `/ ${c.max_uses}` : ''}
                   </td>
                   <td className="px-6 py-4 text-gray-500">
-                    {c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never'}
+                    {c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Nunca'}
                   </td>
                   <td className="px-6 py-4">
                     {c.is_active ? (
-                      <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase tracking-wider">Active</span>
+                      <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase tracking-wider">Activo</span>
                     ) : (
-                      <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase tracking-wider">Inactive</span>
+                      <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase tracking-wider">Inactivo</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <button 
                       onClick={() => {
-                        if (confirm('Delete this coupon?')) {
+                        if (confirm('¿Eliminar este cupón?')) {
                           deleteCoupon.mutate(c.id);
                         }
                       }}
@@ -141,7 +141,7 @@ export function CouponsPage() {
               ))}
               {!coupons || coupons.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No coupons found.</td>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No se encontraron cupones.</td>
                 </tr>
               ) : null}
             </tbody>

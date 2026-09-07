@@ -13,7 +13,7 @@ export function useCheckout(storeId?: string) {
       
       const orderRes = await apiFetch.post("/orders", {
         storeId,
-        items: items.map(i => ({ productId: i.productId || i.id, quantity: i.quantity, name: i.name })),
+        items: items.map(i => ({ productId: i.productId || i.id, quantity: i.quantity, name: i.name, variantName: (i as any).variant, sku: (i as any).sku })),
         couponCode,
         customerEmail
       });
@@ -22,6 +22,9 @@ export function useCheckout(storeId?: string) {
         orderId: orderRes.id
       });
       
+      if (!checkoutRes?.url || typeof checkoutRes.url !== 'string') {
+        throw new Error('No pudimos iniciar el pago seguro. Intenta de nuevo.');
+      }
       return checkoutRes.url;
     },
     onSuccess: (url) => {
@@ -31,7 +34,7 @@ export function useCheckout(storeId?: string) {
     },
     onError: (error: any) => {
       console.error("Checkout error:", error);
-      toast.error(error.message || 'Error processing checkout. Please try again.');
+      toast.error(error.message || 'No pudimos iniciar el pago. Intenta de nuevo.');
     }
   });
 }

@@ -1,93 +1,211 @@
-# E-commerce Platform (Full-Stack)
+# Selfcare Sinners Ecommerce
 
-Plataforma de comercio electrónico de alto rendimiento y completa, construida con React (Vite), Node.js (Express), y PostgreSQL (Supabase).
+## Estado actual
 
-## 🌟 Características del Frontend (React + Vite)
+Proyecto ecommerce avanzado en producción sobre Railway, Supabase, Stripe y Resend.
 
-### 🛍️ Storefront (Experiencia de Cliente)
-- **Navegación y Búsqueda Avanzada:** Búsqueda en tiempo real, filtros dinámicos (categorías, precio, marcas) y paginación para explorar el catálogo eficientemente.
-- **Detalle de Producto:** Selección de variantes, galería de imágenes, stock en tiempo real y sistema de reseñas/calificaciones (1 a 5 estrellas).
-- **Checkout Optimizado:** Flujo de compra fluido con validación de Cupones de descuento (fijos o porcentuales) en tiempo real.
-- **Gestión de Cuentas y Perfil:** Autenticación de usuarios, actualización de información personal y seguimiento de pedidos (*Order Tracking*).
-- **Lista de Deseos (Wishlist):** Sistema para que los clientes guarden sus productos favoritos para futuras compras.
-- **Recuperación de Carritos Abandonados:** Experiencia dedicada para recuperar sesiones de compras interrumpidas.
-- **SEO & Accesibilidad:** Meta tags dinámicos mediante React Helmet Async (`SEO.tsx`), y diseño responsivo para móviles, tablets y escritorio.
-- **Componentes de UX:** Consentimiento de cookies (`CookieConsent`), manejo de errores globales (`ErrorBoundary`), estados vacíos visuales (`EmptyState`).
+### Macrofases recientes cerradas
 
-### ⚙️ Admin Dashboard (Panel de Administración)
-- **Dashboard y Analíticas:** Visualización de datos utilizando **Recharts**. Estadísticas en tiempo real de ingresos, productos más vendidos, uso de cupones y últimas órdenes.
-- **Gestión de Catálogo (Productos y Categorías):** CRUD completo para inventario. Subida de imágenes, administración de variantes y control de niveles de stock.
-- **Gestión de Órdenes:** Visualización completa del ciclo de vida de los pedidos. Asignación de números de rastreo y **Procesamiento de Reembolsos de Stripe (Refunds)** directo desde el panel.
-- **Gestión de Clientes (CRM):** Listado de clientes registrados y su historial de compras.
-- **Motor de Cupones Promocionales:** Creación de campañas de descuento (fijo o porcentaje), limitados por fecha de expiración o usos máximos.
-- **Personalización de Tienda (Store Builder):** Cambios de configuración en tiempo real (Colores primarios, Tipografías, Layouts y Formas de los componentes). Todo persistido y propagado globalmente vía `ThemeProvider`.
+- EMERGENCY-DRY-01 — Route/logout deduplication: PASS
+- EMERGENCY-DRY-02 — Analytics dedupe centralization: PASS
+- EMERGENCY-DRY-03 — Abandoned cart race-condition fix: PASS
+- EMERGENCY-DRY-04 — CSS system collision cleanup: PASS
+- EMERGENCY-DRY-05 — Account menu/types consolidation: PASS
+- EMAIL PRODUCTION A — Safety/service consolidation: PASS
+- EMAIL PRODUCTION B — Queue/webhooks/deliverability: PASS
+- EMAIL PRODUCTION C — Admin Email Center/templates: PASS
+- UIX SYSTEM A — Storefront/home architecture: PASS
+- UIX SYSTEM B — Admin command center: PASS
+- UIX SYSTEM C — Storefront/admin/profile consistency polish: PASS
+- PERFORMANCE/FRONTEND D — Bundle optimization/route splitting: PASS
 
----
+## Stack
 
-## 🛠️ Características del Backend (Node.js + Express)
+- Frontend: Vite / React
+- Backend: Node / Express
+- DB: Supabase PostgreSQL
+- Payments: Stripe
+- Email: Resend
+- Deploy: Railway
 
-### 🔒 Autenticación y Seguridad
-- **Sistema JWT (JSON Web Tokens):** Manejo de sesiones sin estado, autenticación segura y cifrado de contraseñas con `bcryptjs`.
-- **Middlewares de Protección:** Control de acceso basado en roles (Admin vs. Usuario regular).
-- **Rate Limiting:** Protección activa (throttling) contra fuerza bruta en endpoints críticos (Login, Checkout, Formularios de Contacto).
-- **Seguridad HTTP:** Implementación de `helmet` para prevenir vulnerabilidades comunes y configuración estricta de CORS.
+## Validación PERFORMANCE/FRONTEND D
 
-### 💳 Pagos e Idempotencia (Stripe)
-- **Stripe Checkout Sessions:** Generación de sesiones de pago 100% seguras y compatibles con PCI.
-- **Webhooks de Stripe Robustos:** 
-  - Manejo asíncrono de eventos de pago (ej. `checkout.session.completed`).
-  - **Mecanismo de Idempotencia:** Validación en la base de datos a través de la tabla `stripe_events` (evita que un pago o webhook duplicado emita los productos dos veces).
-  - **Actualización de Inventario Atómica:** Decremento seguro del stock empleando funciones Postgres RPC (`decrement_stock`) para prevenir *race conditions*.
-
-### 🗄️ Base de Datos y Supabase (PostgreSQL)
-- **Row Level Security (RLS):** Las consultas públicas directas están bloqueadas, canalizando todo de forma segura a través del *Service Role Key* del servidor.
-- **Modelo de Datos Relacional (9 Tablas):** `users`, `stores`, `products`, `orders`, `order_items`, `coupons`, `abandoned_carts`, `reviews`, y `stripe_events`.
-
-### 📧 Mensajería y Almacenamiento
-- **Notificaciones por Correo (Resend):**
-  - Correos de confirmación de órdenes al cliente (con desglose de items).
-  - Alertas instantáneas al Administrador sobre nuevas ventas.
-  - Correos de verificación de cuenta y recuperación de contraseña.
-- **Archivos Estáticos:** Upload de archivos local vía `multer` (`/api/upload`).
-
-### 📊 Observabilidad y Manejo de Errores
-- **Logging Estructurado:** Logs HTTP enriquecidos con `pino` y `pino-http`.
-- **Rastreo de Frontend:** Endpoint dedicado (`/api/log-error`) para recibir y guardar errores que ocurran en el navegador de los clientes.
-- **Monitoreo con Sentry:** Integración en cliente y servidor para captura automática de excepciones.
-
----
-
-
-## 🧪 Pruebas Automatizadas (Testing Suite)
-
-Se ha implementado una robusta suite de pruebas que garantiza la calidad del código:
-
-- **Unit Tests (Pruebas Unitarias):** Desarrolladas con `vitest` y `@testing-library/react` para validar componentes UI individuales (ej. `Pagination.test.tsx`).
-- **Integration Tests (Pruebas de Integración):** Aseguran que la API backend funcione correctamente empleando `supertest` (ej. endpoints de salud y autenticación en `tests/api`).
-- **E2E Tests (Pruebas End-to-End):** Implementadas con `Playwright` (`@playwright/test`). Prueban los flujos críticos de la aplicación en navegadores reales (ej. la carga de la página inicial en `e2e/home.spec.ts`).
-
-### Ejecutar las Pruebas
-
-```bash
-# Ejecutar pruebas unitarias y de integración (Vitest)
-npm run test
-
-# Ejecutar pruebas End-to-End (Playwright)
-npm run test:e2e
+```powershell
+Unblock-File .\scripts\qa\smoke-performance-frontend-d.ps1
+.\scripts\qa\smoke-performance-frontend-d.ps1
+npm install
+npm run build
 ```
 
-## 🚀 Despliegue (Build)
+## Deploy
 
-Este proyecto emplea un modelo de compilación unificado Full-Stack para facilitar su alojamiento en contenedores (Google Cloud Run, Railway, etc.):
+```powershell
+git add .
+git commit -m "Performance Frontend D bundle route splitting"
+git push origin main
+```
 
-1. **Construir artefactos:**
-   ```bash
-   npm run build
-   ```
-   *Transpila el Frontend (Vite) hacia `/dist` y empaqueta el servidor (`server.ts`) como un binario unificado Node.js en `/dist/server.cjs` empleando esbuild.*
+## Pendientes restantes
 
-2. **Iniciar Producción:**
-   ```bash
-   npm run start
-   ```
-   *Inicia Express, sirve las APIs y auto-redirige a la SPA de React.*
+- QA/RELEASE E — Final regression, accessibility and production closure.
+- Security Dependencies — revisión controlada de `npm audit` sin aplicar `npm audit fix` a ciegas.
+
+
+---
+
+# QA/RELEASE E — Final Regression, Accessibility & Production Closure
+
+Estado: preparado para validación final.
+
+Incluye cierre de regresión, accesibilidad básica, responsive QA, producción, readiness final y reporte de estado del proyecto.
+
+## Validación QA/RELEASE E
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1
+npm install
+npm run build
+```
+
+## Validación opcional contra producción
+
+```powershell
+.\scripts\qa\smoke-qa-release-e.ps1 `
+  -BaseUrl "https://selfcaresinners.com"
+```
+
+## Estado del roadmap actual
+
+- EMERGENCY-DRY-01: PASS
+- EMERGENCY-DRY-02: PASS
+- EMERGENCY-DRY-03: PASS
+- EMERGENCY-DRY-04: PASS
+- EMERGENCY-DRY-05: PASS
+- EMAIL PRODUCTION A: PASS
+- EMAIL PRODUCTION B: PASS
+- EMAIL PRODUCTION C: PASS
+- UIX SYSTEM A: PASS
+- UIX SYSTEM B: PASS
+- UIX SYSTEM C: PASS
+- PERFORMANCE/FRONTEND D: PASS
+- QA/RELEASE E: preparado para cierre
+
+Resultado esperado: `PASS qa release e final regression accessibility production closure checks`.
+
+
+## QA RELEASE E HOTFIX 01 — PowerShell production smoke variable fix
+
+Corrige el smoke `scripts/qa/smoke-qa-release-e.ps1` para no usar `$home`, porque en PowerShell `HOME` es una variable reservada/constante en algunos entornos.
+
+Cambio aplicado:
+
+- `$home` -> `$homeResponse`
+
+Validación esperada:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+```
+
+Resultado esperado adicional:
+
+```txt
+PASS production home responds
+PASS qa release e final regression accessibility production closure checks
+```
+
+
+## QA RELEASE E HOTFIX 02 — Vite Vendor Circular Chunk
+
+Corrige el blank screen de producción causado por la advertencia de Rollup/Vite:
+
+```txt
+Circular chunk: vendor -> vendor-react -> vendor
+```
+
+La corrección deja React, React DOM, React Router y lucide-react dentro del mismo chunk `vendor` para evitar inicialización circular entre chunks.
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+npm run build
+```
+
+## QA/RELEASE E HOTFIX 03 — Service Worker Fetch Response Guard
+
+Corrige el error de consola `TypeError: Failed to convert value to 'Response'` producido por el service worker al navegar rutas con query params como `/?search=Piel%20sensible`.
+
+Archivos clave:
+
+- `public/sw.js`
+- `docs/release/QA_RELEASE_E_HOTFIX_03_SERVICE_WORKER_FETCH_RESPONSE_GUARD.md`
+- `scripts/qa/smoke-qa-release-e.ps1`
+
+Validación:
+
+```powershell
+Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
+.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
+npm run build
+```
+
+
+## QA RELEASE E HOTFIX 04 — PowerShell Regex Literal Assert
+
+Corrige el smoke final para que la validación del service worker use comparación literal en patrones con `||` y paréntesis. No cambia lógica de producción.
+
+## QA RELEASE E HOTFIX 05 — Assert-ContainsLiteral Applied
+
+Corrige definitivamente el smoke `scripts/qa/smoke-qa-release-e.ps1` para que la validación literal del fallback del service worker use `Assert-ContainsLiteral` y no `Assert-Contains`/`-match`.
+
+## LOGIN UIX A — Premium Auth Modal
+
+Actualiza el diseño frontend del login/registro/recuperación para alinearlo al sistema visual premium de Selfcare Sinners.
+
+### Archivos principales
+- `src/components/AuthMock.tsx`
+- `src/styles/uix-soft-premium-system.css`
+- `docs/design/LOGIN_UIX_A_PREMIUM_AUTH_MODAL.md`
+- `scripts/qa/smoke-login-uix-a.ps1`
+
+### Validación
+```powershell
+Unblock-File .\scripts\qa\smoke-login-uix-a.ps1
+.\scripts\qa\smoke-login-uix-a.ps1
+npm run build
+```
+
+## LOGIN UIX A HOTFIX 01 — Dialog Role Smoke Assert
+
+Corrige el smoke test del login premium para validar `role="dialog"` con búsqueda literal estable. No cambia lógica de autenticación ni backend.
+
+
+## LOGIN UIX A HOTFIX 02 — PowerShell Quote Literal Assert
+
+Corrige el smoke `scripts/qa/smoke-login-uix-a.ps1` para validar atributos TSX como `role="dialog"` usando literales PowerShell con comillas simples. No cambia lógica de producción.
+
+## ACCOUNT FLOW A — Roles, Registration and Profile Data Integrity
+
+Corrección post-cierre para roles, registro, verificación de correo y perfil de usuario.
+
+### Incluye
+
+- Matriz clara guest/user/admin.
+- Registro sin `alert()` del navegador; ahora usa mensaje inline premium.
+- Página `/verify-email` migrada al UIX premium.
+- Plantillas legacy de correo actualizadas al formato Soft Premium.
+- Perfil sin pedidos, tarjetas, puntos, cupones, envíos o notificaciones estáticas.
+- Perfil conectado a `/api/profile`, `/api/orders/my` y wishlist real.
+- `useUserSafe` ya no devuelve `Local Admin` falso.
+
+### Validación
+
+```powershell
+Unblock-File .\scripts\qa\smoke-account-flow-a.ps1
+.\scripts\qa\smoke-account-flow-a.ps1
+npm run build
+```

@@ -1,0 +1,212 @@
+/* MACRO UI C — Final Visual QA, Storefront Integration & Conversion Polish
+   Purpose: unify the premium storefront and checkout conversion redesign into one
+   cohesive visual system without changing business logic. */
+:root {
+  --ss-bg: #fffaf7;
+  --ss-surface: #ffffff;
+  --ss-surface-soft: #fff2ea;
+  --ss-ink: #241817;
+  --ss-muted: #7b6660;
+  --ss-line: rgba(36, 24, 23, 0.12);
+  --ss-accent: #b76e79;
+  --ss-accent-deep: #8f4d58;
+  --ss-gold: #c7a36f;
+  --ss-success: #2f6f52;
+  --ss-danger: #a43c3c;
+  --ss-radius-sm: 12px;
+  --ss-radius-md: 18px;
+  --ss-radius-lg: 28px;
+  --ss-shadow-soft: 0 16px 42px rgba(61, 35, 30, 0.08);
+  --ss-shadow-card: 0 10px 30px rgba(61, 35, 30, 0.10);
+  --ss-max: 1180px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: radial-gradient(circle at top left, rgba(255, 230, 218, 0.55), transparent 32rem), var(--ss-bg);
+  color: var(--ss-ink);
+  text-rendering: optimizeLegibility;
+}
+
+/* Global premium shell */
+.storefront-page,
+.premium-storefront-shell,
+.page-shell,
+.checkout-page,
+.tracking-page,
+.profile-page,
+.wishlist-page {
+  background: transparent;
+}
+
+main, .main-content {
+  isolation: isolate;
+}
+
+/* Container rhythm */
+.ss-container,
+.premium-container,
+.store-container,
+.content-container {
+  width: min(100% - 32px, var(--ss-max));
+  margin-inline: auto;
+}
+
+/* Unified section spacing */
+section,
+.premium-section,
+.conversion-section {
+  scroll-margin-top: 96px;
+}
+
+.premium-section,
+.ss-section {
+  padding-block: clamp(48px, 7vw, 96px);
+}
+
+/* Typography hierarchy */
+.premium-eyebrow,
+.ss-eyebrow,
+.section-eyebrow {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ss-accent-deep);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.premium-title,
+.ss-title,
+h1 {
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+}
+
+.premium-copy,
+.ss-copy,
+.lead-copy {
+  color: var(--ss-muted);
+  line-height: 1.7;
+}
+
+/* Buttons */
+button,
+.btn,
+.premium-button,
+.checkout-button,
+a[role='button'] {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+button:hover,
+.btn:hover,
+.premium-button:hover,
+.checkout-button:hover,
+a[role='button']:hover {
+  transform: translateY(-1px);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(183, 110, 121, 0.35);
+  outline-offset: 3px;
+}
+
+/* Cards */
+.card,
+.product-card,
+.premium-product-card,
+.checkout-card,
+.account-card,
+.tracking-card,
+.admin-card {
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-radius-lg);
+  background: rgba(255,255,255,0.84);
+  box-shadow: var(--ss-shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+.product-card img,
+.premium-product-card img {
+  border-radius: calc(var(--ss-radius-lg) - 8px);
+}
+
+/* Trust / conversion */
+.trust-strip,
+.checkout-confidence-strip,
+.ss-trust-row {
+  border: 1px solid rgba(199, 163, 111, 0.32);
+  background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,242,234,.78));
+  border-radius: var(--ss-radius-lg);
+}
+
+/* Forms */
+input,
+select,
+textarea {
+  border-radius: var(--ss-radius-md);
+  border-color: var(--ss-line);
+}
+
+label {
+  color: var(--ss-ink);
+  font-weight: 650;
+}
+
+/* Empty/loading/error states */
+.empty-state,
+.premium-empty-state,
+.loading-state,
+.error-state,
+.success-state {
+  border-radius: var(--ss-radius-lg);
+  border: 1px dashed rgba(183, 110, 121, 0.32);
+  background: rgba(255,255,255,0.78);
+  padding: clamp(24px, 4vw, 44px);
+  text-align: center;
+}
+
+/* Header/nav integration */
+.site-header,
+.premium-header,
+.mobile-storefront-nav {
+  backdrop-filter: blur(16px);
+  background: rgba(255,250,247,0.82);
+  border-bottom: 1px solid var(--ss-line);
+}
+
+/* Mobile polish */
+@media (max-width: 768px) {
+  :root {
+    --ss-radius-lg: 22px;
+  }
+  .ss-container,
+  .premium-container,
+  .store-container,
+  .content-container {
+    width: min(100% - 24px, var(--ss-max));
+  }
+  .premium-section,
+  .ss-section {
+    padding-block: 40px;
+  }
+  h1,
+  .premium-title,
+  .ss-title {
+    line-height: 1.02;
+  }
+  button,
+  .btn,
+  .premium-button,
+  .checkout-button,
+  a[role='button'] {
+    min-height: 44px;
+  }
+  .desktop-only { display: none !important; }
+}
+
+@media (min-width: 769px) {
+  .mobile-only { display: none !important; }
+}

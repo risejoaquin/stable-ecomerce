@@ -1,46 +1,54 @@
 import { SignIn, SignUp } from './components/AuthMock';
 
-import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
-import { TermsAndConditionsPage } from './pages/legal/TermsAndConditionsPage';
-import { ReturnPolicyPage } from './pages/legal/ReturnPolicyPage';
-import { ContactPage } from './pages/legal/ContactPage';
-import { NotFoundPage } from './pages/NotFoundPage';
 import { CookieConsent } from './components/CookieConsent';
 import { useAuthSafe as useAuth } from './hooks/useAuthSafe';
-import { RecoverCartPage } from './pages/store/RecoverCartPage';
-import { VerifyEmailPage } from './pages/store/VerifyEmailPage';
-import { WishlistPage } from './pages/store/WishlistPage';
 import { ThemeProvider } from './components/ThemeProvider';
 import { useValidateCoupon } from './hooks/useCoupon';
-import { CouponsPage } from './pages/admin/CouponsPage';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { ProductDetailPage } from './pages/store/ProductDetailPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { HelmetProvider } from 'react-helmet-async';
-import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } from './components/AuthMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
-import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { Suspense, useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { ProductsPage } from './pages/admin/ProductsPage';
-import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
-import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
-import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
-import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
-import { HomePage } from './pages/store/HomePage';
-import { ProfilePage } from './pages/store/ProfilePage';
-import { TrackOrderPage } from './pages/store/TrackOrderPage';
-import { MyOrdersPage } from './pages/store/MyOrdersPage';
-import { CheckoutSuccessPage } from './pages/store/CheckoutSuccessPage';
-import { ResetPasswordPage } from './pages/store/ResetPasswordPage';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
-import type { Product, StoreConfig } from './types';
+import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
+import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
+import { trackMarketingEvent } from './lib/analytics';
+import { AdminCommandNav } from './components/admin/uix/AdminCommandNav';
+import { ProductDetailPage } from './pages/store/ProductDetailPage';
+import {
+  LazyAdminCategoriesPage,
+  LazyAdminCommercialPage,
+  LazyAdminCustomersPage,
+  LazyAdminDashboard,
+  LazyAdminEmailCenterPage,
+  LazyAdminOrdersPage,
+  LazyAdminSettingsPage,
+  LazyCheckoutSuccessPage,
+  LazyContactPage,
+  LazyCouponsPage,
+  LazyFaqPage,
+  LazyHomePage,
+  LazyMyOrdersPage,
+  LazyNotFoundPage,
+  LazyPrivacyPolicyPage,
+  LazyProductsPage,
+  LazyProfilePage,
+  LazyRecoverCartPage,
+  LazyResetPasswordPage,
+  LazyReturnPolicyPage,
+  LazyTermsAndConditionsPage,
+  LazyTrackOrderPage,
+  LazyVerifyEmailPage,
+  LazyWishlistPage,
+} from './routes/lazy-routes';
 
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
@@ -58,6 +66,8 @@ type CartItem = {
   price: number;
   quantity: number;
   image?: string;
+  variant?: string;
+  sku?: string;
 };
 
 type CartContextType = {
@@ -188,197 +198,190 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
 export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: string, themeColor: string, buttonColor?: string }) {
   const { items, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen } = useCart();
   const { isSignedIn } = useAuth();
-  
   const [couponCode, setCouponCode] = React.useState('');
+  const [guestEmail, setGuestEmail] = React.useState(() => localStorage.getItem('guest_email') || '');
   const [appliedCoupon, setAppliedCoupon] = React.useState<any | null>(null);
-  
+  const [couponError, setCouponError] = React.useState('');
   const checkout = useCheckout(storeId);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (!isCartOpen) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsCartOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [isCartOpen, setIsCartOpen]);
 
   if (!isCartOpen) return null;
 
-    let currentDiscount = 0;
+  let currentDiscount = 0;
   let isCouponActive = false;
   if (appliedCoupon) {
     if (!appliedCoupon.min_order_amount || total >= appliedCoupon.min_order_amount) {
       isCouponActive = true;
-      if (appliedCoupon.discount_type === 'percentage') {
-        currentDiscount = (total * appliedCoupon.discount_value) / 100;
-      } else {
-        currentDiscount = appliedCoupon.discount_value;
-      }
+      currentDiscount = appliedCoupon.discount_type === 'percentage' ? (total * appliedCoupon.discount_value) / 100 : appliedCoupon.discount_value;
     }
   }
   const finalTotal = Math.max(0, total - currentDiscount);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponError('');
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode.trim(), storeId, orderTotal: total })
+      });
+      const data = await res.json();
+      if (data.error) {
+        setCouponError(data.error);
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon(data.coupon);
+        setCouponCode(data.coupon.code);
+        trackMarketingEvent('coupon_applied', { code: data.coupon.code, discount_type: data.coupon.discount_type, discount_value: data.coupon.discount_value }, { source: 'cart' });
+      }
+    } catch (e) {
+      setCouponError('No pudimos validar el cupón. Intenta de nuevo.');
+    }
+  };
+
+  const startCheckout = () => {
+    if (!isSignedIn) {
+      const email = guestEmail.trim();
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+        setCouponError('Ingresa un correo válido para continuar como invitado.');
+        return;
+      }
+      localStorage.setItem('guest_email', email);
+      trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: true }, { source: 'cart' });
+      fetch('/api/cart/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, items })
+      }).finally(() => checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined }));
+      return;
+    }
+    trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: false }, { source: 'cart' });
+    checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined });
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/20 transition-opacity" onClick={() => setIsCartOpen(false)}></div>
-      <div className="relative w-full max-w-md bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="font-serif text-xl font-bold">Tu Carrito</h2>
-          <button onClick={() => setIsCartOpen(false)} className="text-gray-500 hover:text-black">&times;</button>
-        </div>
-        <div className="flex-1 overflow-auto p-6 flex flex-col gap-6">
+    <div className="premium-cart-overlay">
+      <div className="premium-cart-scrim" onClick={() => setIsCartOpen(false)}></div>
+      <aside className="premium-cart-drawer animate-in slide-in-from-right duration-300" role="dialog" aria-modal="true" aria-labelledby="premium-cart-title">
+        <header className="premium-cart-header">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] opacity-50 font-black">Selfcare Sinners</p>
+            <h2 id="premium-cart-title" className="font-serif text-2xl font-black">Tu carrito</h2>
+            <p className="text-sm opacity-60">{itemCount} artículo{itemCount === 1 ? '' : 's'} listo{itemCount === 1 ? '' : 's'} para checkout seguro.</p>
+          </div>
+          <button ref={closeButtonRef} onClick={() => setIsCartOpen(false)} className="premium-cart-close" type="button" aria-label="Cerrar carrito">&times;</button>
+        </header>
+
+        <div className="premium-cart-body">
           {items.length === 0 ? (
-            <p className="text-gray-500 text-center mt-10">Tu carrito está vacío.</p>
+            <div className="text-center my-auto py-12">
+              <div className="w-16 h-16 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined">shopping_bag</span></div>
+              <h3 className="font-black text-lg mb-2">Tu carrito está vacío.</h3>
+              <p className="text-gray-500 text-sm mb-6">Explora el catálogo y arma tu rutina.</p>
+              <button onClick={() => setIsCartOpen(false)} className="px-5 py-3 rounded-2xl text-white font-bold" style={{ backgroundColor: buttonColor || themeColor }}>Seguir comprando</button>
+            </div>
           ) : items.map(item => (
-            <div key={item.id} className="flex gap-4 items-center">
-              {item.image ? (
-                <img src={item.image} alt={item.name}  className="w-16 h-16 object-cover rounded-lg" loading="lazy" />
-              ) : (
-                <div className="w-16 h-16 bg-gray-100 rounded-lg"></div>
-              )}
-              <div className="flex-1">
-                <h4 className="font-bold text-sm text-[var(--color-text)]">{item.name}</h4>
-                <p className="text-gray-500 text-sm mt-1">MXN ${item.price.toFixed(2)}</p>
+            <div key={item.id} className="premium-cart-item">
+              {item.image ? <img src={item.image} alt={item.name} loading="lazy" /> : <div className="premium-cart-image-placeholder"></div>}
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-sm text-[var(--color-text)] line-clamp-2">{item.name}</h4>
+                <p className="text-gray-500 text-sm mt-1">MXN ${Number(item.price).toFixed(2)}</p>
                 <div className="flex items-center gap-3 mt-3">
-                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center border rounded-md text-gray-500 hover:bg-gray-50 transition-colors">-</button>
-                  <span className="text-sm font-medium w-4 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center border rounded-md text-gray-500 hover:bg-gray-50 transition-colors">+</button>
+                  <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="premium-qty-control" type="button" aria-label={`Reducir cantidad de ${item.name}`}>-</button>
+                  <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
+                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="premium-qty-control" type="button" aria-label={`Aumentar cantidad de ${item.name}`}>+</button>
                 </div>
               </div>
-              <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors self-start mt-2">
-                <span className="material-symbols-outlined text-xl">delete</span>
-              </button>
+              <button onClick={() => removeItem(item.id)} className="premium-cart-remove" type="button" aria-label={`Eliminar ${item.name} del carrito`}><span className="material-symbols-outlined text-xl" aria-hidden="true">delete</span></button>
             </div>
           ))}
         </div>
-        {items.length > 0 && (
-          <div className="p-6 border-t bg-gray-50 flex flex-col gap-4">
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                placeholder="Código promocional" 
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
-                id="coupon-input"
-              />
-              <button 
-                onClick={async () => {
-                  if (!couponCode) return;
-                  try {
-                    const res = await fetch('/api/coupons/validate', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ code: couponCode, storeId, orderTotal: total })
-                    });
-                    const data = await res.json();
-                    if (data.error) {
-                      alert(data.error);
-                      setAppliedCoupon(null);
-                    } else {
-                      setAppliedCoupon(data.coupon);
-                    }
-                  } catch (e) {
-                    alert('Failed to validate coupon');
-                  }
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
-              >
-                Apply
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-1 border-b border-gray-200 pb-4">
-              <div className="flex justify-between text-gray-500">
-                <span>Subtotal</span>
-                <span>MXN ${total.toFixed(2)}</span>
-              </div>
-              {isCouponActive && appliedCoupon && (
-                <div className="flex justify-between text-green-600 font-medium">
-                  <span>Discount ({appliedCoupon.code})</span>
-                  <span>-MXN ${currentDiscount.toFixed(2)}</span>
-                </div>
-              )}
-            </div>
 
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total</span>
-              <span>MXN ${finalTotal.toFixed(2)}</span>
+        {items.length > 0 && (
+          <footer className="premium-cart-footer flex flex-col gap-4">
+            {!isSignedIn && (
+              <div>
+                <label htmlFor="guest-checkout-email" className="block text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Correo para checkout invitado</label>
+                <input id="guest-checkout-email" type="email" placeholder="tu@email.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="premium-field text-sm" autoComplete="email" inputMode="email" />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input type="text" placeholder="Código promocional" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="premium-field flex-1 text-sm" id="coupon-input" />
+              <button type="button" onClick={validateCoupon} className="px-4 py-3 bg-gray-200 text-gray-800 rounded-2xl text-sm font-black hover:bg-gray-300 transition-colors">Aplicar</button>
             </div>
-            <button 
-              
-              onClick={() => {
-                if (!isSignedIn && !localStorage.getItem('guest_email')) {
-                  const email = prompt('Por favor ingresa tu correo electrónico para continuar el pago:');
-                  if (email) {
-                    localStorage.setItem('guest_email', email);
-                    fetch('/api/cart/sync', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email, items })
-                    }).then(() => checkout.mutate({ couponCode: appliedCoupon?.code }));
-                  }
-                } else {
-                  checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined });
-                }
-              }}
-              disabled={checkout.isPending}
-              style={{ backgroundColor: buttonColor || themeColor }}
-              className="w-full text-white py-4 rounded-xl font-bold transition-opacity hover:opacity-90 disabled:opacity-50 mt-2"
-            >
-              {checkout.isPending ? 'Procesando...' : 'Pagar'}
+            {couponError && <p className="text-sm text-red-600" role="alert" aria-live="polite">{couponError}</p>}
+            {isCouponActive && appliedCoupon && <p className="text-sm text-green-700 font-bold">Cupón {appliedCoupon.code} aplicado.</p>}
+            <div className="flex flex-col gap-2 border-b border-gray-200 pb-4 text-sm">
+              <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>MXN ${total.toFixed(2)}</span></div>
+              {isCouponActive && appliedCoupon && <div className="flex justify-between text-green-600 font-bold"><span>Descuento ({appliedCoupon.code})</span><span>-MXN ${currentDiscount.toFixed(2)}</span></div>}
+              <div className="flex justify-between text-gray-500"><span>Pago</span><span>Stripe Checkout seguro</span></div>
+            </div>
+            <div className="flex justify-between font-black text-xl"><span>Total</span><span>MXN ${finalTotal.toFixed(2)}</span></div>
+            <CheckoutConfidenceStrip />
+            <button type="button" onClick={startCheckout} disabled={checkout.isPending} aria-busy={checkout.isPending} style={{ backgroundColor: buttonColor || themeColor }} className="premium-primary-action mt-2">
+              {checkout.isPending ? 'Procesando...' : 'Continuar a pago seguro'}
             </button>
-          </div>
+            <ConversionMicrocopy type="checkout" />
+          </footer>
         )}
-      </div>
+      </aside>
     </div>
   );
 }
 
 function AdminLayout() { 
   const { user } = useUser();
-  const location = useLocation();
-
-  const navItemClass = (path: string) => {
-    const isActive = location.pathname === path;
-    return `px-4 py-3 rounded-xl text-sm font-medium md:mb-1 whitespace-nowrap transition-all cursor-pointer block ${isActive ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-primary)] hover:bg-gray-50'}`;
-  };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[var(--color-background)] font-sans text-[var(--color-text)]">
-      <aside className="w-full md:w-[260px] md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-[#E5E5E1] py-6 md:py-10 px-6 flex flex-col shrink-0">
-        <div className="mb-12">
-          <h1 className="font-serif text-2xl font-bold text-[var(--color-primary)]">Terra & Tide</h1>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mt-1">Store Management v.1.0</p>
-        </div>
-        <nav className="flex-1 flex flex-row overflow-x-auto md:flex-col md:overflow-visible gap-2 md:gap-0 pb-2 md:pb-0">
-          <Link to="/admin" className={navItemClass('/admin')}>Dashboard</Link>
-          <Link to="/admin/products" className={navItemClass('/admin/products')}>Productos</Link>
-          <Link to="/admin/categories" className={navItemClass('/admin/categories')}>Categorías</Link>
-          <Link to="/admin/coupons" className={navItemClass('/admin/coupons')}>Cupones</Link>
-          <Link to="/admin/orders" className={navItemClass('/admin/orders')}>Pedidos</Link>
-          <Link to="/admin/customers" className={navItemClass('/admin/customers')}>Clientes</Link>
-          <Link to="/admin/settings" className={navItemClass('/admin/settings')}>Configuración</Link>
-        </nav>
-        <div className="mt-auto pt-6 border-t border-[#E5E5E1]">
-          <div className="flex items-center gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[var(--color-secondary)]"></div>
-                <div>
-                  <p className="text-sm font-bold">{user?.fullName || 'Elena Moss'}</p>
-                  <p className="text-[11px] opacity-60">Store Owner • {user?.id?.slice(0,8) || 'Admin'}</p>
-                </div>
-              </div>
+    <div className="uix-admin-shell" data-mobile-ux-f="admin-final-regression">
+      <a className="uix-skip-link" href="#uix-admin-content">Saltar al contenido de administración</a>
+      <AdminCommandNav />
+      <main id="uix-admin-content" tabIndex={-1} className="uix-admin-main">
+        <header className="uix-admin-topbar">
+          <div>
+            <p className="uix-admin-eyebrow">Panel organizado</p>
+            <h2>Selfcare Sinners Admin</h2>
+            <span>{user?.fullName || 'Administrador'} · Operations console</span>
           </div>
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-auto min-h-[5rem] px-4 sm:px-10 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E5E1] bg-white/30 shrink-0">
-          <h2 className="font-serif text-xl">Dashboard Overview</h2>
-          <div className="flex gap-4">
-            <button onClick={() => {
-              toast.promise(queryClient.invalidateQueries(), {
-                loading: 'Syncing catalog...',
-                success: 'Catalog synced successfully!',
-                error: 'Failed to sync catalog'
-              });
-            }} className="px-4 py-2 bg-white border border-[#E5E5E1] rounded-full text-xs font-bold hover:bg-gray-50 transition-colors">Sync Catalog</button>
-            <button onClick={() => window.open('/', '_blank')} className="px-6 py-2 bg-[var(--color-primary)] text-white rounded-full text-xs font-bold shadow-lg shadow-[var(--color-primary)]/20 hover:bg-[#5a5e4d] transition-colors">View Live Store</button>
+          <div className="uix-admin-topbar__actions">
+            <button
+              onClick={() => {
+                toast.promise(queryClient.invalidateQueries(), {
+                  loading: 'Sincronizando datos...',
+                  success: 'Datos actualizados.',
+                  error: 'No se pudieron actualizar los datos'
+                });
+              }}
+              className="uix-admin-secondary-action"
+            >
+              Sincronizar
+            </button>
+            <button onClick={() => window.open('/', '_blank')} className="uix-admin-primary-action">
+              Ver tienda
+            </button>
           </div>
         </header>
-        <div className="flex-1 overflow-auto">
+        <div className="uix-admin-content">
           <Outlet />
         </div>
       </main>
@@ -387,30 +390,42 @@ function AdminLayout() {
 }
 
 
+function RouteLoadingFallback() {
+  return (
+    <div className="uix-route-loading" role="status" aria-live="polite">
+      <span className="uix-route-loading__mark">SS</span>
+      <p>Cargando experiencia...</p>
+    </div>
+  );
+}
+
 export default function App() {
   const routerContent = (
     <BrowserRouter>
       <CartProvider>
+        <Suspense fallback={<RouteLoadingFallback />} >
         <Routes>
           {/* Public Storefront */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/recover" element={<RecoverCartPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsAndConditionsPage />} />
-          <Route path="/returns" element={<ReturnPolicyPage />} />
-          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/" element={<LazyHomePage />} />
+          <Route path="/recover" element={<LazyRecoverCartPage />} />
+          <Route path="/verify-email" element={<LazyVerifyEmailPage />} />
+          <Route path="/privacy" element={<LazyPrivacyPolicyPage />} />
+          <Route path="/terms" element={<LazyTermsAndConditionsPage />} />
+          <Route path="/returns" element={<LazyReturnPolicyPage />} />
+          <Route path="/contact" element={<LazyContactPage />} />
+          <Route path="/faq" element={<LazyFaqPage />} />
           <Route path="/sign-in/*" element={<SignIn />} />
           <Route path="/sign-up/*" element={<SignUp />} />
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="*" element={<LazyNotFoundPage />} />
   
           <Route path="/product/:id" element={<ProductDetailPage />} />
-          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/track" element={<TrackOrderPage />} />
-          <Route path="/my-orders" element={<SignedIn><MyOrdersPage /></SignedIn>} />
-          <Route path="/profile" element={<SignedIn><ProfilePage /></SignedIn>} />
-          <Route path="/wishlist" element={<SignedIn><WishlistPage /></SignedIn>} />
+          <Route path="/product/:id/:slug" element={<ProductDetailPage />} />
+          <Route path="/checkout/success" element={<LazyCheckoutSuccessPage />} />
+          <Route path="/reset-password" element={<LazyResetPasswordPage />} />
+          <Route path="/track" element={<LazyTrackOrderPage />} />
+          <Route path="/my-orders" element={<SignedIn><LazyMyOrdersPage /></SignedIn>} />
+          <Route path="/profile" element={<SignedIn><LazyProfilePage /></SignedIn>} />
+          <Route path="/wishlist" element={<SignedIn><LazyWishlistPage /></SignedIn>} />
           
           {/* Admin Panel */}
           <Route path="/admin" element={
@@ -423,15 +438,18 @@ export default function App() {
               <SignedOut><RedirectToSignIn /></SignedOut>
             </>
           }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="categories" element={<AdminCategoriesPage />} />
-            <Route path="coupons" element={<CouponsPage />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
-            <Route path="customers" element={<AdminCustomersPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
+            <Route index element={<LazyAdminDashboard />} />
+            <Route path="products" element={<LazyProductsPage />} />
+            <Route path="categories" element={<LazyAdminCategoriesPage />} />
+            <Route path="coupons" element={<LazyCouponsPage />} />
+            <Route path="orders" element={<LazyAdminOrdersPage />} />
+            <Route path="customers" element={<LazyAdminCustomersPage />} />
+            <Route path="commercial" element={<LazyAdminCommercialPage />} />
+            <Route path="email" element={<LazyAdminEmailCenterPage />} />
+            <Route path="settings" element={<LazyAdminSettingsPage />} />
           </Route>
         </Routes>
+        </Suspense>
       </CartProvider>
       <CookieConsent />
     </BrowserRouter>

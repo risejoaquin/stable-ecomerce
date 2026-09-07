@@ -1,29 +1,47 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuthSafe } from '../hooks/useAuthSafe';
-import { LogOut, User, Package, Heart, Shield } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AccountMenu } from './account/AccountMenu';
+import { openAuthDialog, setAuthModalOpener, type AuthModalMode } from '../lib/auth-modal';
 
-// Un simple store global para el modal de auth
-let openAuthModal: ((mode: 'signin' | 'signup' | 'forgot-password') => void) | null = null;
 
 export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot-password'>('signin');
   const [email, setEmail] = useState('');
-  const [password, setContraseña] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  openAuthModal = (newMode) => {
-    setMode(newMode);
-    setIsOpen(true);
-    setError('');
-  };
+  React.useEffect(() => {
+    setAuthModalOpener((newMode: AuthModalMode) => {
+      setMode(newMode);
+      setIsOpen(true);
+      setError('');
+      setSuccess('');
+    });
+    return () => setAuthModalOpener(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     if (mode === 'forgot-password') {
@@ -38,7 +56,7 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
         if (!res.ok) {
           throw new Error(data.error || 'Error enviando el correo');
         }
-        alert(data.message || 'Se ha enviado un enlace para restablecer tu contraseña.');
+        setSuccess(data.message || 'Te enviamos un enlace seguro para restablecer tu contraseña. Revisa tu correo.');
         setMode('signin');
       } catch (err: any) {
         setError(err.message);
@@ -69,10 +87,14 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
         throw new Error(data.error || 'Error en la autenticación');
       }
 
-      localStorage.setItem('auth_token', data.token);
-      if (mode === 'signup' && data.message) {
-        alert(data.message);
+      if (mode === 'signup') {
+        setSuccess(data.message || 'Cuenta creada. Te enviamos un correo para verificar tu cuenta.');
+        setPassword('');
+        setMode('signin');
+        return;
       }
+
+      localStorage.setItem('auth_token', data.token);
       window.location.reload(); // Recargamos para que toda la app tome el nuevo estado
     } catch (err: any) {
       setError(err.message);
@@ -85,83 +107,112 @@ export const AuthModalProvider = ({ children }: { children?: React.ReactNode }) 
     <>
       {children}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md relative">
-            <button 
+        <div className="uix-auth-overlay" role="dialog" aria-modal="true" aria-labelledby="uix-auth-title">
+          <div className="uix-auth-modal" role="document">
+            <button
+              type="button"
               onClick={() => setIsOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-black font-bold"
+              className="uix-auth-close"
+              aria-label="Cerrar ventana de acceso"
             >
               ✕
             </button>
-            <h2 className="text-2xl font-bold mb-6 text-center">
-              {mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Recuperar Contraseña'}
-            </h2>
-            
-            {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">{error}</div>}
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
-                <input 
-                  type="email" 
-                  required 
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              {mode !== 'forgot-password' && (
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-medium text-gray-700">Contraseña</label>
-                    {mode === 'signin' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setMode('forgot-password'); setError(''); }} 
-                        className="text-xs text-[var(--color-primary)] hover:underline"
-                      >
-                        ¿Olvidaste tu contraseña?
-                      </button>
-                    )}
-                  </div>
-                  <input 
-                    type="password" 
-                    required 
-                    className="w-full border border-gray-300 rounded px-3 py-2"
-                    value={password}
-                    onChange={(e) => setContraseña(e.target.value)}
-                  />
-                </div>
-              )}
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[var(--color-primary)] text-white font-medium py-2 rounded hover:bg-[#5a5f4d] disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Cargando...' : (mode === 'signin' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar Enlace')}
-              </button>
-            </form>
 
-            <div className="mt-4 text-center text-sm">
-              {mode === 'signin' ? (
-                <p>¿No tienes una cuenta? <button onClick={() => { setMode('signup'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Regístrate</button></p>
-              ) : mode === 'signup' ? (
-                <p>¿Ya tienes una cuenta? <button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Inicia sesión</button></p>
-              ) : (
-                <p><button onClick={() => { setMode('signin'); setError(''); }} className="text-[var(--color-primary)] font-semibold hover:underline">Volver a Iniciar Sesión</button></p>
-              )}
+            <div className="uix-auth-visual" aria-hidden="true">
+              <span className="uix-auth-kicker">Selfcare Sinners</span>
+              <h2>Acceso premium</h2>
+              <p>Gestiona tus pedidos, favoritos y rutinas desde una experiencia segura y limpia.</p>
+              <div className="uix-auth-benefits">
+                <span>Pedidos protegidos</span>
+                <span>Favoritos sincronizados</span>
+                <span>Rutinas personalizadas</span>
+              </div>
+            </div>
+
+            <div className="uix-auth-form-panel">
+              <div className="uix-auth-heading">
+                <p>{mode === 'signin' ? 'Bienvenida de vuelta' : mode === 'signup' ? 'Crea tu cuenta' : 'Recupera tu acceso'}</p>
+                <h2 id="uix-auth-title">
+                  {mode === 'signin' ? 'Iniciar sesión' : mode === 'signup' ? 'Crear cuenta' : 'Recuperar contraseña'}
+                </h2>
+                <span>
+                  {mode === 'signin'
+                    ? 'Entra para ver tus pedidos, favoritos y estado de compra.'
+                    : mode === 'signup'
+                      ? 'Regístrate para guardar favoritos y dar seguimiento a tus pedidos.'
+                      : 'Te enviaremos un enlace seguro para restablecer tu contraseña.'}
+                </span>
+              </div>
+
+              {error && <div className="uix-auth-error" role="alert">{error}</div>}
+              {success && <div className="uix-auth-success" role="status" aria-live="polite">{success}</div>}
+
+              <form onSubmit={handleSubmit} className="uix-auth-form">
+                {mode === 'signup' && (
+                  <label className="uix-auth-field">
+                    <span>Nombre completo</span>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="name"
+                      placeholder="Tu nombre"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </label>
+                )}
+
+                <label className="uix-auth-field">
+                  <span>Correo electrónico</span>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </label>
+
+                {mode !== 'forgot-password' && (
+                  <label className="uix-auth-field">
+                    <span className="uix-auth-label-row">
+                      Contraseña
+                      {mode === 'signin' && (
+                        <button
+                          type="button"
+                          onClick={() => { setMode('forgot-password'); setError(''); }}
+                          className="uix-auth-inline-action"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </label>
+                )}
+
+                <button type="submit" disabled={loading} className="uix-auth-submit">
+                  {loading ? 'Procesando...' : (mode === 'signin' ? 'Entrar a mi cuenta' : mode === 'signup' ? 'Crear mi cuenta' : 'Enviar enlace seguro')}
+                </button>
+              </form>
+
+              <div className="uix-auth-switch">
+                {mode === 'signin' ? (
+                  <p>¿No tienes una cuenta? <button type="button" onClick={() => { setMode('signup'); setError(''); }}>Regístrate</button></p>
+                ) : mode === 'signup' ? (
+                  <p>¿Ya tienes una cuenta? <button type="button" onClick={() => { setMode('signin'); setError(''); }}>Inicia sesión</button></p>
+                ) : (
+                  <p><button type="button" onClick={() => { setMode('signin'); setError(''); }}>Volver a iniciar sesión</button></p>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -182,108 +233,23 @@ export const SignedOut = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const UserButton = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { role } = useAuthSafe();
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSignOut = () => {
-    localStorage.removeItem('auth_token');
-    window.location.reload();
-  };
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
-      >
-        <User size={20} className="text-gray-600" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
-          <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900 truncate">Mi Cuenta</p>
-          </div>
-          
-          <div className="py-1 border-b border-gray-100">
-            {role === 'admin' && (
-              <Link 
-                to="/admin" 
-                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                <Shield size={16} className="text-gray-400" />
-                <span>Panel de Administración</span>
-              </Link>
-            )}
-            <Link 
-              to="/profile" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <User size={16} className="text-gray-400" />
-              <span>Mi Perfil</span>
-            </Link>
-            <Link 
-              to="/my-orders" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <Package size={16} className="text-gray-400" />
-              <span>Mis Pedidos</span>
-            </Link>
-            <Link 
-              to="/wishlist" 
-              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              <Heart size={16} className="text-gray-400" />
-              <span>Lista de Deseos</span>
-            </Link>
-          </div>
-
-          <button
-            onClick={handleSignOut}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-          >
-            <LogOut size={16} />
-            <span>Cerrar Sesión</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  return <AccountMenu triggerClassName="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400" triggerLabel="" anonymousLabel="" />;
 };
 
 export const RedirectToSignIn = () => {
   // Cuando se monta este componente, podríamos abrir el modal, pero por ahora mostramos un mensaje
   React.useEffect(() => {
-    if (openAuthModal) openAuthModal('signin');
+    openAuthDialog('signin');
   }, []);
   return <div>Por favor, inicia sesión...</div>;
 };
 
 export const SignInButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <div className="cursor-pointer" onClick={() => {
-    if (openAuthModal) openAuthModal('signin');
-  }}>{children}</div>;
+  return <div className="cursor-pointer" onClick={() => openAuthDialog('signin')}>{children}</div>;
 };
 
 export const SignUpButton = ({ children, mode }: { children: React.ReactNode, mode?: string }) => {
-  return <div className="cursor-pointer" onClick={() => {
-    if (openAuthModal) openAuthModal('signup');
-  }}>{children}</div>;
+  return <div className="cursor-pointer" onClick={() => openAuthDialog('signup')}>{children}</div>;
 };
 
 export const SignIn = () => {

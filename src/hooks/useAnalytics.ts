@@ -32,3 +32,12 @@ export function useCouponsAnalytics() {
     queryFn: () => apiClient.get('/admin/analytics/coupons')
   });
 }
+
+export function useOperationsSummary() {
+  const apiClient = useApiClient();
+  return useQuery({
+    queryKey: ['admin-operations-summary'],
+    queryFn: () => apiClient.get('/admin/operations/summary'),
+    refetchInterval: 60_000
+  });
+}

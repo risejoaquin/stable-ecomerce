@@ -1,26 +1,33 @@
 import React from 'react';
 import { SEO } from '../../components/SEO';
+import { UixPageShell } from '../../components/uix/UixPageShell';
+
+const sections = [
+  ['1. Aceptación de los términos', 'Al acceder y utilizar este sitio aceptas quedar sujeto a estos términos y condiciones, así como a las reglas específicas aplicables a los servicios disponibles en la tienda.'],
+  ['2. Prestación de servicios', 'Selfcare Sinners puede modificar, mejorar o descontinuar funciones o servicios cuando sea necesario para operar la tienda, mantener su seguridad o evolucionar la experiencia de compra.'],
+  ['3. Propiedad intelectual', 'El sitio puede contener marcas, contenidos, diseños y otros materiales protegidos por las leyes de propiedad intelectual aplicables. Su disponibilidad en el sitio no concede derechos de reproducción o explotación fuera de los usos permitidos.'],
+];
 
 export function TermsAndConditionsPage() {
   return (
-    <>
-      <SEO title="Términos y Condiciones" />
-      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-slate">
-        <h1 className="text-3xl font-serif font-bold mb-8">Términos y Condiciones</h1>
-        <p className="mb-4 text-gray-600">Última actualización: {new Date().toLocaleDateString()}</p>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">1. Aceptación de los Términos</h2>
-          <p className="text-gray-600">By accessing and using this website, you accept and agree to be bound by the terms and provision of this agreement. In addition, when using this website's particular services, you shall be subject to any posted guidelines or rules applicable to such services.</p>
-        </section>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">2. Provisión de Servicios</h2>
-          <p className="text-gray-600">You agree and acknowledge that the store is entitled to modify, improve or discontinue any of its services at its sole discretion and without notice to you even if it may result in you being prevented from accessing any information contained in it.</p>
-        </section>
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">3. Derechos de Propiedad</h2>
-          <p className="text-gray-600">You acknowledge and agree that the website may contain proprietary and confidential information including trademarks, service marks and patents protected by intellectual property laws and international intellectual property treaties.</p>
-        </section>
-      </div>
-    </>
+    <UixPageShell mainClassName="uix-customer-page">
+      <SEO title="Términos y Condiciones" description="Términos de uso del ecommerce Selfcare Sinners." canonicalPath="/terms" />
+      <section className="uix-customer-hero uix-legal-hero">
+        <div>
+          <p className="uix-eyebrow">Condiciones de uso</p>
+          <h1>Términos y Condiciones</h1>
+          <p>Las reglas esenciales para utilizar la tienda y sus servicios de forma clara y segura.</p>
+        </div>
+        <span className="uix-legal-updated">Última actualización: 3 de septiembre de 2026</span>
+      </section>
+      <section className="uix-legal-stack">
+        {sections.map(([title, body]) => (
+          <article key={title} className="uix-legal-card">
+            <h2>{title}</h2>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+    </UixPageShell>
   );
 }

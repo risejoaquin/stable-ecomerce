@@ -12,3 +12,7 @@ Recommended production order:
 4. Confirm primary store slug: `selfcare-sinners`.
 5. Deploy Railway.
 6. Test `/api/health`.
+
+## 005_storefront_customer_experience_and_timeline.sql
+
+Run after Phase D. Adds tracking URL support, product content columns and the D.0 database trigger that writes real order status changes into `order_timeline`.

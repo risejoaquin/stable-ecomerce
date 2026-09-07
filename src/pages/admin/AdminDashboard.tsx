@@ -1,194 +1,176 @@
 import React from 'react';
-import { useAdminSales, useTopProducts, useRecentOrders, useCouponsAnalytics } from '../../hooks/useAnalytics';
-import { DollarSign, ShoppingCart, TrendingUp, Users, Tag } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Activity, AlertTriangle, DollarSign, Package, ShoppingCart, ShieldCheck, Tag, TrendingUp, Users, Zap } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useAdminSales, useCouponsAnalytics, useOperationsSummary, useRecentOrders, useTopProducts } from '../../hooks/useAnalytics';
+import { AdminCommandAlert } from '../../components/admin/uix/AdminCommandAlert';
+import { AdminCommandList, AdminCommandListRow } from '../../components/admin/uix/AdminCommandList';
+import { AdminCommandMetric } from '../../components/admin/uix/AdminCommandMetric';
+import { AdminCommandPanel } from '../../components/admin/uix/AdminCommandPanel';
+import { AdminCommandSection } from '../../components/admin/uix/AdminCommandSection';
 
-const MetricCard = ({ title, value, icon: Icon, color }: any) => (
-  <div className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-    <div className={`w-12 h-12 rounded-full flex items-center justify-center`} style={{ backgroundColor: `${color}15`, color }}>
-      <Icon size={24} />
-    </div>
-    <div>
-      <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  </div>
-);
+const formatCurrency = (value: number | string | null | undefined) => `MXN $${Number(value || 0).toFixed(2)}`;
+const formatStatus = (value?: string) => String(value || 'pendiente').replace(/_/g, ' ');
+const formatDate = (value?: string) => {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-MX');
+};
 
 export function AdminDashboard() {
   const { data: sales, isLoading: isSalesLoading } = useAdminSales();
   const { data: topProducts, isLoading: isProductsLoading } = useTopProducts();
   const { data: recentOrders, isLoading: isOrdersLoading } = useRecentOrders();
   const { data: coupons, isLoading: isCouponsLoading } = useCouponsAnalytics();
+  const { data: operations, isLoading: isOperationsLoading } = useOperationsSummary();
 
-  if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading) return <div className="p-4 sm:p-10 flex items-center justify-center text-gray-500">Cargando métricas...</div>;
+  if (isSalesLoading || isProductsLoading || isOrdersLoading || isCouponsLoading || isOperationsLoading) {
+    return <div className="uix-admin-loading">Cargando command center...</div>;
+  }
 
-  const formatCurrency = (val: number) => `MXN $${(val || 0).toFixed(2)}`;
+  const alerts = Array.isArray(operations?.alerts) ? operations.alerts : [];
+  const lowStock = Array.isArray(operations?.inventory?.lowStockProducts) ? operations.inventory.lowStockProducts : [];
+  const stripeEvents = Array.isArray(operations?.recentStripeEvents) ? operations.recentStripeEvents : [];
+  const auditEvents = Array.isArray(operations?.recentAuditLogs) ? operations.recentAuditLogs : Array.isArray(operations?.audit?.recent) ? operations.audit.recent : [];
+  const top = Array.isArray(topProducts) ? topProducts : [];
+  const recent = Array.isArray(recentOrders) ? recentOrders : [];
+  const activeCoupons = Array.isArray(coupons) ? coupons.filter((coupon: any) => Number(coupon.current_uses || 0) > 0) : [];
+  const failedWebhooks = Number(operations?.payments?.failedStripeEvents || 0);
+  const pendingOrders = Number(operations?.orders?.pending || 0);
 
   return (
-    <div className="p-4 sm:p-10 flex flex-col gap-8 h-full overflow-y-auto bg-[var(--color-background)]">
-      <div>
-        <h2 className="font-serif text-3xl text-[var(--color-text)] mb-8">Panel de Control</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <MetricCard 
-            title="Ingresos Totales" 
-            value={formatCurrency(sales?.total_revenue)} 
-            icon={DollarSign} 
-            color="#10B981" 
-          />
-          <MetricCard 
-            title="Ventas Totales" 
-            value={sales?.total_orders || 0} 
-            icon={ShoppingCart} 
-            color="#3B82F6" 
-          />
-          <MetricCard 
-            title="Ticket Promedio" 
-            value={formatCurrency(sales?.average_order_value)} 
-            icon={TrendingUp} 
-            color="#8B5CF6" 
-          />
-          <MetricCard 
-            title="Clientes Únicos" 
-            value={sales?.total_customers || 0} 
-            icon={Users} 
-            color="#F59E0B" 
-          />
+    <div className="uix-admin-command-center" data-mobile-ux-d="command-center">
+      <section className="uix-admin-command-hero">
+        <div>
+          <p className="uix-admin-eyebrow">UIX System B</p>
+          <h1>Command center administrativo</h1>
+          <p>
+            Panel organizado por prioridad real: primero riesgos, después ventas, operación, catálogo, clientes y sistema.
+          </p>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Ventas Diarias */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-6 text-gray-800">Ventas (Últimos 30 Días)</h3>
-            <div className="h-72">
-              {sales?.sales_by_day && sales.sales_by_day.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sales.sales_by_day}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                    <Tooltip 
-                      formatter={(value: any) => [`$${value}`, 'Ingresos']}
-                      labelStyle={{ color: '#374151', fontWeight: 'bold', marginBottom: '8px' }}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Line type="monotone" dataKey="revenue" name="Ingresos" stroke="#6B705C" strokeWidth={3} dot={{ r: 4, fill: '#6B705C', strokeWidth: 0 }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-400">Sin datos de ventas recientes.</div>
-              )}
-            </div>
-          </div>
-
-          {/* Ingresos Mensuales */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-6 text-gray-800">Ingresos Mensuales</h3>
-            <div className="h-72">
-              {sales?.sales_by_month && sales.sales_by_month.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sales.sales_by_month}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                    <Tooltip 
-                      formatter={(value: any) => [`$${value}`, 'Ingresos']}
-                      cursor={{fill: '#f3f4f6'}}
-                      labelStyle={{ color: '#374151', fontWeight: 'bold', marginBottom: '8px' }}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="revenue" name="Ingresos" fill="#10B981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-400">Sin datos de ingresos mensuales.</div>
-              )}
-            </div>
-          </div>
+        <div className="uix-admin-command-hero__status">
+          <span className={alerts.length || failedWebhooks || pendingOrders ? 'is-warning' : 'is-ok'}>
+            {alerts.length || failedWebhooks || pendingOrders ? 'Revisión necesaria' : 'Operación estable'}
+          </span>
+          <strong>{formatCurrency(operations?.payments?.revenueToday)}</strong>
+          <small>Ingresos capturados hoy</small>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Top Productos */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Tag size={20} className="text-[var(--color-primary)]"/> Productos Más Vendidos</h3>
-            {topProducts && topProducts.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                {topProducts.map((p: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{p.name}</p>
-                      <p className="text-xs text-gray-500">{p.quantity} unidades vendidas</p>
-                    </div>
-                    <p className="text-sm font-bold text-[var(--color-primary)]">{formatCurrency(p.revenue)}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Sin datos.</p>
-            )}
-          </div>
+      <AdminCommandAlert alerts={alerts} />
 
-          {/* Cupones Usados */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><DollarSign size={20} className="text-[var(--color-primary)]"/> Cupones Populares</h3>
-            {coupons && coupons.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {coupons.filter((c: any) => c.current_uses > 0).slice(0, 5).map((c: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{c.code}</p>
-                      <p className="text-xs text-gray-500">
-                        Descuento: {c.discount_type === 'percentage' ? `${c.discount_value}%` : formatCurrency(c.discount_value)}
-                      </p>
-                    </div>
-                    <div className="bg-[var(--color-primary)] text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {c.current_uses} usos
-                    </div>
-                  </div>
-                ))}
-                {coupons.filter((c: any) => c.current_uses > 0).length === 0 && (
-                   <p className="text-sm text-gray-500">Ningún cupón ha sido usado todavía.</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No hay cupones creados.</p>
-            )}
-          </div>
-
-          {/* Órdenes Recientes */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-[var(--color-primary)]"/> Órdenes Recientes</h3>
-            {recentOrders && recentOrders.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                {recentOrders.map((o: any) => (
-                  <div key={o.id} className="flex justify-between items-center pb-4 border-b border-gray-50 last:border-0 last:pb-0">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{o.customer_email || 'Invitado'}</p>
-                      <p className="text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-[var(--color-primary)]">{formatCurrency(o.total)}</p>
-                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                        o.status === 'pagado' ? 'bg-green-100 text-green-700' : 
-                        o.status === 'entregado' ? 'bg-teal-100 text-teal-700' :
-                        o.status === 'cancelado' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {o.status.replace('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Sin órdenes todavía.</p>
-            )}
-          </div>
-          
+      <AdminCommandSection eyebrow="Ahora" title="Prioridades críticas">
+        <div className="uix-admin-command-metric-grid is-critical">
+          <AdminCommandMetric label="Pedidos pendientes" value={pendingOrders} detail="Fulfillment y atención" icon={ShoppingCart} priority={pendingOrders > 0 ? 'warning' : 'success'} />
+          <AdminCommandMetric label="Stock bajo" value={lowStock.length} detail="Riesgo de venta perdida" icon={Package} priority={lowStock.length > 0 ? 'warning' : 'success'} />
+          <AdminCommandMetric label="Webhooks con error" value={failedWebhooks} detail="Stripe / pagos" icon={AlertTriangle} priority={failedWebhooks > 0 ? 'critical' : 'success'} />
+          <AdminCommandMetric label="Ingresos hoy" value={formatCurrency(operations?.payments?.revenueToday)} detail="Revenue del día" icon={Activity} priority="revenue" />
         </div>
-      </div>
+      </AdminCommandSection>
+
+      <AdminCommandSection eyebrow="Negocio" title="Indicadores comerciales">
+        <div className="uix-admin-command-metric-grid">
+          <AdminCommandMetric label="Ingresos totales" value={formatCurrency(sales?.total_revenue)} detail="Histórico" icon={DollarSign} priority="revenue" />
+          <AdminCommandMetric label="Órdenes totales" value={sales?.total_orders || 0} detail="Ventas acumuladas" icon={ShoppingCart} />
+          <AdminCommandMetric label="Ticket promedio" value={formatCurrency(sales?.average_order_value)} detail="AOV" icon={TrendingUp} />
+          <AdminCommandMetric label="Clientes únicos" value={sales?.total_customers || 0} detail="Compradores" icon={Users} />
+        </div>
+      </AdminCommandSection>
+
+      <section className="uix-admin-command-chart-grid">
+        <AdminCommandPanel title="Ventas últimos 30 días" label="Revenue diario" action="Tendencia">
+          <div className="uix-admin-command-chart">
+            {sales?.sales_by_day?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={sales.sales_by_day}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(74,55,40,.12)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                  <Tooltip formatter={(value: any) => [`$${value}`, 'Ingresos']} contentStyle={{ borderRadius: 16, border: '1px solid rgba(74,55,40,.12)' }} />
+                  <Line type="monotone" dataKey="revenue" name="Ingresos" stroke="#2b1d17" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <p className="uix-admin-command-empty">Sin datos de ventas recientes.</p>}
+          </div>
+        </AdminCommandPanel>
+
+        <AdminCommandPanel title="Ingresos mensuales" label="Performance" action="Mes a mes">
+          <div className="uix-admin-command-chart">
+            {sales?.sales_by_month?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sales.sales_by_month}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(74,55,40,.12)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: '#7c6d61' }} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                  <Tooltip formatter={(value: any) => [`$${value}`, 'Ingresos']} cursor={{ fill: 'rgba(169,134,99,.08)' }} contentStyle={{ borderRadius: 16, border: '1px solid rgba(74,55,40,.12)' }} />
+                  <Bar dataKey="revenue" name="Ingresos" fill="#a98663" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="uix-admin-command-empty">Sin datos de ingresos mensuales.</p>}
+          </div>
+        </AdminCommandPanel>
+      </section>
+
+      <AdminCommandSection eyebrow="Operación diaria" title="Fulfillment, pagos y catálogo">
+        <div className="uix-admin-command-panel-grid">
+          <AdminCommandPanel title="Órdenes recientes" label="Fulfillment" action="Últimas ventas">
+            <AdminCommandList empty="Sin órdenes todavía.">
+              {recent.slice(0, 6).map((order: any) => (
+                <AdminCommandListRow key={order.id} title={order.customer_email || 'Invitado'} subtitle={formatDate(order.created_at)} meta={formatCurrency(order.total)} status={formatStatus(order.status)} tone={order.status === 'paid' || order.status === 'completed' || order.status === 'entregado' ? 'ok' : 'warning'} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+
+          <AdminCommandPanel title="Stock bajo" label="Inventario" action={`${lowStock.length} alertas`}>
+            <AdminCommandList empty="Sin productos en bajo stock.">
+              {lowStock.slice(0, 6).map((product: any) => (
+                <AdminCommandListRow key={product.id} title={product.name} subtitle="Producto en riesgo" status={`${product.stock} disponibles`} tone="danger" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+
+          <AdminCommandPanel title="Stripe y webhooks" label="Pagos" action="Últimos eventos">
+            <AdminCommandList empty="Sin eventos recientes.">
+              {stripeEvents.slice(0, 5).map((event: any) => (
+                <AdminCommandListRow key={event.id} title={event.type} subtitle={event.error_message || formatDate(event.created_at)} status={event.processed_at && !event.error_message ? 'OK' : 'Revisar'} tone={event.processed_at && !event.error_message ? 'ok' : 'danger'} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+        </div>
+      </AdminCommandSection>
+
+      <AdminCommandSection eyebrow="Crecimiento" title="Catálogo, promociones y clientes">
+        <div className="uix-admin-command-panel-grid">
+          <AdminCommandPanel title="Productos top" label="Catálogo" action="Más vendidos">
+            <AdminCommandList empty="Aún no hay ranking de productos.">
+              {top.slice(0, 5).map((product: any, index: number) => (
+                <AdminCommandListRow key={product.id || index} title={product.name || product.product_name || 'Producto'} subtitle={`${product.total_sold || product.quantity || 0} unidades`} meta={formatCurrency(product.revenue || product.total_revenue)} status="Top" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+
+          <AdminCommandPanel title="Cupones activos" label="Promociones" action="Uso real">
+            <AdminCommandList empty="Ningún cupón ha sido usado todavía.">
+              {activeCoupons.slice(0, 5).map((coupon: any, index: number) => (
+                <AdminCommandListRow key={coupon.id || index} title={coupon.code} subtitle={coupon.discount_type === 'percentage' ? `${coupon.discount_value}% OFF` : formatCurrency(coupon.discount_value)} status={`${coupon.current_uses} usos`} />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+
+          <AdminCommandPanel title="Auditoría reciente" label="Sistema" action="Trazabilidad">
+            <AdminCommandList empty="Sin eventos de auditoría recientes.">
+              {auditEvents.slice(0, 5).map((event: any, index: number) => (
+                <AdminCommandListRow key={event.id || index} title={event.action || event.event_type || 'Evento'} subtitle={event.resource || event.entity_type || formatDate(event.created_at)} status={<ShieldCheck size={15} />} tone="ok" />
+              ))}
+            </AdminCommandList>
+          </AdminCommandPanel>
+        </div>
+      </AdminCommandSection>
+
+      <section className="uix-admin-command-actions">
+        <div><Zap size={18} /><strong>Primero riesgo</strong><span>Alertas, pagos, stock y pedidos pendientes antes de campañas.</span></div>
+        <div><Tag size={18} /><strong>Después conversión</strong><span>Productos top, cupones y AOV para decidir mejoras comerciales.</span></div>
+        <div><Activity size={18} /><strong>Finalmente sistema</strong><span>Auditoría, emails y salud operativa para sostener crecimiento.</span></div>
+      </section>
     </div>
   );
 }

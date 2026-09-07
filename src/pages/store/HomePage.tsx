@@ -1,251 +1,222 @@
-import { StoreHeader } from '../../components/storefront/StoreHeader';
-import { Heart } from 'lucide-react';
-import { WishlistButton } from '../../components/storefront/WishlistButton';
-import { HeroBanner } from '../../components/store/HeroBanner';
-import { Link } from 'react-router-dom';
-import { useProductRating } from '../../hooks/useReviews';
-import { StarRating } from '../../components/reviews/StarRating';
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Eye, SlidersHorizontal, X } from 'lucide-react';
 import { useSearchProducts } from '../../hooks/useSearchProducts';
 import { useStoreConfig } from '../../hooks/useStoreConfig';
-import { ProductCard } from '../../components/storefront/ProductCard';
 import { useCart, CartDrawer } from '../../App';
-import { ShoppingBag } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import { SearchBar } from '../../components/storefront/SearchBar';
 import { ProductFilters } from '../../components/storefront/ProductFilters';
 import { Pagination } from '../../components/storefront/Pagination';
 import { SEO } from '../../components/SEO';
+import { organizationJsonLd, websiteJsonLd } from '../../lib/seo';
+import { EditorialHeader } from '../../components/editorial/EditorialHeader';
+import { EditorialProductCard } from '../../components/editorial/EditorialProductCard';
+
+import { EditorialFooter } from '../../components/editorial/EditorialFooter';
+import { MobileEditorialNav } from '../../components/editorial/MobileEditorialNav';
+import { trackMarketingEvent, trackPageView } from '../../lib/analytics';
+import { UixSectionHeader } from '../../components/uix/UixSectionHeader';
+import { StorefrontTrustStrip } from '../../components/storefront/uix/StorefrontTrustStrip';
+
+
+
+import { UixStatePanel } from '../../components/uix/UixStatePanel';
+
+const LazyEditorialLookbookSection = lazy(() =>
+  import('../../components/editorial/EditorialLookbookSection').then((module) => ({ default: module.EditorialLookbookSection }))
+);
+const LazyRoutineCards = lazy(() =>
+  import('../../components/storefront/uix/RoutineCards').then((module) => ({ default: module.RoutineCards }))
+);
+const LazyShopByConcern = lazy(() =>
+  import('../../components/storefront/uix/ShopByConcern').then((module) => ({ default: module.ShopByConcern }))
+);
+const LazyStorefrontNewsletter = lazy(() =>
+  import('../../components/storefront/uix/StorefrontNewsletter').then((module) => ({ default: module.StorefrontNewsletter }))
+);
+
+const DEFAULT_BRAND = 'Selfcare Sinners';
 
 export function HomePage() {
-  const { data: store, isLoading: isStoreLoading } = useStoreConfig(); 
-  const [filters, setFilters] = useState({ search: '', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
+  const { data: store, isLoading: isStoreLoading } = useStoreConfig();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState(() => ({
+    search: searchParams.get('search') || '',
+    category: searchParams.get('category') || 'all',
+    minPrice: searchParams.get('min_price') || '',
+    maxPrice: searchParams.get('max_price') || '',
+    sortBy: searchParams.get('sort_by') || 'created_at',
+    order: searchParams.get('order') || 'desc',
+    page: Math.max(1, Number(searchParams.get('page') || '1') || 1),
+    pageSize: 12,
+  }));
   const { data: searchResult, isLoading: isProductsLoading } = useSearchProducts(store?.slug, filters);
   const { items, setIsCartOpen } = useCart();
 
   useEffect(() => {
-    // Dynamic Font Loading
-    if (store?.config?.fontFamily) {
-      const font = store.config.fontFamily;
-      const linkId = 'dynamic-font';
-      let link = document.getElementById(linkId) as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement('link');
-        link.id = linkId;
-        link.rel = 'stylesheet';
-        document.head.appendChild(link);
-      }
-      if (font === 'Playfair Display') {
-        link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap';
-      } else if (font === 'Space Grotesk') {
-        link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap';
-      } else {
-        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap';
-      }
-    }
-  }, [store?.config?.fontFamily]);
+    trackPageView('home', { redesign: 'soft_premium_skincare' }, { source: 'soft_premium_storefront' });
+  }, []);
 
-  if (isStoreLoading) return <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">Cargando...</div>;
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (filters.search) next.set('search', filters.search);
+    if (filters.category && filters.category !== 'all') next.set('category', filters.category);
+    if (filters.minPrice) next.set('min_price', filters.minPrice);
+    if (filters.maxPrice) next.set('max_price', filters.maxPrice);
+    if (filters.sortBy && filters.sortBy !== 'created_at') next.set('sort_by', filters.sortBy);
+    if (filters.order && filters.order !== 'desc') next.set('order', filters.order);
+    if (filters.page > 1) next.set('page', String(filters.page));
+    setSearchParams(next, { replace: true });
+  }, [filters, setSearchParams]);
 
-  const currentStore = store || { name: 'My Store', config: {}, description: '' };
-  const currentProducts = searchResult?.data || [];
-  const totalPages = searchResult && searchResult.total ? Math.ceil(searchResult.total / (searchResult.pageSize || 20)) : 1;
+
+  if (isStoreLoading) return <div className="ss-editorial-shell uix-storefront-loading"><UixStatePanel tone="loading" title="Preparando Selfcare Sinners" description="Estamos cargando el catálogo y la experiencia de tienda." /></div>;
+
+  const currentStore = store || { name: DEFAULT_BRAND, config: {}, description: 'Skincare consciente para resultados reales, rutinas claras y una experiencia premium.' };
   const config = currentStore.config || {};
-  
-  const themeColor = config.themeColor || '#6B705C';
-  const secondaryColor = config.secondaryColor || '#A5A58D';
-  const backgroundColor = config.backgroundColor || '#FDFCFB';
-  const textColor = config.textColor || '#333333';
-  const layout = config.layout || 'grid';
-  const borderRadius = config.borderRadius || 'xl';
-  const fontFamily = config.fontFamily === 'Playfair Display' ? '"Playfair Display", serif' : 
-                     config.fontFamily === 'Space Grotesk' ? '"Space Grotesk", sans-serif' : 
-                     '"Inter", sans-serif';
-
+  const currentProducts = searchResult?.data || [];
+  const heroProduct = currentProducts[0];
+  const totalPages = searchResult && searchResult.total ? Math.ceil(searchResult.total / (searchResult.pageSize || 20)) : 1;
   const cartItemCount = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+
+  const resetFilters = () => setFilters({ search: '', category: 'all', minPrice: '', maxPrice: '', sortBy: 'created_at', order: 'desc', page: 1, pageSize: 12 });
+  const activeFilterCount = [filters.search, filters.category !== 'all' ? filters.category : '', filters.minPrice, filters.maxPrice].filter(Boolean).length;
 
   return (
     <>
-    <SEO title={currentStore.name} description={currentStore.description} />
-    <div className="min-h-screen flex flex-col" style={{ 
-      backgroundColor, 
-      color: textColor, 
-      fontFamily,
-      '--theme-color': themeColor,
-      '--secondary-color': secondaryColor,
-      '--border-radius-base': borderRadius === 'none' ? '0px' : borderRadius === 'sm' ? '4px' : borderRadius === 'md' ? '8px' : borderRadius === 'lg' ? '16px' : borderRadius === 'xl' ? '24px' : '9999px',
-      '--border-radius-sm': borderRadius === 'none' ? '0px' : borderRadius === 'sm' ? '2px' : borderRadius === 'md' ? '4px' : borderRadius === 'lg' ? '8px' : borderRadius === 'xl' ? '12px' : '9999px',
-    } as React.CSSProperties}>
-      
-      {/* Header */}
-      <StoreHeader />
+      <SEO
+        title={`${currentStore.name || DEFAULT_BRAND} | Editorial skincare store`}
+        description={currentStore.description || 'Skincare curado con una experiencia editorial, segura y mobile-first.'}
+        canonicalPath="/"
+        jsonLd={[organizationJsonLd(), websiteJsonLd()]}
+      />
+      <div className="ss-editorial-shell" data-mobile-ux-f="storefront-final-regression">
+        <a className="uix-skip-link" href="#shop">Saltar al catálogo</a>
+        <EditorialHeader cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
 
-      {/* Hero Banner */}
-      {(layout === 'hero' || config.heroBanner?.image) && (
-        <div className="relative w-full h-[40vh] sm:h-[50vh] min-h-[300px] sm:min-h-[400px] flex items-center justify-center text-center p-4 sm:p-8 bg-gray-100 overflow-hidden"
-             style={{
-               backgroundImage: config.heroBanner?.image ? `url(${config.heroBanner.image})` : 'none',
-               backgroundSize: 'cover',
-               backgroundPosition: 'center',
-             }}>
-          <div className="absolute inset-0 bg-black/40"></div>
-          <div className="relative z-10 text-white max-w-3xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 tracking-tight">{config.heroBanner?.title || 'Bienvenido'}</h1>
-            <p className="text-xl md:text-2xl opacity-90 font-light">{config.heroBanner?.subtitle || 'Descubre nuestra colección'}</p>
+        <section className="ss-hero">
+          <div className="ss-hero-copy">
+            <div>
+              <p className="ss-topline">Ritual consciente</p>
+              <h1 className="ss-hero-title ss-display">Tu piel,<br />tu ritual,<br />tu momento.</h1>
+              <p className="ss-hero-lede">
+                Skincare consciente para resultados reales. Una experiencia cálida, clara y premium desde que descubres tu rutina hasta que completas tu compra.
+              </p>
+              <div className="ss-hero-actions">
+                <a href="#shop" className="ss-btn" onClick={() => trackMarketingEvent('hero_shop_click', { page: 'home' }, { source: 'soft_premium_storefront' })}>Descubre tu rutina <ArrowRight size={16} /></a>
+                <a href="#lookbook" className="ss-btn-outline">Ver rituales <Eye size={16} /></a>
+              </div>
+            </div>
+            <div className="uix-hero-proof">
+              <span>Envíos claros</span>
+              <span>Pago seguro</span>
+              <span>Rutinas simples</span>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
-        {(!config.heroBanner?.image && layout !== 'hero') && (
-          <div className="mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight" style={{ color: textColor }}>{config.heroBanner?.title || 'Novedades'}</h1>
-            <p className="text-lg opacity-70" style={{ color: secondaryColor }}>{config.heroBanner?.subtitle || 'Explora nuestra colección más reciente.'}</p>
-          </div>
-        )}
-        
-        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-          <div className="w-full md:w-64 flex-shrink-0 flex flex-col gap-6">
-            <SearchBar onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} />
-            <ProductFilters filters={filters} setFilters={(f: any) => { 
-                if (typeof f === 'function') {
-                    setFilters((prev) => {
-                        const newF = f(prev);
-                        return { ...newF, page: 1 };
-                    });
-                } else {
-                    setFilters({ ...f, page: 1 });
-                }
-            }} categories={config.categories} />
-          </div>
-          
-          <div className="flex-1 w-full">
-            {isProductsLoading ? (
-              <div className="py-20 text-center opacity-50">Cargando productos...</div>
-            ) : (
-              <>
-                <div className={`grid gap-8 ${layout === 'list' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3'}`}>
-                  {currentProducts.map((p: any) => (
-                    <StyledProductCard key={p.id} product={p} config={config} themeColor={themeColor} textColor={textColor} />
-                  ))}
+          <div className="ss-hero-media">
+            <div className="ss-hero-image-frame">
+              {heroProduct?.images?.[0] ? <img src={heroProduct.images[0]} alt={heroProduct.name} fetchPriority="high" loading="eager" decoding="async" /> : <div className="absolute inset-0 flex items-center justify-center ss-display text-6xl opacity-20">SELFCARE</div>}
+              <div className="ss-hero-overlay">
+                <div>
+                  <p className="ss-card-kicker">Selección destacada</p>
+                  <strong>{heroProduct?.name || 'Selección editorial'}</strong>
                 </div>
-                {currentProducts.length === 0 && (
-                  <div className="text-center py-20 opacity-50">No se encontraron productos.</div>
-                )}
-                <Pagination page={filters.page} totalPages={totalPages} setPage={(page) => setFilters(prev => ({ ...prev, page }))} themeColor={themeColor} />
-              </>
-            )}
+                {heroProduct && <span>MXN ${Number(heroProduct.price).toFixed(2)}</span>}
+              </div>
+            </div>
+            <div className="ss-hero-marquee"><span>SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · SELFCARE SINNERS · RUTINAS CLARAS · COMPRA SEGURA · SKINCARE CONSCIENTE · </span></div>
           </div>
-        </div>
-      </main>
+        </section>
 
-      
-      {/* Footer */}
-      <footer className="mt-auto py-10 border-t text-sm" style={{ borderColor: secondaryColor + '30', color: secondaryColor }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-          <div>{config.footerText || `© ${new Date().getFullYear()} ${currentStore.name}`}</div>
-          <div className="flex flex-wrap justify-center gap-6">
-            <Link to="/contact" className="hover:underline">Contacto</Link>
-            <Link to="/returns" className="hover:underline">Política de Devolución</Link>
-            <Link to="/privacy" className="hover:underline">Política de Privacidad</Link>
-            <Link to="/terms" className="hover:underline">Términos y Condiciones</Link>
+        <StorefrontTrustStrip />
+
+        <section className="uix-home-block" aria-label="Rutinas recomendadas">
+          <UixSectionHeader
+            eyebrow="Compra por ritual"
+            title={<>Rutinas listas para decidir más rápido.</>}
+            note="La home ya no empieza como catálogo genérico: guía al cliente por objetivo, contexto y beneficio antes de mostrar todo el inventario."
+          />
+          <Suspense fallback={null}><LazyRoutineCards /></Suspense>
+        </section>
+
+        <section className="uix-home-block uix-home-block--split" aria-label="Comprar por necesidad">
+          <div className="uix-editorial-story">
+            <p className="uix-eyebrow">Necesidades de piel</p>
+            <h2>Encuentra producto por lo que tu piel necesita.</h2>
+            <p>Un storefront premium no obliga a pensar en categorías técnicas. Primero ayuda al usuario a reconocerse: hidratación, manchas, acné, barrera o protección solar.</p>
           </div>
-        </div>
-      </footer>
+          <Suspense fallback={null}><LazyShopByConcern /></Suspense>
+        </section>
 
+        <main id="shop" className="ss-editorial-section ss-shop-section-organized">
+          <div className="ss-section-head">
+            <div>
+              <p className="ss-topline">Tienda</p>
+              <h2 className="ss-section-title ss-display">Todos los<br />productos</h2>
+            </div>
+            <p className="ss-section-note">Catálogo limpio, cálido y fácil de explorar. Busca por rutina, tipo de piel o producto y compra sin fricción.</p>
+          </div>
 
-      <CartDrawer storeId={currentStore?.id} themeColor={themeColor} buttonColor={config.buttonColor || themeColor} />
-    </div>
-    </>
-  );
-}
-
-export const StyledProductCard: React.FC<{ product: any, config: any, themeColor: string, textColor: string }> = ({ product, config, themeColor, textColor }) => {
-  const { addItem } = useCart();
-  const isList = config.layout === 'list';
-  const hasVariants = product.variants && product.variants.length > 0;
-  const inStock = hasVariants 
-    ? product.variants.some((v: any) => v.stock > 0)
-    : product.stock > 0;
-
-  return (
-    <div className={`group overflow-hidden flex bg-white transition-transform hover:-translate-y-1 relative ${isList ? 'flex-col sm:flex-row' : 'flex-col'}`} style={{
-      borderRadius: 'var(--border-radius-base)',
-      boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)',
-    }}>
-      {!inStock && (
-        <div className="absolute top-3 left-3 bg-red-500 text-white text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full z-10">
-          Sold Out
-        </div>
-      )}
-      <Link to={`/product/${product.id}`} className={`bg-gray-50 overflow-hidden relative block ${isList ? 'w-full sm:w-1/3 aspect-square sm:aspect-auto' : 'aspect-square'}`}>
-        {product.images && product.images[0] ? (
-          <img src={product.images[0]} alt={product.name}  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-300">Sin Imagen</div>
-        )}
-      </Link>
-      <div className={`p-5 flex flex-col ${isList ? 'w-full sm:w-2/3 justify-center' : 'flex-1'}`}>
-        
-        <div className="flex justify-between items-start gap-4">
-          <Link to={`/product/${product.id}`} className="flex-1">
-            <h3 className="font-bold text-lg mb-1 line-clamp-1 hover:underline cursor-pointer" style={{ color: textColor }}>{product.name}</h3>
-          </Link>
-          <WishlistButton productId={product.id} className="flex-shrink-0 -mt-1 -mr-1" />
-        </div>
-        
-        <div className="mb-2 flex items-center gap-2">
-          {product.brand && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{product.brand}</span>
-          )}
-          {product.category && (
-            <>
-              {product.brand && <span className="text-gray-300 text-[10px]">•</span>}
-              <span className="text-[10px] text-gray-400">{product.category}</span>
-            </>
-          )}
-          {product.subcategory && (
-            <>
-              {(product.brand || product.category) && <span className="text-gray-300 text-[10px]">•</span>}
-              <span className="text-[10px] text-gray-400">{product.subcategory}</span>
-            </>
-          )}
-        </div>
-
-        <p className="opacity-70 text-sm line-clamp-2 mb-4 flex-1" style={{ color: config.secondaryColor || '#666' }}>{product.description}</p>
-        <div className="flex items-center justify-between mt-auto pt-4 border-t" style={{ borderColor: (config.secondaryColor || '#ccc') + '30' }}>
-          <p className="font-semibold text-lg" style={{ color: themeColor }}>MXN ${Number(product.price).toFixed(2)}</p>
-          
-          {hasVariants ? (
-            <Link 
-              to={`/product/${product.id}`}
-              className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 text-center" 
-              style={{ 
-                backgroundColor: config.buttonColor || themeColor,
-                borderRadius: 'var(--border-radius-sm)'
-              }}
-            >
-              Options
-            </Link>
-          ) : (
-            <button 
-              disabled={!inStock}
-              onClick={() => {
-                addItem({ id: product.id, productId: product.id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] });
-                toast.success('Added to cart');
-              }}
-              className="px-4 py-2 text-white text-sm font-medium transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
-              style={{ 
-                backgroundColor: config.buttonColor || themeColor,
-                borderRadius: 'var(--border-radius-sm)'
-              }}
-            >
-              {inStock ? 'Add to Cart' : 'Sold Out'}
+          <div className="uix-mobile-catalog-tools">
+            <SearchBar initialValue={filters.search} onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} />
+            <button type="button" className="uix-mobile-filter-trigger" aria-expanded={isMobileFiltersOpen} aria-controls="storefront-filters" onClick={() => setIsMobileFiltersOpen((open) => !open)}>
+              {isMobileFiltersOpen ? <X size={17} /> : <SlidersHorizontal size={17} />} Filtros {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
             </button>
-          )}
-        </div>
+          </div>
+
+          <div className="ss-shop-layout">
+            <aside id="storefront-filters" className={`ss-filter-rail ${isMobileFiltersOpen ? 'is-mobile-open' : ''}`}>
+              <div className="uix-desktop-filter-search"><SearchBar initialValue={filters.search} onSearch={(search) => setFilters(prev => ({ ...prev, search, page: 1 }))} /></div>
+              <ProductFilters filters={filters} setFilters={(f: any) => {
+                if (typeof f === 'function') setFilters((prev) => ({ ...f(prev), page: 1 }));
+                else setFilters({ ...f, page: 1 });
+              }} categories={config.categories} onReset={resetFilters} />
+            </aside>
+
+            <div className="uix-catalog-results">
+              {isProductsLoading ? (
+                <UixStatePanel tone="loading" title="Cargando productos" description="Estamos actualizando los resultados del catálogo." compact />
+              ) : currentProducts.length === 0 ? (
+                <UixStatePanel tone="empty" title="No encontramos productos" description="Prueba con otra búsqueda o limpia los filtros para volver a ver el catálogo completo." actionText="Limpiar filtros" onAction={resetFilters} />
+              ) : (
+                <>
+                  <div className="ss-collection-grid">
+                    {currentProducts.map((product: any) => <EditorialProductCard key={product.id} product={product} />)}
+                  </div>
+                  <div style={{ padding: '1.5rem' }}>
+                    <Pagination page={filters.page} totalPages={totalPages} setPage={(page) => setFilters(prev => ({ ...prev, page }))} themeColor="#0b0b0a" />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </main>
+
+        <Suspense fallback={null}><LazyEditorialLookbookSection /></Suspense>
+
+        <section className="ss-editorial-section">
+          <div className="ss-section-head">
+            <div>
+              <p className="ss-topline">Antes de pagar</p>
+              <h2 className="ss-section-title ss-display">Compra con<br />claridad</h2>
+            </div>
+            <p className="ss-section-note">La experiencia visual se mantiene serena y confiable: ayuda visible, políticas claras, tracking y seguridad antes del pago.</p>
+          </div>
+          <div className="ss-trust-editorial">
+            <div><strong>FAQ</strong><p>Respuestas visibles antes de comprar.</p><Link to="/faq" className="ss-mini-btn">Ver FAQ</Link></div>
+            <div><strong>Contacto</strong><p>Canal claro para dudas o soporte.</p><Link to="/contact" className="ss-mini-btn">Contactar</Link></div>
+            <div><strong>Devoluciones</strong><p>Políticas accesibles para reducir fricción.</p><Link to="/returns" className="ss-mini-btn">Política</Link></div>
+            <div><strong>Tracking</strong><p>Consulta tu pedido con correo e ID.</p><Link to="/track" className="ss-mini-btn">Rastrear</Link></div>
+          </div>
+        </section>
+
+        <Suspense fallback={null}><LazyStorefrontNewsletter /></Suspense>
+
+        <EditorialFooter storeName={currentStore.name || DEFAULT_BRAND} />
+        <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
+        <CartDrawer storeId={(currentStore as any)?.id} themeColor="#0b0b0a" buttonColor="#0b0b0a" />
       </div>
-    </div>
+    </>
   );
 }
