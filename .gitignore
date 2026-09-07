@@ -72,3 +72,5 @@ release-notes.local.md
 # Account flow QA artifacts
 account-flow-debug-*.json
 account-flow-screenshot-*.png
+
+bun.lock
