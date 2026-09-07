@@ -44,6 +44,50 @@ function Resolve-NpmCmd {
   throw "npm.cmd was not found. Verify Node/npm installation and PATH."
 }
 
+function Test-ValidLighthouseJson([string]$jsonPath, [string]$requestedUrl) {
+  if (!(Test-Path $jsonPath)) {
+    return $false
+  }
+
+  try {
+    $candidate = Get-Content $jsonPath -Raw | ConvertFrom-Json
+  } catch {
+    return $false
+  }
+
+  if ($null -ne $candidate.runtimeError) {
+    return $false
+  }
+
+  if ([string]::IsNullOrWhiteSpace([string]$candidate.finalUrl)) {
+    return $false
+  }
+
+  try {
+    $requested = [uri]$requestedUrl
+    $final = [uri]$candidate.finalUrl
+    if ($requested.Host -ne $final.Host -or $requested.AbsolutePath.TrimEnd("/") -ne $final.AbsolutePath.TrimEnd("/")) {
+      return $false
+    }
+  } catch {
+    return $false
+  }
+
+  foreach ($categoryName in @("performance","accessibility","best-practices","seo")) {
+    $category = $candidate.categories.$categoryName
+    if ($null -eq $category -or $null -eq $category.score) {
+      return $false
+    }
+  }
+
+  $lcp = $candidate.audits."largest-contentful-paint"
+  if ($null -eq $lcp -or $null -eq $lcp.numericValue) {
+    return $false
+  }
+
+  return $true
+}
+
 $npmCmd = Resolve-NpmCmd
 Write-Host "NPM_CMD=$npmCmd" -ForegroundColor DarkGray
 
@@ -78,6 +122,19 @@ function Invoke-Lighthouse([string]$url, [string]$strategy, [string]$jsonOut) {
   if ($exit -ne 0) {
     $text = ($output | Out-String)
 
+    $cleanupEperm = (
+      $text -match "EPERM|Permission denied" -and
+      $text -match "Launcher\.destroyTmp|Launcher\.kill|rmSync"
+    )
+
+    if ($cleanupEperm -and (Test-ValidLighthouseJson $jsonOut $url)) {
+      Write-Warning "LIGHTHOUSE_CLEANUP_EPERM_AFTER_VALID_JSON for $url ($strategy); accepting completed report."
+      if ($text.Trim().Length -gt 0) {
+        Write-Host $text
+      }
+      return $true
+    }
+
     if ($text -match "could not determine executable to run|Unknown command") {
       Write-Warning "NPM_CMD_EXECUTION_FAILURE for $url ($strategy)"
     } elseif ($text -match "Chrome|Chromium|CHROME_PATH|browser") {
@@ -89,6 +146,11 @@ function Invoke-Lighthouse([string]$url, [string]$strategy, [string]$jsonOut) {
     if ($text.Trim().Length -gt 0) {
       Write-Host $text
     }
+    return $false
+  }
+
+  if (!(Test-ValidLighthouseJson $jsonOut $url)) {
+    Write-Warning "LIGHTHOUSE_INVALID_JSON for $url ($strategy): $jsonOut"
     return $false
   }
 
