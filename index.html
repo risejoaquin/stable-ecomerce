@@ -51,6 +51,34 @@
             throw new Error(`Early product fetch failed with HTTP ${response.status}`);
           }
           return response.json();
+        }).then((product) => {
+          try {
+            const imageUrl = Array.isArray(product?.images) ? product.images[0] : null;
+            if (imageUrl && !document.querySelector('link[data-selfcare-pdp-lcp-preload]')) {
+              const preload = document.createElement('link');
+              preload.rel = 'preload';
+              preload.as = 'image';
+              preload.href = imageUrl;
+              preload.fetchPriority = 'high';
+              preload.setAttribute('data-selfcare-pdp-lcp-preload', 'true');
+
+              const match = imageUrl.match(/^(.*\/responsive\/[^/]+\/w(\d+)\/)(\d+)\.webp(?:\?.*)?$/);
+              if (match) {
+                const base = match[1];
+                const sourceWidth = Number(match[2]);
+                const widths = [480, 800, 1200].filter((width) => width <= sourceWidth);
+                if (widths.length > 0) {
+                  preload.imageSrcset = widths.map((width) => base + width + '.webp ' + width + 'w').join(', ');
+                  preload.imageSizes = '(max-width: 768px) 100vw, 50vw';
+                }
+              }
+
+              document.head.appendChild(preload);
+            }
+          } catch (_) {
+            // Early preload is opportunistic; React remains the source of truth.
+          }
+          return product;
         });
 
         // Keep the original rejecting promise for React Query while marking it handled
