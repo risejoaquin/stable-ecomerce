@@ -16,6 +16,7 @@ import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } 
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { Suspense, useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
+import { ShoppingBag, Trash2 } from 'lucide-react';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
 import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
@@ -295,7 +296,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
         <div className="premium-cart-body">
           {items.length === 0 ? (
             <div className="text-center my-auto py-12">
-              <div className="w-16 h-16 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined">shopping_bag</span></div>
+              <div className="w-16 h-16 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center"><ShoppingBag size={28} aria-hidden="true" /></div>
               <h3 className="font-black text-lg mb-2">Tu carrito está vacío.</h3>
               <p className="text-gray-500 text-sm mb-6">Explora el catálogo y arma tu rutina.</p>
               <button onClick={() => setIsCartOpen(false)} className="px-5 py-3 rounded-2xl text-white font-bold" style={{ backgroundColor: buttonColor || themeColor }}>Seguir comprando</button>
@@ -312,7 +313,7 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
                   <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="premium-qty-control" type="button" aria-label={`Aumentar cantidad de ${item.name}`}>+</button>
                 </div>
               </div>
-              <button onClick={() => removeItem(item.id)} className="premium-cart-remove" type="button" aria-label={`Eliminar ${item.name} del carrito`}><span className="material-symbols-outlined text-xl" aria-hidden="true">delete</span></button>
+              <button onClick={() => removeItem(item.id)} className="premium-cart-remove" type="button" aria-label={`Eliminar ${item.name} del carrito`}><Trash2 size={18} aria-hidden="true" /></button>
             </div>
           ))}
         </div>
