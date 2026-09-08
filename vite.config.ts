@@ -72,15 +72,19 @@ export default defineConfig(() => {
             const normalizedId = id.replace(/\\/g, '/');
 
             if (normalizedId.includes('/node_modules/')) {
-              // Keep React, React DOM, React Router and lucide-react inside the same
-              // stable vendor chunk. Splitting those libraries separately caused a
-              // production-only circular chunk and a blank screen in the browser.
+              // POST-UX C HOTFIX 18: keep the proven React/React DOM/Router core
+              // together, but let lucide-react follow natural Rollup boundaries.
+              // This prevents icons used only by lazy routes from being pulled into
+              // the critical core vendor while preserving the circular-chunk fix.
+              if (normalizedId.includes('/lucide-react/')) {
+                return undefined;
+              }
+
               if (
                 normalizedId.includes('/react/') ||
                 normalizedId.includes('/react-dom/') ||
                 normalizedId.includes('/react-router/') ||
-                normalizedId.includes('/react-router-dom/') ||
-                normalizedId.includes('/lucide-react/')
+                normalizedId.includes('/react-router-dom/')
               ) {
                 return 'vendor';
               }
