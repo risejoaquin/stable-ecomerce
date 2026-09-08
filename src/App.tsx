@@ -9,7 +9,6 @@ import { useValidateCoupon } from './hooks/useCoupon';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } from './components/AuthMock';
@@ -457,14 +456,12 @@ export default function App() {
   );
 
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           {routerContent}
           <Toaster position="bottom-right" />
           <AuthModalProvider>{null}</AuthModalProvider>
         </ThemeProvider>
-      </QueryClientProvider>
-    </HelmetProvider>
+    </QueryClientProvider>
   );
 }
