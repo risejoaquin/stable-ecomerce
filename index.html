@@ -42,16 +42,31 @@
         if (!match) return;
 
         const id = match[1];
-        const promise = fetch(`/api/products/${encodeURIComponent(id)}`, {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin'
-        }).then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Early product fetch failed with HTTP ${response.status}`);
+        const serverBootstrapElement = document.getElementById('selfcare-server-product-bootstrap');
+        let serverProduct = null;
+
+        if (serverBootstrapElement?.textContent) {
+          try {
+            const parsed = JSON.parse(serverBootstrapElement.textContent);
+            if (parsed?.id === id) serverProduct = parsed;
+          } catch (_) {
+            // Invalid bootstrap falls back to the existing early API request.
           }
-          return response.json();
-        }).then((product) => {
+        }
+
+        const promise = (serverProduct
+          ? Promise.resolve(serverProduct)
+          : fetch(`/api/products/${encodeURIComponent(id)}`, {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin'
+            }).then(async (response) => {
+              if (!response.ok) {
+                throw new Error(`Early product fetch failed with HTTP ${response.status}`);
+              }
+              return response.json();
+            })
+        ).then((product) => {
           try {
             const imageUrl = Array.isArray(product?.images) ? product.images[0] : null;
             if (

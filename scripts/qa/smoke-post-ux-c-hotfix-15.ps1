@@ -24,9 +24,15 @@ $server = Get-Content 'server.ts' -Raw
 $html = Get-Content 'index.html' -Raw
 $pdp = Get-Content 'src\pages\store\ProductDetailPage.tsx' -Raw
 
+# POST-UX C HOTFIX 16.2: HOTFIX 15 successor-aware QA contract
+if ($server.Contains(".select('images')") -or $server.Contains(".select('*')")) {
+  Pass "server-assisted PDP preload product lookup retained via images-only or full-product successor"
+} else {
+  Fail "server-assisted PDP preload product lookup retained via images-only or full-product successor"
+}
+
 foreach ($needle in @(
   'POST-UX C HOTFIX 15: server-assisted PDP LCP image preload',
-  ".select('images')",
   'data-selfcare-server-pdp-lcp-preload',
   'imagesrcset=',
   'imagesizes="(max-width: 768px) 100vw, 50vw"',

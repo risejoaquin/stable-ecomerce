@@ -10018,29 +10018,39 @@ app.post(
     // POST-UX C HOTFIX 15: server-assisted PDP LCP image preload.
     const responsiveProductImageRe = /^(.*\/responsive\/[^/]+\/w(\d+)\/)(\d+)\.webp(?:\?.*)?$/;
 
-    // POST-UX C HOTFIX 15.1: cache PDP LCP image lookup.
-    const pdpLcpImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
-    const PDP_LCP_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+    // POST-UX C HOTFIX 15.1: cache PDP lookup.
+    // POST-UX C HOTFIX 16: server bootstrap full PDP product.
+    const pdpProductCache = new Map<string, { product: any | null; expiresAt: number }>();
+    const PDP_PRODUCT_CACHE_TTL_MS = 5 * 60 * 1000;
 
-    async function getCachedPdpLcpImageUrl(productId: string) {
+    async function getCachedPdpProduct(productId: string) {
       const now = Date.now();
-      const cached = pdpLcpImageCache.get(productId);
-      if (cached && cached.expiresAt > now) return cached.imageUrl;
+      const cached = pdpProductCache.get(productId);
+      if (cached && cached.expiresAt > now) return cached.product;
 
       const { data, error } = await supabase!
         .from('products')
-        .select('images')
+        .select('*')
         .eq('id', productId)
         .maybeSingle();
 
       if (error) throw error;
 
-      const imageUrl = Array.isArray(data?.images) ? data.images[0] || null : null;
-      pdpLcpImageCache.set(productId, {
-        imageUrl,
-        expiresAt: now + PDP_LCP_IMAGE_CACHE_TTL_MS
+      const product = data || null;
+      pdpProductCache.set(productId, {
+        product,
+        expiresAt: now + PDP_PRODUCT_CACHE_TTL_MS
       });
-      return imageUrl;
+      return product;
+    }
+
+    function serializePdpBootstrap(product: any) {
+      return JSON.stringify(product)
+        .replace(/&/g, '\\u0026')
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
     }
 
     function buildPdpImagePreloadHtml(imageUrl: string) {
@@ -10072,12 +10082,22 @@ app.post(
       if (supabase) {
         try {
           const productId = req.params[0];
-          const imageUrl = await getCachedPdpLcpImageUrl(productId);
+          const product = await getCachedPdpProduct(productId);
+          const imageUrl = Array.isArray(product?.images) ? product.images[0] || null : null;
+
           if (imageUrl) {
             const preload = buildPdpImagePreloadHtml(imageUrl);
             if (preload && html.includes('</head>')) {
               html = html.replace('</head>', preload + '  </head>');
             }
+          }
+
+          // POST-UX C HOTFIX 16.3: inject bootstrap before the client bootstrap executes.
+          if (product && html.includes('</head>')) {
+            const bootstrap = '    <script type="application/json" id="selfcare-server-product-bootstrap">' +
+              serializePdpBootstrap(product) +
+              '</script>\n';
+            html = html.replace('</head>', bootstrap + '  </head>');
           }
         } catch (error) {
           logger.warn({ err: error }, 'PDP LCP preload injection failed');
