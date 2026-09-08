@@ -113,15 +113,9 @@ export default defineConfig(() => {
               if (normalizedId.includes('/@sentry/')) return 'vendor-observability';
 
               if (
-                normalizedId.includes('/react-hot-toast/') ||
-                normalizedId.includes('/goober/')
-              ) {
-                return 'vendor-toast';
-              }
-
-              if (
                 normalizedId.includes('/motion/') ||
                 normalizedId.includes('/@radix-ui/') ||
+                normalizedId.includes('/react-hot-toast/') ||
                 normalizedId.includes('/aria-hidden/') ||
                 normalizedId.includes('/react-remove-scroll/') ||
                 normalizedId.includes('/react-remove-scroll-bar/') ||

@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { deferredToast as toast } from '../../lib/deferred-toast';
+import { toast } from 'react-hot-toast';
 import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import { useCart, CartDrawer } from '../../App';
 import { useApiClient } from '../../api/useApiClient';
