@@ -241,34 +241,40 @@ export function ProductDetailPage() {
           </section>
         </main>
 
-        {similarProducts.length > 0 && (
-          <section className="ss-editorial-section">
-            <div className="ss-section-head">
-              <div>
-                <p className="ss-topline">También te puede gustar</p>
-                <h2 className="ss-section-title ss-display">Completa<br />tu rutina</h2>
-              </div>
-            </div>
-            <div className="ss-collection-grid">
-              {similarProducts.map((similar: any) => <EditorialProductCard key={similar.id} product={similar} />)}
-            </div>
-          </section>
+                {secondaryContentReady && (
+          <>
+    {similarProducts.length > 0 && (    
+              <section className="ss-editorial-section">    
+                <div className="ss-section-head">    
+                  <div>    
+                    <p className="ss-topline">También te puede gustar</p>    
+                    <h2 className="ss-section-title ss-display">Completa<br />tu rutina</h2>    
+                  </div>    
+                </div>    
+                <div className="ss-collection-grid">    
+                  {similarProducts.map((similar: any) => <EditorialProductCard key={similar.id} product={similar} />)}    
+                </div>    
+              </section>    
+            )}    
+        
+            <section className="ss-editorial-section">    
+              <div className="ss-section-head">    
+                <div>    
+                  <p className="ss-topline">Comunidad</p>    
+                  <h2 className="ss-section-title ss-display">Reseñas</h2>    
+                </div>    
+              </div>    
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">    
+                <div className="lg:col-span-2"><Suspense fallback={null}><LazyReviewList productId={product.id} themeColor="#0b0b0a" /></Suspense></div>    
+                <div>{isSignedIn ? <Suspense fallback={null}><LazyReviewForm productId={product.id} themeColor="#0b0b0a" /></Suspense> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesión para escribir una reseña.</div>}</div>    
+              </div>    
+            </section>    
+        
+            <EditorialFooter storeName={currentStore.name || 'Selfcare Sinners'} />    
+            
+          </>
         )}
 
-        <section className="ss-editorial-section">
-          <div className="ss-section-head">
-            <div>
-              <p className="ss-topline">Comunidad</p>
-              <h2 className="ss-section-title ss-display">Reseñas</h2>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2"><Suspense fallback={null}><LazyReviewList productId={product.id} themeColor="#0b0b0a" /></Suspense></div>
-            <div>{isSignedIn ? <Suspense fallback={null}><LazyReviewForm productId={product.id} themeColor="#0b0b0a" /></Suspense> : <div className="border p-8" style={{ borderColor: 'var(--ss-line)' }}>Inicia sesión para escribir una reseña.</div>}</div>
-          </div>
-        </section>
-
-        <EditorialFooter storeName={currentStore.name || 'Selfcare Sinners'} />
         <MobileEditorialNav cartCount={cartItemCount} onCartOpen={() => setIsCartOpen(true)} />
         <CartDrawer storeId={(currentStore as any)?.id} themeColor="#0b0b0a" buttonColor="#0b0b0a" />
       </div>
