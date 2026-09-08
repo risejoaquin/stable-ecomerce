@@ -10018,6 +10018,31 @@ app.post(
     // POST-UX C HOTFIX 15: server-assisted PDP LCP image preload.
     const responsiveProductImageRe = /^(.*\/responsive\/[^/]+\/w(\d+)\/)(\d+)\.webp(?:\?.*)?$/;
 
+    // POST-UX C HOTFIX 15.1: cache PDP LCP image lookup.
+    const pdpLcpImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
+    const PDP_LCP_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+    async function getCachedPdpLcpImageUrl(productId: string) {
+      const now = Date.now();
+      const cached = pdpLcpImageCache.get(productId);
+      if (cached && cached.expiresAt > now) return cached.imageUrl;
+
+      const { data, error } = await supabase!
+        .from('products')
+        .select('images')
+        .eq('id', productId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const imageUrl = Array.isArray(data?.images) ? data.images[0] || null : null;
+      pdpLcpImageCache.set(productId, {
+        imageUrl,
+        expiresAt: now + PDP_LCP_IMAGE_CACHE_TTL_MS
+      });
+      return imageUrl;
+    }
+
     function buildPdpImagePreloadHtml(imageUrl: string) {
       const escapedHref = String(imageUrl || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
       if (!escapedHref) return '';
@@ -10047,22 +10072,12 @@ app.post(
       if (supabase) {
         try {
           const productId = req.params[0];
-          const { data, error } = await supabase
-            .from('products')
-            .select('images')
-            .eq('id', productId)
-            .maybeSingle();
-
-          if (!error) {
-            const imageUrl = Array.isArray(data?.images) ? data.images[0] : null;
-            if (imageUrl) {
-              const preload = buildPdpImagePreloadHtml(imageUrl);
-              if (preload && html.includes('</head>')) {
-                html = html.replace('</head>', preload + '  </head>');
-              }
+          const imageUrl = await getCachedPdpLcpImageUrl(productId);
+          if (imageUrl) {
+            const preload = buildPdpImagePreloadHtml(imageUrl);
+            if (preload && html.includes('</head>')) {
+              html = html.replace('</head>', preload + '  </head>');
             }
-          } else {
-            logger.warn({ err: error, productId }, 'PDP LCP preload product lookup failed');
           }
         } catch (error) {
           logger.warn({ err: error }, 'PDP LCP preload injection failed');

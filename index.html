@@ -54,7 +54,10 @@
         }).then((product) => {
           try {
             const imageUrl = Array.isArray(product?.images) ? product.images[0] : null;
-            if (imageUrl && !document.querySelector('link[data-selfcare-pdp-lcp-preload]')) {
+            if (
+              imageUrl &&
+              !document.querySelector('link[data-selfcare-server-pdp-lcp-preload], link[data-selfcare-pdp-lcp-preload]')
+            ) {
               const preload = document.createElement('link');
               preload.rel = 'preload';
               preload.as = 'image';
