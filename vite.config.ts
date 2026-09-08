@@ -72,19 +72,17 @@ export default defineConfig(() => {
             const normalizedId = id.replace(/\\/g, '/');
 
             if (normalizedId.includes('/node_modules/')) {
-              // POST-UX C HOTFIX 18: keep the proven React/React DOM/Router core
-              // together, but let lucide-react follow natural Rollup boundaries.
-              // This prevents icons used only by lazy routes from being pulled into
-              // the critical core vendor while preserving the circular-chunk fix.
-              if (normalizedId.includes('/lucide-react/')) {
-                return undefined;
-              }
-
+              // POST-UX C HOTFIX 18.1: restore the proven stable vendor graph.
+              // Production Lighthouse showed that releasing lucide-react to natural
+              // boundaries reduced bytes but regressed median LCP. Keep React,
+              // React DOM, React Router and lucide-react together to avoid both the
+              // historical circular chunk and the HOTFIX 18 fragmentation penalty.
               if (
                 normalizedId.includes('/react/') ||
                 normalizedId.includes('/react-dom/') ||
                 normalizedId.includes('/react-router/') ||
-                normalizedId.includes('/react-router-dom/')
+                normalizedId.includes('/react-router-dom/') ||
+                normalizedId.includes('/lucide-react/')
               ) {
                 return 'vendor';
               }
