@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useApiClient } from '../api/useApiClient';
 import { useCart } from '../App';
-import { toast } from 'react-hot-toast';
+import { deferredToast as toast } from '../lib/deferred-toast';
 
 export function useCheckout(storeId?: string) {
   const apiFetch = useApiClient();

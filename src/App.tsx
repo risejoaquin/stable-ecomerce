@@ -3,7 +3,6 @@ import { SignIn, SignUp } from './components/AuthMock';
 import { CookieConsent } from './components/CookieConsent';
 import { useAuthSafe as useAuth } from './hooks/useAuthSafe';
 import { ThemeProvider } from './components/ThemeProvider';
-import { useValidateCoupon } from './hooks/useCoupon';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -14,7 +13,7 @@ import { QueryClient, QueryClientProvider, useQuery, useMutation, QueryCache, Mu
 import { SignedIn, SignedOut, RedirectToSignIn, UserButton, AuthModalProvider } from './components/AuthMock';
 import { useUserSafe as useUser } from './hooks/useUserSafe';
 import React, { Suspense, useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
-import { Toaster, toast } from 'react-hot-toast';
+import { deferredToast as toast } from './lib/deferred-toast';
 import { ShoppingBag, Trash2 } from 'lucide-react';
 import { useCheckout } from './hooks/useCheckout';
 import { useApiClient } from './api/useApiClient';
@@ -399,6 +398,35 @@ function RouteLoadingFallback() {
   );
 }
 
+const LazyToaster = React.lazy(() =>
+  import('react-hot-toast').then((module) => ({ default: module.Toaster }))
+);
+
+function DeferredToaster() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const browser = window as any;
+    const activate = () => setReady(true);
+
+    if (typeof browser.requestIdleCallback === 'function') {
+      const idleId = browser.requestIdleCallback(activate, { timeout: 2000 });
+      return () => browser.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(activate, 1200);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  if (!ready) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <LazyToaster position="bottom-right" />
+    </Suspense>
+  );
+}
+
 export default function App() {
   const routerContent = (
     <BrowserRouter>
@@ -459,7 +487,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           {routerContent}
-          <Toaster position="bottom-right" />
+          <DeferredToaster />
           <AuthModalProvider>{null}</AuthModalProvider>
         </ThemeProvider>
     </QueryClientProvider>
