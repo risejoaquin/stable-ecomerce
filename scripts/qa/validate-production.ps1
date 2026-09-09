@@ -1,5 +1,6 @@
 param(
-  [string]$BaseUrl = "https://selfcaresinners.com"
+  [string]$BaseUrl = "https://selfcaresinners.com",
+  [string]$ExpectedCommit = ""
 )
 $ErrorActionPreference = "Stop"
 $base = $BaseUrl.TrimEnd('/')
@@ -17,6 +18,21 @@ foreach ($route in $routes) {
 }
 
 try {
+  $healthResponse = Invoke-RestMethod -Uri "$base/api/health" -TimeoutSec 20
+  if ($healthResponse.status -ne 'ok') { Fail "health status is '$($healthResponse.status)'" }
+  Pass "health status -> ok"
+
+  if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit)) {
+    if ($healthResponse.version -ne $ExpectedCommit) {
+      Fail "deployed commit mismatch: expected $ExpectedCommit, received $($healthResponse.version)"
+    }
+    Pass "deployed commit -> $ExpectedCommit"
+  }
+} catch {
+  Fail "health validation failed: $($_.Exception.Message)"
+}
+
+try {
   $unauth = Invoke-WebRequest -Uri "$base/api/admin/diagnostics" -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
   Fail "admin diagnostics unexpectedly allowed unauthenticated request ($($unauth.StatusCode))"
 } catch {
@@ -26,8 +42,8 @@ try {
 }
 
 try {
-  $home = Invoke-WebRequest -Uri $base -UseBasicParsing -TimeoutSec 25
-  $headers = $home.Headers
+  $homeResponse = Invoke-WebRequest -Uri $base -UseBasicParsing -TimeoutSec 25
+  $headers = $homeResponse.Headers
   if ($headers['Content-Security-Policy']) { Pass "Content-Security-Policy present" } else { Fail "Content-Security-Policy missing" }
   if ($headers['X-Content-Type-Options']) { Pass "X-Content-Type-Options present" } else { Fail "X-Content-Type-Options missing" }
 } catch { Fail "header validation failed: $($_.Exception.Message)" }

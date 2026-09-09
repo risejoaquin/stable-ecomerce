@@ -1,0 +1,56 @@
+name: Selfcare Production Smoke
+
+on:
+  deployment_status:
+    states: [success]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit SHA expected in production (defaults to the selected ref)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  production-smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.deployment.environment == 'production'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://selfcaresinners.com
+
+    steps:
+      - name: Resolve deployment commit
+        id: deployment
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}
+          MANUAL_SHA: ${{ inputs.commit }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if ($env:EVENT_NAME -eq 'deployment_status') {
+            $expectedCommit = $env:DEPLOYMENT_SHA
+          } elseif (-not [string]::IsNullOrWhiteSpace($env:MANUAL_SHA)) {
+            $expectedCommit = $env:MANUAL_SHA
+          } else {
+            $expectedCommit = $env:CURRENT_SHA
+          }
+          "expected_commit=$expectedCommit" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.deployment.outputs.expected_commit }}
+
+      - name: Validate production
+        shell: powershell
+        run: >-
+          .\scripts\qa\validate-production.ps1
+          -BaseUrl "https://selfcaresinners.com"
+          -ExpectedCommit "${{ steps.deployment.outputs.expected_commit }}"
