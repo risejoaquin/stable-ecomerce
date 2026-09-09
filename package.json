@@ -14,7 +14,11 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "qa:fast": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-fast.ps1",
+    "qa:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-release.ps1",
+    "qa:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-all.ps1",
+    "qa:security": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/security/validate-security-baseline.ps1 -Mode Report"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

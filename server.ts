@@ -4939,7 +4939,7 @@ app.post(
 
   function toCsv(rows: any[]) {
     if (!rows || rows.length === 0) return '';
-    const headers = Array.from(rows.reduce((set, row) => {
+    const headers = Array.from(rows.reduce<Set<string>>((set, row) => {
       Object.keys(row || {}).forEach((key) => set.add(key));
       return set;
     }, new Set<string>()));
@@ -5496,13 +5496,13 @@ app.post(
     return inserted.data;
   }
 
-  app.get('/api/customer/profile/advanced', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/profile/advanced', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     res.json({ status: 'ok', profile, emailRequired: !email });
   }));
 
-  app.put('/api/customer/preferences', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.put('/api/customer/preferences', requireAuth(), asyncHandler(async (req: any, res) => {
     if (!supabase) return res.json({ status: 'ok', saved: false });
     const email = await resolveCustomerEmail(req);
     const profile = await getOrCreateCustomerProfileByEmail(email);
@@ -5521,7 +5521,7 @@ app.post(
     res.json({ status: 'ok', preferences: data });
   }));
 
-  app.get('/api/customer/purchase-history', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/purchase-history', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     if (!supabase || !email) return res.json({ status: 'ok', orders: [] });
     const { data, error } = await supabase.from('orders').select('id,status,total,created_at,paid_at,updated_at').eq('customer_email', email).order('created_at', { ascending: false }).limit(50);
@@ -5529,7 +5529,7 @@ app.post(
     res.json({ status: 'ok', orders: data || [] });
   }));
 
-  app.get('/api/customer/loyalty', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/loyalty', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     if (!supabase || !profile) return res.json({ status: 'ok', loyalty: null, transactions: [] });
@@ -5538,7 +5538,7 @@ app.post(
     res.json({ status: 'ok', loyalty: account.data || null, transactions: transactions.data || [] });
   }));
 
-  app.get('/api/customer/wallet', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/wallet', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     if (!supabase || !profile) return res.json({ status: 'ok', wallet: [] });
@@ -5547,7 +5547,7 @@ app.post(
     res.json({ status: 'ok', wallet: data || [] });
   }));
 
-  app.get('/api/customer/rebuy-list', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/rebuy-list', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     if (!supabase || !profile) return res.json({ status: 'ok', items: [] });
@@ -5556,7 +5556,7 @@ app.post(
     res.json({ status: 'ok', items: data || [] });
   }));
 
-  app.get('/api/customer/recommendations', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/recommendations', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     const recommendations = profile && supabase ? await supabase.from('customer_recommendations').select('*').eq('customer_profile_id', profile.id).order('score', { ascending: false }).limit(20) : { data: [] };
@@ -5564,7 +5564,7 @@ app.post(
     res.json({ status: 'ok', recommendations: recommendations.data || [], fallbackProducts: products.data || [] });
   }));
 
-  app.get('/api/customer/subscriptions', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.get('/api/customer/subscriptions', requireAuth(), asyncHandler(async (req: any, res) => {
     const email = await resolveCustomerEmail(req);
     const profile = email ? await getOrCreateCustomerProfileByEmail(email) : null;
     if (!supabase || !profile) return res.json({ status: 'ok', subscriptions: [] });
@@ -5573,7 +5573,7 @@ app.post(
     res.json({ status: 'ok', subscriptions: data || [] });
   }));
 
-  app.post('/api/customer/subscriptions', requireAuth(false), asyncHandler(async (req: any, res) => {
+  app.post('/api/customer/subscriptions', requireAuth(), asyncHandler(async (req: any, res) => {
     if (!supabase) return res.json({ status: 'ok', created: false });
     const email = await resolveCustomerEmail(req);
     const profile = await getOrCreateCustomerProfileByEmail(email);

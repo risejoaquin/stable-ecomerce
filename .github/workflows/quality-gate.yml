@@ -1,0 +1,49 @@
+name: Selfcare Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Secret scan
+        shell: pwsh
+        run: .\scripts\qa\security\scan-local-secrets.ps1
+
+      - name: Core regression contracts
+        shell: pwsh
+        run: .\scripts\qa\regression\validate-regression-core.ps1
+
+      - name: Security baseline report
+        shell: pwsh
+        run: .\scripts\qa\security\validate-security-baseline.ps1 -Mode Report

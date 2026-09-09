@@ -73,4 +73,5 @@ release-notes.local.md
 account-flow-debug-*.json
 account-flow-screenshot-*.png
 
-bun.lock
+# Unified QA automation evidence
+artifacts/qa/

@@ -33,7 +33,7 @@ if (sentryDsn) {
     if ('requestIdleCallback' in window) {
       window.requestIdleCallback(run, { timeout: 2500 });
     } else {
-      window.setTimeout(run, 1500);
+      globalThis.setTimeout(run, 1500);
     }
   };
 
