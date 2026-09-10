@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { normalizeRecipientEmail } from './email-sanitize.js';
 import { suppressEmail } from './email-deliverability.js';
 
@@ -7,18 +6,6 @@ export type ResendWebhookEvent = {
   created_at?: string;
   data?: Record<string, any>;
 };
-
-export function verifyResendWebhookSignature({ rawBody, signature, secret }: { rawBody: string; signature?: string | null; secret?: string | null }) {
-  if (!secret) return process.env.NODE_ENV !== 'production';
-  if (!signature) return false;
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  const received = String(signature).replace(/^sha256=/, '');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
-  } catch (_error) {
-    return false;
-  }
-}
 
 export function getResendEventStatus(type?: string) {
   const normalized = String(type || '').toLowerCase();

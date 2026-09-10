@@ -83,6 +83,7 @@ const requiredProductionEnv = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'RESEND_API_KEY',
+  'RESEND_WEBHOOK_SECRET',
   'EMAIL_FROM',
   'ADMIN_EMAIL',
   'VITE_APP_URL',
@@ -679,6 +680,58 @@ async function startServer() {
       await recordStripeEventFailed(event.id, err?.message || 'Webhook processing failed');
       // Do not mark processed; Stripe can retry, and our handler is idempotent.
       return res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  }));
+
+  app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), asyncHandler(async (req: any, res) => {
+    if (!resend || !process.env.RESEND_WEBHOOK_SECRET) {
+      logger.error('Resend webhook verification is not configured');
+      return res.status(500).json({ error: 'Webhook verification not configured' });
+    }
+
+    const svixId = req.headers['svix-id'];
+    const svixTimestamp = req.headers['svix-timestamp'];
+    const svixSignature = req.headers['svix-signature'];
+
+    if (
+      typeof svixId !== 'string' ||
+      typeof svixTimestamp !== 'string' ||
+      typeof svixSignature !== 'string'
+    ) {
+      logger.warn('Invalid Resend webhook signature headers');
+      return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    try {
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body.toString('utf8')
+        : String(req.body || '');
+
+      const event = resend.webhooks.verify({
+        payload: rawBody,
+        headers: {
+          id: svixId,
+          timestamp: svixTimestamp,
+          signature: svixSignature
+        },
+        webhookSecret: process.env.RESEND_WEBHOOK_SECRET
+      });
+
+      const result = await processResendWebhookEvent({
+        supabase,
+        event
+      });
+
+      return res.json({ received: true, ...result });
+    } catch (error: any) {
+      logger.warn(
+        { err: error?.message },
+        'Invalid Resend webhook signature'
+      );
+
+      return res.status(400).json({
+        error: 'Invalid webhook signature'
+      });
     }
   }));
 
@@ -3635,19 +3688,6 @@ app.post(
       res.status(500).json({ error: e.message });
     }
   }));
-
-
-
-  app.post('/api/webhooks/resend', express.json({ type: '*/*' }), asyncHandler(async (req: any, res) => {
-    try {
-      const result = await processResendWebhookEvent({ supabase, event: req.body || {} });
-      res.json({ received: true, ...result });
-    } catch (error: any) {
-      logger.error({ err: error }, 'Resend webhook processing failed');
-      res.status(500).json({ error: 'Webhook processing failed' });
-    }
-  }));
-
   app.get('/api/admin/email/events', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
     if (!supabase) return res.json({ data: [], total: 0 });
     try {
@@ -10135,4 +10175,3 @@ app.post(
 }
 
 startServer();
-

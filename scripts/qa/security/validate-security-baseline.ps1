@@ -18,7 +18,14 @@ $server = Get-Content "server.ts" -Raw
 # dynamic negative tests will be added as each finding is remediated.
 $resendRouteMatch = [regex]::Match($server, "app\.post\('/api/webhooks/resend'[\s\S]{0,1400}")
 $resendRoute = if ($resendRouteMatch.Success) { $resendRouteMatch.Value } else { "" }
-$resendMissingVerification = $resendRoute.Length -gt 0 -and $resendRoute -notmatch "verifyResendWebhookSignature|webhooks\.verify|svix"
+$resendMissingVerification = $resendRoute.Length -gt 0 -and (
+  $resendRoute -notmatch "resend\.webhooks\.verify" -or
+  $resendRoute -notmatch "svix-id" -or
+  $resendRoute -notmatch "svix-timestamp" -or
+  $resendRoute -notmatch "svix-signature" -or
+  $resendRoute -notmatch "RESEND_WEBHOOK_SECRET" -or
+  $resendRoute -notmatch "express\.raw"
+)
 Finding "SEC-P0-001" "P0" "Resend webhook route must verify provider signature" $resendMissingVerification
 
 $legacyUpload = $server -match "app\.post\('/api/upload',\s*requireAuth\(\)" -and $server -notmatch "app\.post\('/api/upload',\s*requireAuth\(\),\s*requireAdmin\(\)"
