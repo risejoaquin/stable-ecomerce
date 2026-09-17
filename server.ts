@@ -2279,6 +2279,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       return res.status(400).json({ error: 'Refund amount exceeds remaining refundable total' });
     }
 
+    const newRefundedAmount = Number((alreadyRefunded + requestedAmount).toFixed(2));
+    const isFullRefund = newRefundedAmount >= orderTotal;
+
+    if (restock === true && !isFullRefund) {
+      return res.status(400).json({ error: 'Inventory restock is only supported for full order refunds.' });
+    }
+
     const paymentIntentId = order.stripe_payment_intent_id || getPaymentIntentId(await stripe.checkout.sessions.retrieve(order.stripe_session_id));
     if (!paymentIntentId) return res.status(400).json({ error: 'No payment intent found' });
 
@@ -2292,8 +2299,7 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       }
     } as any);
 
-    const newRefundedAmount = Number((alreadyRefunded + requestedAmount).toFixed(2));
-    const newStatus = newRefundedAmount >= orderTotal ? 'refunded' : 'partially_refunded';
+    const newStatus = isFullRefund ? 'refunded' : 'partially_refunded';
     const updatePayload: any = {
       status: newStatus,
       refunded_amount: newRefundedAmount,
@@ -2311,17 +2317,15 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
       .single();
     if (updateError) throw updateError;
 
-    if (restock === true && Array.isArray(order.order_items)) {
-      for (const item of order.order_items) {
-        await supabase.from('products')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', item.product_id);
-        await supabase.rpc('restock_refunded_item', {
-          product_id_input: item.product_id,
-          quantity_input: item.quantity,
-          order_id_input: id
-        });
+    if (restock === true && isFullRefund) {
+      const { data: restockResult, error: restockError } = await supabase.rpc('restock_refunded_order', {
+        order_id_input: id
+      });
+      if (restockError) {
+        logger.error({ err: restockError, orderId: id }, 'Refund restock failed');
+        throw restockError;
       }
+      logger.info({ orderId: id, restockResult }, 'Order restocked successfully');
     }
 
     await supabase.from('audit_logs').insert({
