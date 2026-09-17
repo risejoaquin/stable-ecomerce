@@ -2581,7 +2581,7 @@ app.post(
   })
 );
 
-  app.post('/api/upload', requireAuth(), upload.single('file'), asyncHandler(async (req: any, res) => {
+  app.post('/api/upload', requireAuth(), requireAdmin(), upload.single('file'), asyncHandler(async (req: any, res) => {
           if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
           if (!supabase) {
             // Return a dummy image URL for local testing

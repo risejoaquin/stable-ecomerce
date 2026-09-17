@@ -14,6 +14,7 @@ $results += Invoke-QaExternalStep -Name "Unit tests" -FilePath $npm -Arguments @
 $results += Invoke-QaExternalStep -Name "Build" -FilePath $npm -Arguments @("run", "build") -LogPath (Join-Path $run "build.log")
 $results += Invoke-QaExternalStep -Name "Secret scan" -FilePath $ps -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\qa\security\scan-local-secrets.ps1")) -LogPath (Join-Path $run "secret-scan.log")
 $results += Invoke-QaExternalStep -Name "Resend webhook security" -FilePath $ps -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\qa\security\validate-resend-webhook-signature.ps1")) -LogPath (Join-Path $run "resend-webhook-security.log")
+$results += Invoke-QaExternalStep -Name "Legacy upload authorization" -FilePath $ps -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\qa\security\validate-legacy-upload-authorization.ps1")) -LogPath (Join-Path $run "legacy-upload-authorization.log")
 $results += Invoke-QaExternalStep -Name "Security baseline report" -FilePath $ps -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\qa\security\validate-security-baseline.ps1"), "-Mode", "Report") -LogPath (Join-Path $run "security-baseline.log")
 $results += Invoke-QaExternalStep -Name "Core regression" -FilePath $ps -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "scripts\qa\regression\validate-regression-core.ps1")) -LogPath (Join-Path $run "regression-core.log")
 
