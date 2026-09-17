@@ -2,40 +2,59 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Block: Block C — Refund Integrity Final Remediation Candidate
-Task ID: QA-RELEASE-E-REFUND-INTEGRITY-FINAL-CANDIDATE-20260917
+Block: Block C — Apply Supabase Security Remediation to Production
+Task ID: QA-RELEASE-E-SUPABASE-SECURITY-REMEDIATION-PRODUCTION-20260917
 Commit/working tree:
-- HEAD: c7bd9e79e3da1d1b8cc3a8d10251e9405a3bd640
-- origin/main: c7bd9e79e3da1d1b8cc3a8d10251e9405a3bd640
+- HEAD: 2b9ca57521393b9bbb648a711d90cbd16280e0f3
+- origin/main: 2b9ca57521393b9bbb648a711d90cbd16280e0f3
 - Branch: main
+- Production Deployment: 2b9ca57521393b9bbb648a711d90cbd16280e0f3 (Railway Online)
+- Production Supabase: `dporfgsbwsyqzmlnqrug` (candidate DDL applied & verified)
 - Working tree:
-  - modified: `server.ts` (refund full-refund check before Stripe + order-level restock RPC call)
-  - untracked: `tests/security/critical-functions-security.test.ts` (15 regression and security tests)
-  - untracked: `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-candidate.sql` (hardened functions and schema extension candidate)
-  - untracked: `AGENT_CONTEXT/evidence/block-c/2026-09-17-refund-integrity-final-candidate.md` (detailed report)
+  - untracked: `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-production.md`
+  - untracked: `scripts/qa/database/apply-remediation-ddl.mjs`
+  - untracked: `scripts/qa/database/validate-post-remediation.mjs`
+  - untracked: `scripts/qa/database/test-anon-function-access.mjs`
+  - untracked: `scripts/qa/database/test-service-role-access.mjs`
 
 ## Completed
 
-- Strictly observed READ-ONLY / NO PRODUCTION CHANGES for Supabase.
-- Task 1: Server validation in `POST /api/admin/orders/:id/refund` implemented to reject `restock === true` on partial refunds before invoking Stripe.
-- Task 2: Candidate function `public.restock_refunded_order(order_id_input UUID)` prepared (`SECURITY INVOKER`, `SET search_path = ''`, qualified relations, order lock `FOR UPDATE`, idempotency via `inventory_restocked_at`, atomic stock increase, movements logging).
-- Task 3: Schema extension candidate prepared (`ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS inventory_restocked_at TIMESTAMPTZ NULL;`).
-- Task 4: Candidate `finalize_paid_order` prepared with `SECURITY INVOKER`, empty search_path, qualified relations, and exclusive execute to `service_role`.
-- Task 5: Candidate drops `decrement_stock` and `consume_coupon_after_payment`. `restock_refunded_item` is omitted.
-- Task 6: Replaced manual `order_items` loop in `server.ts` with `restock_refunded_order` RPC call, error check, and logging.
-- Task 7 & Task 8: 15 permanent tests implemented in `tests/security/critical-functions-security.test.ts` (all passing).
-- Task 9: Candidate SQL preserved in `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-candidate.sql`. No remote database mutations executed.
-- Task 10: Complete validation passed (`lint`, `test`, `build`, `qa:release`, `git diff --check`).
-- Task 11: Reports and context files updated.
+- Phase 1 Preflight: Verified pre-change state on live Supabase production `dporfgsbwsyqzmlnqrug`.
+- Phase 2 Candidate Review: SQL candidate verified against all security criteria.
+- Phase 3 Controlled DDL: Applied `2026-09-17-supabase-security-remediation-candidate.sql` atomically via `scripts/qa/database/apply-remediation-ddl.mjs`. Transaction committed with exit code 0.
+- Phase 4 Post-Change DB Validation:
+  - `finalize_paid_order`: `SECURITY INVOKER`, `search_path=""`, grants restricted to `service_role` and `postgres`.
+  - `restock_refunded_order`: `SECURITY INVOKER`, `search_path=""`, grants restricted to `service_role` and `postgres`.
+  - `decrement_stock` & `consume_coupon_after_payment`: dropped.
+  - `public.orders.inventory_restocked_at`: column present.
+- Phase 5 Security Verification:
+  - `anon` key caller receives SQLSTATE `42501` (`permission denied for function`) on `finalize_paid_order` and `restock_refunded_order`.
+  - Obsolete functions return `PGRST202`.
+  - `service_role` client executes functions without permission barriers.
+- Phase 6 Application Regression:
+  - `npm run lint`: PASS (0 errors)
+  - `npm test`: PASS (17/17 tests passing across 3 test files)
+  - `npm run build`: PASS (Vite + esbuild production build)
+  - `.\scripts\qa\validate-release.ps1`: PASS (TypeScript, Unit tests, Build, Secrets, Resend Webhook, Legacy Upload, Security Baseline, Core Regressions 4/4)
+  - `git diff --check`: PASS
+- Phase 7 Production Validation:
+  - `validate-production.ps1`: PASS against `https://selfcaresinners.com` matching commit `2b9ca57`.
+  - Railway service `stable-ecomerce`: Online, zero 5xx errors, clean pino logs.
+- Phase 8 Evidence & Documentation:
+  - Full report generated at `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-production.md`.
 
 ## Next exact action for ChatGPT Web
 
-- Review final candidate SQL and server-side refund guard.
-- Provide approval to incorporate `2026-09-17-supabase-security-remediation-candidate.sql` into the Supabase baseline migration strategy and deploy.
+- Review the technical evidence in `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-production.md`.
+- Determine whether Block C is ready to be declared CLOSED.
+- Provide instructions for next phase (e.g. AUDIT-01 or subsequent roadmap steps).
 
 ## Evidence paths
 
+- `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-production.md`
 - `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-security-remediation-candidate.sql`
-- `AGENT_CONTEXT/evidence/block-c/2026-09-17-refund-integrity-final-candidate.md`
-- `tests/security/critical-functions-security.test.ts`
-- `artifacts/qa/20260917-161331-release/summary.md`
+- `scripts/qa/database/apply-remediation-ddl.mjs`
+- `scripts/qa/database/validate-post-remediation.mjs`
+- `scripts/qa/database/test-anon-function-access.mjs`
+- `scripts/qa/database/test-service-role-access.mjs`
+- `artifacts/qa/20260917-162718-release/summary.md`
