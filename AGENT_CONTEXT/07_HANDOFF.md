@@ -1,82 +1,72 @@
 # HANDOFF
 
-Previous agent: Codex
-Next agent: Any
-Block: QA / RELEASE E parallel start
-Task ID: QA-RELEASE-E-START-20260917
+Previous agent: Codex / Antigravity
+Next agent: Any / ChatGPT Web
+Block: Block C — Production & Infrastructure (QA / RELEASE E)
+Task ID: QA-RELEASE-E-HOTFIX-PRODUCTION-SMOKE-TRIGGER-20260917
 Commit/working tree:
-- HEAD: 48f962f31900a027efebbea99ebcc81b931e7313
-- origin/main: 48f962f31900a027efebbea99ebcc81b931e7313
+- HEAD: 8e51b3b9b13949ef2e9e10aa18ad21f58541ca51
+- origin/main: 8e51b3b9b13949ef2e9e10aa18ad21f58541ca51
 - Branch: main
-- Working tree dirty; see `git status --short`.
+- Working tree: dirty only with AGENT_CONTEXT documentation/evidence changes after the hotfix commit.
 
 ## Completed
 
-- Required context files were read before project edits:
-  - AGENT_CONTEXT/00_READ_FIRST.md
-  - AGENT_CONTEXT/01_CURRENT_STATE.md
-  - AGENT_CONTEXT/03_ACTIVE_PHASE.md
-  - AGENT_CONTEXT/05_ACCEPTANCE_CRITERIA.md
-  - AGENT_CONTEXT/06_CURRENT_TASK.md
-  - AGENT_CONTEXT/07_HANDOFF.md
-  - AGENT_CONTEXT/10_DO_NOT_TOUCH.md
-- Additional coordination files read:
-  - AGENT_CONTEXT/02_MASTER_ROADMAP.md
-  - AGENT_CONTEXT/08_AGENT_HANDOFF_PROTOCOL.md
-  - AGENT_CONTEXT/09_EVIDENCE_FORMAT.md
-  - AGENT_CONTEXT/12_COMMANDS.md
-- QA / RELEASE E was started, not closed.
-- Block B initial quality gates:
-  - `.\scripts\qa\validate-release.ps1` PASS.
-  - `npm run test:e2e` PASS after installing Playwright Chromium runtime.
-- Block C initial production/deploy evidence:
-  - production smoke PASS for commit `48f962f31900a027efebbea99ebcc81b931e7313`.
-  - Railway `stable-ecomerce` Online.
-  - GitHub latest Quality Gate success observed; latest Production Smoke runs remain skipped.
+- Read all required context files prior to modifications.
+- Production Smoke Trigger hotfix completed:
+  - `.github/workflows/production-smoke.yml` changed only by removing the job-level `if:` from `production-smoke`.
+  - `workflow_dispatch`, `deployment_status` states `[success]`, commit resolution, checkout, BaseUrl, and ExpectedCommit logic preserved.
+  - YAML syntax PASS via `npx --yes yaml-lint .github/workflows/production-smoke.yml`.
+  - `git diff --check` PASS.
+  - Commit `8e51b3b9b13949ef2e9e10aa18ad21f58541ca51` pushed to `origin/main`.
+- GitHub CI:
+  - Quality Gate: run `35283671819` passed for commit `8e51b3b9b13949ef2e9e10aa18ad21f58541ca51`.
+  - Production Smoke: run `35283744525` executed from `deployment_status`, did not remain skipped, and passed.
+  - Earlier automatic run `35283677281` executed but failed because production still returned prior commit `c7bd9e79e3da1d1b8cc3a8d10251e9405a3bd640`; this was a deploy race and was superseded by successful run `35283744525`.
+- Railway deploy:
+  - Service `stable-ecomerce` is Online.
+  - Deployment ID observed after hotfix: `fb83a1cb-5023-41aa-8948-a8be23cd2d14`.
+- Supabase live database:
+  - Read-only security inventory captured: 280 tables, 0 policies, 3 critical functions with SEC-019 empty search_path, `restock_refunded_item` missing.
+  - Report saved to `artifacts/qa/database-security-report.json`.
+- Schema reproducibility:
+  - Identified lack of `supabase/migrations/` and absence of migration history table in Supabase.
+- Dependency audit:
+  - Controlled audit captured: 3 vulnerabilities (2 moderate dev `@vitest/mocker`/`vitest`, 1 high prod `multer`).
+  - No `npm audit fix --force` executed.
+- Stripe CLI:
+  - Inspected CLI state: account `acct_1TLawpEKfBRabUZ0` (SolidBit) is in LIVE MODE.
+  - Test sandbox context unavailable for this account.
+  - Strictly prevented live transactions/triggers.
+- Production smoke:
+  - Local and GitHub CI production smoke passed against deployed commit `8e51b3b9b13949ef2e9e10aa18ad21f58541ca51`.
+- Evidence recorded under `AGENT_CONTEXT/evidence/`.
 
 ## Pending
 
-- Block A functional QA evidence.
-- Block B full accessibility/responsive/input/rate-limit acceptance evidence.
-- Block C Supabase reproducibility/access-model review, dependency/security review, logs, and real GitHub Production Smoke closure.
-- Final integration report.
-- ChatGPT Web validation.
+- Block A functional test execution (storefront, auth, admin, checkout, orders, emails, authorization).
+- Block B full accessibility and responsive acceptance evidence.
+- ChatGPT Web architectural decisions on:
+  1. Providing Stripe test-mode API key.
+  2. Supabase schema reproducibility baseline and migration strategy.
+  3. Remediation of SEC-018 / SEC-019 database findings.
+- Final integration report and ROADMAP PASS determination.
 
-## Important context
+## Important Context
 
 - Do not advance POST-LAUNCH 20.
-- Do not close roadmap.
-- Do not reopen closed macro-phases.
-- Treat future regressions as `QA / RELEASE E HOTFIX N`.
-- The current tree already includes prior SEC-P1-001 remediation changes:
-  - `server.ts`
-  - `scripts/qa/validate-release.ps1`
-  - `scripts/qa/security/validate-legacy-upload-authorization.ps1`
-- Playwright E2E generated local report artifacts:
-  - `playwright-report/index.html`
-  - `test-results/.last-run.json`
-
-## Known failures
-
-- First `npm run test:e2e` failed because Playwright Chromium was not installed:
-  - missing `chromium_headless_shell-1228`
-  - resolved with `npx playwright install chromium`
-- GitHub Production Smoke runs observed on 2026-09-16 are `skipped`, so Block C is not complete.
-
-## Do not redo
-
-- Do not reinstall Playwright Chromium unless it goes missing again.
-- Do not rerun `validate-release.ps1` unless validating a new change.
-- Do not treat local release PASS as ROADMAP PASS.
-
-## Next exact action
-
-- Ask ChatGPT Web for the first Block A functional validation packet, or execute it if already provided.
-- Keep evidence under `AGENT_CONTEXT/evidence/`.
-- Before any commit/push/deploy, resolve or explicitly account for dirty files and generated artifacts.
+- Do not declare QA E closed.
+- Do not run `supabase db reset --linked`, `supabase db push`, or `supabase migration repair`.
+- Do not run `npm audit fix --force`.
+- Do not run live Stripe charges.
 
 ## Evidence paths
 
-- AGENT_CONTEXT/evidence/block-b/2026-09-17-qa-release-e-start.md
-- C:\Users\Lucilfer\Documents\Stable-Ecommerce\artifacts\qa\20260917-152628-release\summary.md
-- C:\Users\Lucilfer\Documents\Stable-Ecommerce\artifacts\qa\20260917-152737-regression-core\summary.md
+- `AGENT_CONTEXT/evidence/block-c/2026-09-17-block-c-production-infrastructure.md`
+- `AGENT_CONTEXT/evidence/block-c/2026-09-17-production-smoke-trigger-hotfix.md`
+- `AGENT_CONTEXT/evidence/github/2026-09-17-ci-status.md`
+- `AGENT_CONTEXT/evidence/railway/2026-09-17-deploy-status.md`
+- `AGENT_CONTEXT/evidence/supabase/2026-09-17-schema-inventory.md`
+- `AGENT_CONTEXT/evidence/stripe/2026-09-17-stripe-cli-status.md`
+- `AGENT_CONTEXT/evidence/production/2026-09-17-production-smoke.md`
+- `artifacts/qa/database-security-report.json`
