@@ -4,7 +4,6 @@ import rateLimit from 'express-rate-limit';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
@@ -572,7 +571,8 @@ const upload = multer({
 });
 
 
-async function startServer() {
+export async function startServer(options: { listen?: boolean } = {}) {
+  const { listen = true } = options;
   const app = express();
 
   app.use((req, res, next) => {
@@ -10048,7 +10048,8 @@ app.post(
   }));
 
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -10173,9 +10174,15 @@ app.post(
     });
   });
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
-    logger.info(`Server running on port ${PORT}`);
-  });
+  if (listen) {
+    app.listen(Number(PORT), "0.0.0.0", () => {
+      logger.info(`Server running on port ${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
