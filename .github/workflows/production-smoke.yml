@@ -15,9 +15,6 @@ permissions:
 
 jobs:
   production-smoke:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.deployment.environment == 'production'
     runs-on: windows-latest
     timeout-minutes: 10
     environment:
