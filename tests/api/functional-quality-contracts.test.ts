@@ -94,6 +94,16 @@ beforeAll(async () => {
           }
         });
       }
+      if (isSingle) {
+        return new Response(JSON.stringify({
+          code: 'PGRST116',
+          details: 'Results contain 0 rows',
+          message: 'JSON object requested, multiple (or no) rows returned'
+        }), {
+          status: 406,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
       return new Response(JSON.stringify([]), {
         status: 200,
         headers: {
@@ -316,27 +326,6 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
   });
 
   // --------------------------------------------------------------------------
-  // TASK 6: Rate Limiting Middleware Mounting Tests
-  // --------------------------------------------------------------------------
-  describe('TASK 6 — Rate Limiting Inspection', () => {
-    it('mounts rate limiter on checkout route and exposes rate limit headers', async () => {
-      const response = await request(app).post('/api/checkout').send({});
-      expect(response.headers).toHaveProperty('x-ratelimit-limit');
-      expect(Number(response.headers['x-ratelimit-limit'])).toBeGreaterThan(0);
-    });
-
-    it('mounts rate limiter on contact route', async () => {
-      const response = await request(app).post('/api/contact').send({});
-      expect(response.status).toBe(400);
-    });
-
-    it('enforces email sensitive limiter on forgot-password', async () => {
-      const response = await request(app).post('/api/forgot-password').send({});
-      expect([400, 404, 500]).toContain(response.status);
-    });
-  });
-
-  // --------------------------------------------------------------------------
   // TASK 7: Input Validation Tests
   // --------------------------------------------------------------------------
   describe('TASK 7 — Input Validation', () => {
@@ -368,6 +357,79 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       const response = await request(app).post('/api/contact').send({ name: 'Test' });
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({ error: 'Missing fields' });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // TASK 6: Rate Limiting & SEC-005 Login Rate Limiter Tests
+  // --------------------------------------------------------------------------
+  describe('TASK 6 — Rate Limiting Matrix & SEC-005 Login Rate Limiter', () => {
+    it('mounts rate limiter on checkout route and exposes rate limit headers', async () => {
+      const response = await request(app).post('/api/checkout').send({});
+      expect(response.headers).toHaveProperty('x-ratelimit-limit');
+      expect(Number(response.headers['x-ratelimit-limit'])).toBeGreaterThan(0);
+    });
+
+    it('mounts rate limiter on orders route and exposes rate limit headers', async () => {
+      const response = await request(app).post('/api/orders').send({});
+      expect(response.headers).toHaveProperty('x-ratelimit-limit');
+      expect(Number(response.headers['x-ratelimit-limit'])).toBeGreaterThan(0);
+    });
+
+    it('mounts rate limiter on contact route', async () => {
+      const response = await request(app).post('/api/contact').send({});
+      expect(response.status).toBe(400);
+      expect(response.headers).toHaveProperty('x-ratelimit-limit');
+    });
+
+    it('enforces email sensitive limiter on forgot-password', async () => {
+      const response = await request(app).post('/api/forgot-password').send({});
+      expect(response.headers).toHaveProperty('ratelimit-limit');
+      expect(Number(response.headers['ratelimit-limit'])).toBe(5);
+    });
+
+    it('enforces email sensitive limiter on resend-verification', async () => {
+      const response = await request(app).post('/api/resend-verification').send({});
+      expect(response.headers).toHaveProperty('ratelimit-limit');
+      expect(Number(response.headers['ratelimit-limit'])).toBe(5);
+    });
+
+    it('enforces admin email limiter on admin resend confirmation', async () => {
+      const response = await request(app)
+        .post('/api/admin/orders/00000000-0000-0000-0000-000000000000/resend-confirmation')
+        .set('Authorization', `Bearer ${authToken('admin')}`);
+      expect(response.headers).toHaveProperty('ratelimit-limit');
+      expect(Number(response.headers['ratelimit-limit'])).toBe(10);
+    });
+
+    it('mounts dedicated loginLimiter on /api/login and exposes standard rate limit headers', async () => {
+      const response = await request(app).post('/api/login').send({ email: 'test@example.com', password: 'test' });
+      expect(response.headers).toHaveProperty('ratelimit-limit');
+      expect(Number(response.headers['ratelimit-limit'])).toBe(10);
+      expect(response.headers).toHaveProperty('ratelimit-remaining');
+    });
+
+    it('enforces SEC-005: exceeding login rate limit returns 429 with retry headers and does not leak account existence', async () => {
+      let lastResponse;
+      // Burst requests from this IP until login rate limit (10) is exhausted
+      for (let i = 0; i < 12; i++) {
+        lastResponse = await request(app)
+          .post('/api/login')
+          .send({ email: 'burst.attempt@example.com', password: 'invalid-password' });
+        if (lastResponse.status === 429) break;
+      }
+
+      expect(lastResponse).toBeDefined();
+      expect(lastResponse!.status).toBe(429);
+      expect(lastResponse!.body).toEqual({ error: 'Too many login attempts, please try again later.' });
+      expect(lastResponse!.headers).toHaveProperty('retry-after');
+      expect(lastResponse!.headers).toHaveProperty('ratelimit-reset');
+
+      // Security check: ensure 429 response does not leak credentials or user existence
+      expect(lastResponse!.body).not.toHaveProperty('user');
+      expect(lastResponse!.body).not.toHaveProperty('email');
+      expect(lastResponse!.body).not.toHaveProperty('password');
+      expect(lastResponse!.body).not.toHaveProperty('userId');
     });
   });
 });
