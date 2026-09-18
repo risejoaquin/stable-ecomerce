@@ -1,37 +1,38 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-17T20:35:45-07:00
-**Phase:** QA / RELEASE E — Block C Supabase Baseline Adoption & Reproducibility
-**Branch:** `main`
-**Base Commit:** `749ca1c4598ee577b47d81cf285afbe928ffb58a`
+**Timestamp:** 2026-09-17T21:15:00-07:00  
+**Phase:** QA / RELEASE E — Block A & Block B Final Closure  
+**Branch:** `main`  
+**Base Commit:** `bcd82ff2fd1f6d94d0b239d3f87897b53ce3168e`  
 
 ## 1. Quality Gates Execution Summary
 
 | Gate | Command | Result | Pass/Fail |
 |---|---|---|---|
 | TypeScript | `npm run lint` | 0 errors | PASS |
-| Unit & API Tests | `npm test` | 24 tests passed across 4 files | PASS (24/24) |
-| Production Build | `npm run build` | Vite client (8.93s) + esbuild server bundle (61ms) | PASS |
+| Unit & API Tests | `npm test` | 61 tests passed across 4 files | PASS (61/61) |
+| Production Build | `npm run build` | Vite client (7.59s) + esbuild server bundle (60ms) | PASS |
+| E2E Tests | `npm run test:e2e` | 20 tests passed across 3 spec files | PASS (20/20) |
+| Axe Accessibility | AxeBuilder WCAG 2.0 A & AA | 6 surfaces scanned (Home, PDP, Sign-in, Cart, Track, Admin) | PASS (0 critical violations) |
 | Secret Scan | `.\scripts\qa\security\scan-local-secrets.ps1` | 0 secrets detected | PASS |
-| FAST Gate | `.\scripts\qa\validate-fast.ps1` | All gates passed | PASS |
+| Resend Webhook Security | `.\scripts\qa\security\validate-resend-webhook-signature.ps1` | All checks pass | PASS |
+| Legacy Upload Auth | `.\scripts\qa\security\validate-legacy-upload-authorization.ps1` | All checks pass | PASS |
+| Security Baseline Report | `.\scripts\qa\security\validate-security-baseline.ps1 -Mode Report` | Report executed cleanly (2 expected findings) | PASS |
 | Core Regression | `smoke-qa-release-e`, `smoke-mobile-ux-f`, `smoke-post-ux-c-hotfix-20`, `smoke-post-ux-c-hotfix-20-2` | 4/4 suites passing | PASS |
-| Release Gates | `.\scripts\qa\validate-release.ps1` | All 8 release gates passed | PASS |
+| Release Gate | `.\scripts\qa\validate-release.ps1` | All 8 release gates passed | PASS |
 | Whitespace Check | `git diff --check` | 0 trailing whitespace errors | PASS |
 
-## 2. Supabase Baseline Adoption & Reproducibility Summary
+## 2. Functional & Quality Regression Summary
 
-| Operation | Target | Command | Result |
+| Domain | Tested Scenarios | Method | Result |
 |---|---|---|---|
-| Project Link | `dporfgsbwsyqzmlnqrug` | `npx --yes supabase link` | Connected cleanly |
-| Migration History (Pre) | Remote | `npx --yes supabase migration list` | `[]` (clean baseline state) |
-| Baseline Pull | Remote -> Local | `npx --yes supabase db pull` | `20260918004527_remote_schema.sql` (9935 lines) generated |
-| Migration History (Post) | Remote & Local | `npx --yes supabase migration list` | `[20260918004527]` recorded as applied |
-| Schema Reconstruction | Local Docker | `npx --yes supabase db reset --local` | Recreated from empty state with 0 errors |
-| 10 Critical Tables Compare | Local vs Remote | Schema diff script | 0 differences across columns, types, nullability, constraints, RLS, policies |
-| 2 Critical Functions Compare | Local vs Remote | Schema diff script | 0 differences: Invoker, `search_path=''`, ACL `{postgres, service_role}` |
-| Function Runtime Boundaries | Local DB RPC | Boundary tests | `anon` -> 42501 permission denied; `service_role` -> allowed |
-| Database Linting | Local & Remote | `npx --yes supabase db lint` | 0 schema errors found |
-| Security Advisors | Remote (`--linked`) | `npx --yes supabase db advisors` | Hardened functions clean; legacy items identified |
-| Performance Advisors | Remote (`--linked`) | `npx --yes supabase db advisors` | Duplicate indexes identified on `orders` and `products` |
+| Orders (Task 1) | `/api/orders/my` (guest 401, customer 200), `/api/orders/track` (missing params 400, nonexistent 404), `/api/admin/orders` (guest 401, non-admin 403, admin 200), `/api/admin/orders/:id` (guest 401, non-admin 403) | API supertest | PASS |
+| Email Flows (Task 2) | Resend webhook verification (headers missing 400, invalid svix signature 400, unconfigured 500), admin resend confirmation (401/403/allowed) | API supertest | PASS |
+| Auth Matrix (Task 3) | 5 sensitive endpoints (`/api/admin/diagnostics`, `/api/admin/orders`, `/api/upload`, `/api/admin/orders/:id/refund`, `/api/admin/orders/:id/resend-confirmation`) across guest/user/admin | API supertest | PASS |
+| Refund Contract (Task 4) | Negative amount (400), zero amount (400), amount > total (400), partial restock before Stripe (400), full restock RPC call | API supertest & static analysis | PASS |
+| Accessibility (Task 5) | Home, Product Detail, Sign-In, Cart Drawer, Order Tracking, Admin Entry | Playwright AxeBuilder | PASS (0 critical violations) |
+| Rate Limiting (Task 6) | Checkout (5/min), Orders (10/min), Contact (3/min), Forgot Password (5/15min), Resend Verification (5/15min), Admin Resend (10/10min), Login limiter (SEC-005 documented OPEN) | Code inspection & headers test | PASS |
+| Input Validation (Task 7) | Malformed/empty payloads on checkout, login, tracking, contact, refunds | API supertest | PASS |
+| Viewport Regression | 320px, 390px, 768px, 1440px with no horizontal overflow | Playwright E2E | PASS (0px overflow) |
 
 Status: **READY_FOR_CHATGPT_WEB_VALIDATION**.

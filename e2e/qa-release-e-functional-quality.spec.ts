@@ -194,6 +194,72 @@ test.describe('QA / RELEASE E — Functional and Quality Regression Suite', () =
     expect(criticalViolations).toEqual([]);
   });
 
+  test('Accessibility audit on /sign-in surface has no critical violations', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/sign-in');
+    await expect(page.locator('body')).toBeVisible();
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .options({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })
+      .analyze();
+
+    const criticalViolations = accessibilityScanResults.violations.filter(
+      (v) => v.impact === 'critical'
+    );
+    expect(criticalViolations).toEqual([]);
+  });
+
+  test('Accessibility audit on cart drawer surface has no critical violations', async ({ page }) => {
+    await mockApi(page);
+    await page.goto(`/product/${productId}`);
+    await expect(page.locator('body')).toBeVisible();
+
+    const addToCartButton = page.getByRole('button', { name: /agregar al carrito/i });
+    if (await addToCartButton.isVisible()) {
+      await addToCartButton.click();
+      await page.waitForTimeout(300);
+    }
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .options({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })
+      .analyze();
+
+    const criticalViolations = accessibilityScanResults.violations.filter(
+      (v) => v.impact === 'critical'
+    );
+    expect(criticalViolations).toEqual([]);
+  });
+
+  test('Accessibility audit on order tracking surface has no critical violations', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/track');
+    await expect(page.locator('body')).toBeVisible();
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .options({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })
+      .analyze();
+
+    const criticalViolations = accessibilityScanResults.violations.filter(
+      (v) => v.impact === 'critical'
+    );
+    expect(criticalViolations).toEqual([]);
+  });
+
+  test('Accessibility audit on admin entry surface has no critical violations', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/admin');
+    await expect(page.locator('body')).toBeVisible();
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .options({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })
+      .analyze();
+
+    const criticalViolations = accessibilityScanResults.violations.filter(
+      (v) => v.impact === 'critical'
+    );
+    expect(criticalViolations).toEqual([]);
+  });
+
   const viewports = [
     { name: 'small-320', width: 320, height: 740 },
     { name: 'mobile-390', width: 390, height: 844 },
