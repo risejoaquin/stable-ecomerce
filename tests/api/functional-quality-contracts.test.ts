@@ -571,7 +571,8 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       // Evidence provenance checks
       expect(perf.evidence).toMatchObject({
         sourceTable: 'orders',
-        calculationVersion: 'pl20-01-hotfix-real-contract',
+        calculationVersion: 'pl20-01-v1',
+        measured_state: 'MEASURED',
         windowStart: 'all_time',
         windowEnd: 'all_time',
         totalOrders: 12,
@@ -778,6 +779,162 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
         .send({ decisionKey: 'test-decision', decision: 'invalid-decision' });
       expect(badDecisionRes.status).toBe(400);
       expect(badDecisionRes.body.error).toContain('decision');
+    });
+
+    it('13. Rule 1: commercial assessment excludes cancelado + reconciled from revenue math, records anomaly conflict, and sets measured_state: PARTIAL', async () => {
+      customMockOrders = [
+        { id: 'o-legit', store_id: 'qa-store-id', paid_at: '2026-09-15T10:00:00Z', total: 100, refunded_amount: 0, status: 'entregado' },
+        // Anomaly order: status is cancelado, but financial_status is reconciled:
+        { id: 'o-conflict-1', store_id: 'qa-store-id', paid_at: null, financial_status: 'reconciled', total: 500, refunded_amount: 0, status: 'cancelado' },
+        // Anomaly order: status is payment_failed, but paid_at is populated:
+        { id: 'o-conflict-2', store_id: 'qa-store-id', paid_at: '2026-09-15T12:00:00Z', financial_status: null, total: 300, refunded_amount: 0, status: 'payment_failed' }
+      ];
+
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-conflict-check' });
+      expect(res.status).toBe(200);
+
+      const perf = res.body.assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(perf).toBeDefined();
+      expect(perf.status).toBe('measured');
+      expect(perf.score).toBeNull();
+
+      // Rule 1: Anomaly orders are strictly excluded from revenue math
+      expect(perf.evidence.paidCount).toBe(1);
+      expect(perf.evidence.grossPaidRevenue).toBe(100);
+      expect(perf.evidence.netPaidRevenue).toBe(100);
+      expect(perf.evidence.aov).toBe(100);
+
+      // Rule 1: measured_state is PARTIAL and anomalies are recorded
+      expect(perf.evidence.measured_state).toBe('PARTIAL');
+      expect(perf.evidence.hasOrderAnomaly).toBe(true);
+      expect(perf.evidence.anomalies.length).toBe(2);
+      expect(perf.evidence.anomalies[0].orderId).toBe('o-conflict-1');
+      expect(perf.evidence.anomalies[0].reason).toBe('CONFLICT_CANCELED_STATUS_WITH_PAID_FINANCIAL_INDICATOR');
+      expect(perf.finding).toContain('PARTIAL: reconciliation anomaly detected');
+    });
+
+    it('14. Rule 2: PARTIAL operating costs do not satisfy finalScaleReady (strict MEASURED required)', async () => {
+      const adminToken = authToken('admin');
+
+      // Supply partial estimates (only 2 out of 4 providers)
+      const costRunRes = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          railwayEstimate: 25,
+          supabaseEstimate: 30
+          // stripeEstimate and emailEstimate omitted -> PARTIAL
+        });
+      expect(costRunRes.status).toBe(200);
+      expect(costRunRes.body.costs[0].metadata.measured_state).toBe('PARTIAL');
+
+      // Now query summary: PARTIAL costs must yield isCostEvidenceMeasured === false and finalScaleReady === false
+      const summaryRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(false);
+      expect(summaryRes.body.summary.finalScaleReady).toBe(false);
+    });
+
+    it('15. Rule 3: low volume is MEASURED with score: null, and commercial_track_record is warning with score: null', async () => {
+      customMockOrders = [
+        { id: 'o-single', store_id: 'qa-store-id', paid_at: '2026-09-16T12:00:00Z', total: 49.99, refunded_amount: 0, status: 'pagado' }
+      ];
+
+      const adminToken = authToken('admin');
+      const commRes = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-low-volume' });
+      expect(commRes.status).toBe(200);
+
+      const commPerf = commRes.body.assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(commPerf.status).toBe('measured');
+      expect(commPerf.score).toBeNull();
+      expect(commPerf.evidence.measured_state).toBe('MEASURED');
+
+      const invRes = await request(app)
+        .post('/api/admin/final-scale/investor-readiness/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-inv-track-record' });
+      expect(invRes.status).toBe(200);
+
+      const trackRecord = invRes.body.checks.find((c: any) => c.check_key === 'commercial_track_record');
+      expect(trackRecord).toBeDefined();
+      expect(trackRecord.status).toBe('warning');
+      expect(trackRecord.score).toBeNull();
+      expect(trackRecord.evidence).toContain('Low commercial volume does not invalidate measurement');
+    });
+
+    it('16. Rule 4: rejects NOT_APPLICABLE for active production stack components with HTTP 400', async () => {
+      const adminToken = authToken('admin');
+
+      // Top-level measured_state: NOT_APPLICABLE on operating costs
+      const naRes1 = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09', measured_state: 'NOT_APPLICABLE' });
+      expect(naRes1.status).toBe(400);
+      expect(naRes1.body.error).toContain('NOT_APPLICABLE is forbidden for core stack components');
+
+      // Individual provider marked N/A
+      const naRes2 = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09', railwayEstimate: 'N/A' });
+      expect(naRes2.status).toBe(400);
+      expect(naRes2.body.error).toContain('NOT_APPLICABLE is forbidden for core stack component');
+
+      // Core capacity dimension marked not_applicable
+      const naRes3 = await request(app)
+        .post('/api/admin/final-scale/capacity/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'not_applicable' });
+      expect(naRes3.status).toBe(400);
+      expect(naRes3.body.error).toContain('NOT_APPLICABLE is forbidden for core capacity dimensions');
+    });
+
+    it('17. Rule 5: classifies rows lacking complete V1 provenance as HISTORICAL_STATIC_BASELINE', async () => {
+      // Setup mock data with 1 row having complete V1 provenance and 1 row lacking provenance
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'v1-row',
+          assessment_key: 'runtime_database_connectivity',
+          status: 'pass',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_technical_assessment_run',
+            source_type: 'api',
+            calculation_version: 'pl20-01-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        },
+        {
+          id: 'legacy-row',
+          assessment_key: 'legacy_seed_check',
+          status: 'pass',
+          score: null,
+          metadata: { source: 'PL20 seed' } // Lacks calculation_version, measured_state, measured_at
+        }
+      ];
+
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      // Only the v1 row is active; legacy row is excluded and counted in historicalBaselineRows
+      expect(res.body.summary.technicalAssessments).toBe(1);
+      expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(1);
     });
   });
 });

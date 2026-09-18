@@ -123,3 +123,36 @@ const finalScaleReady = Boolean(
 10. `operating costs sets measured_state: MEASURED when all four provider estimates are supplied`
 11. `isolates legacy seed rows and derives finalScaleReady === false when capacity and costs are unmeasured`
 12. `enforces strict input validation across PL20 endpoints (costs, runKey, roadmap, decision)`
+13. `Rule 1: commercial assessment excludes cancelado + reconciled from revenue math, records anomaly conflict, and sets measured_state: PARTIAL`
+14. `Rule 2: PARTIAL operating costs do not satisfy finalScaleReady (strict MEASURED required)`
+15. `Rule 3: low volume is MEASURED with score: null, and commercial_track_record is warning with score: null`
+16. `Rule 4: rejects NOT_APPLICABLE for active production stack components with HTTP 400`
+17. `Rule 5: classifies rows lacking complete V1 provenance as HISTORICAL_STATIC_BASELINE`
+
+---
+
+## 5. Provenance & Anomaly Conflict Architecture Rules
+
+1. **Rule 1 (Anomaly Conflict Exclusions):**
+   - Any order having canceled status (`cancelado`, `payment_failed`, `inventory_exception`) combined with positive payment indicators (`paid_at` or `financial_status in ('paid', 'reconciled')`) is strictly excluded from `grossPaidRevenue` and `netPaidRevenue`.
+   - The anomaly conflict is registered in `evidence.anomalies` with `reason: 'CONFLICT_CANCELED_STATUS_WITH_PAID_FINANCIAL_INDICATOR'`.
+   - Sets commercial `measured_state = 'PARTIAL'`.
+
+2. **Rule 2 (`PARTIAL` Costs Contract):**
+   - Operating costs marked `PARTIAL` serve only for preliminary operational review.
+   - For PL20 final scale ready, required costs must be strictly `MEASURED`.
+   - `summary.evaluationRules.isCostEvidenceMeasured` evaluates to `false` when costs are `PARTIAL`, guaranteeing `finalScaleReady === false`.
+
+3. **Rule 3 (Low Commercial Volume Contract):**
+   - Clean production orders (even low count) are validly `MEASURED`.
+   - No arbitrary order volume threshold is required; no arbitrary numerical scores are assigned (`score: null`).
+   - `investor_readiness_checks` sets `commercial_track_record` to `status: 'warning'` and `score: null`, noting that low volume does not invalidate measurement, but multi-quarter cohort scaling remains unproven.
+
+4. **Rule 4 (`NOT_APPLICABLE` Policy):**
+   - Core production stack components (Railway, Supabase, Stripe, Resend) and core capacity dimensions are verified active dependencies.
+   - Any payload attempting to set their `measured_state` or `status` to `NOT_APPLICABLE` or `N/A` is rejected with HTTP 400.
+
+5. **Rule 5 (V1 Provenance Baseline Standard):**
+   - Eliminates fragile prefix/substring matching (`'PL20 seed'`).
+   - Valid V1 measured evidence strictly requires complete provenance: `measured_state` + `calculation_version` (`'pl20-01-v1'`) + `measured_at` + `source/source_type`.
+   - Incomplete records are classified as `HISTORICAL_STATIC_BASELINE` and tracked in `summary.historicalBaselineRows`.

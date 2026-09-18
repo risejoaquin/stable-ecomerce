@@ -1,20 +1,18 @@
 # CURRENT TASK
 
-TASK ID: PL20-01-HOTFIX-REAL-METRIC-CONTRACT
+TASK ID: PL20-01-PROVENANCE-AND-ANOMALY-CONTRACT
 PHASE: POST-LAUNCH 20
 STATUS: READY_FOR_CHATGPT_WEB_VALIDATION
 
 ## Objective
 
-Align POST-LAUNCH 20 final scale assessment with real production schema and measured evidence:
-1. Fix commercial assessment query to query only valid production columns on `orders` (no `payment_status`).
-2. Establish deterministic paid-like order contract (`paid_at IS NOT NULL OR financial_status IN (paid, reconciled) OR status IN (pagado, empacado, enviado, entregado, partially_refunded)`).
-3. Compute real commercial metrics: gross revenue, refunded amount, net revenue, AOV, embedding calculation provenance.
-4. Eliminate arbitrary and heuristic scores across all criteria (`score: null`).
-5. Add `measured_state: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED'` to operating costs.
-6. Enforce evidence-based scale readiness: `finalScaleReady` evaluates strictly to `false` when load capacity and operating costs are unmeasured.
-7. Isolate legacy seed rows from active summary counts and evaluation rules.
-8. Add 12 permanent contract tests in `tests/api/functional-quality-contracts.test.ts`.
+Implement the five core architectural and evidence rules defined by ChatGPT Web for PL20-01:
+1. **Anomaly Conflict Contract (`cancelado + reconciled`):** Orders with canceled/failed statuses combined with positive payment indicators (`paid_at` or `financial_status` in `paid`/`reconciled`) are strictly excluded from paid-like revenue, recorded in the `anomalies` array, and mark commercial assessment `measured_state = 'PARTIAL'`.
+2. **Partial Operating Costs Contract:** `PARTIAL` cost estimates serve only for preliminary review and strictly do NOT satisfy `finalScaleReady`. `finalScaleReady` requires `measured_state === 'MEASURED'` across required costs.
+3. **Low Commercial Volume Contract:** Commercial metrics can be `MEASURED` with `score: null` without inventing arbitrary minimum order thresholds. Low volume does not invalidate measurement, but does not prove multi-quarter cohort scaling (`commercial_track_record = 'warning'`).
+4. **`NOT_APPLICABLE` Rejection Policy:** Core production stack components (Railway, Supabase, Stripe, Resend) and core load capacity dimensions cannot be marked `NOT_APPLICABLE` (strictly rejected with HTTP 400).
+5. **Provenance-Based Baseline Classifier:** Replaced substring-based filtering with complete V1 provenance validation (`measured_state` + `calculation_version` `'pl20-01-v1'` + `measured_at` + `source/source_type`). Records lacking complete provenance are classified as `HISTORICAL_STATIC_BASELINE` and tracked in `historicalBaselineRows`.
+6. **Test Coverage:** Added permanent regression tests (tests 13-17 in `tests/api/functional-quality-contracts.test.ts`) covering all 5 rules.
 
 ## Files modified
 
@@ -29,7 +27,7 @@ Align POST-LAUNCH 20 final scale assessment with real production schema and meas
 ## Verification Summary
 
 - `npm run lint`: PASS (0 errors)
-- `npm test`: PASS (78/78 tests passed)
+- `npm test`: PASS (83/83 tests passed across 4 files, 66/66 in functional-quality-contracts)
 - `npm run build`: PASS (Vite + esbuild server bundle)
 - `npm run test:e2e`: PASS (20/20 Playwright tests)
 - `.\scripts\qa\validate-release.ps1`: FINAL RESULT PASS (8/8 gates passed)

@@ -7458,28 +7458,46 @@ app.post(
       getFinalScaleTable('investor_readiness_checks', 250)
     ]);
 
-    // Legacy seed isolation: filter out seeded rows so they do not pollute evidence-driven evaluations
-    const isLegacySeed = (item: any) => {
+    // Provenance-based evidence classification:
+    // A row is valid V1 measured evidence ONLY IF it has complete provenance:
+    // 1. measured_state (or in evidence / metadata)
+    // 2. calculation_version (or calculationVersion)
+    // 3. measured_at (or measuredAt / executed_at / generated_at / reviewed_at)
+    // 4. source or source_type
+    // Rows lacking sufficient provenance are classified as HISTORICAL_STATIC_BASELINE and excluded from active evaluations.
+    const isHistoricalStaticBaseline = (item: any): boolean => {
       try {
-        const meta = typeof item?.metadata === 'string' ? JSON.parse(item.metadata) : item?.metadata;
-        const src = String(meta?.source || '');
-        return src.includes('PL20 seed') || src.includes('026_post_launch_20') || src.includes('scripts/db/026');
+        const meta = typeof item?.metadata === 'string' ? JSON.parse(item.metadata) : (item?.metadata || {});
+        const ev = typeof item?.evidence === 'string' ? JSON.parse(item.evidence) : (item?.evidence || {});
+
+        const measuredState = meta?.measured_state || meta?.measuredState || ev?.measured_state || ev?.measuredState;
+        const calcVersion = meta?.calculation_version || meta?.calculationVersion || ev?.calculation_version || ev?.calculationVersion;
+        const measuredAt = meta?.measured_at || meta?.measuredAt || ev?.measured_at || ev?.measuredAt || item?.executed_at || item?.measured_at || item?.generated_at || item?.reviewed_at;
+        const source = meta?.source || meta?.source_type || meta?.sourceType || ev?.source || ev?.source_type || ev?.sourceTable || ev?.source_table;
+
+        const hasCompleteProvenance = Boolean(measuredState && calcVersion && measuredAt && source);
+        return !hasCompleteProvenance;
       } catch {
-        return false;
+        return true;
       }
     };
-    const filterLegacy = (items: any[]) => items.filter(i => !isLegacySeed(i));
 
-    const activeReports = filterLegacy(reports);
-    const activeTechnical = filterLegacy(technical);
-    const activeCommercial = filterLegacy(commercial);
-    const activeRisks = filterLegacy(risks);
-    const activeDebt = filterLegacy(debt);
-    const activeCosts = filterLegacy(costs);
-    const activeCapacity = filterLegacy(capacity);
-    const activeRoadmap = filterLegacy(roadmap);
-    const activeDecisions = filterLegacy(decisions);
-    const activeInvestor = filterLegacy(investor);
+    const filterActiveEvidence = (items: any[]) => items.filter(i => !isHistoricalStaticBaseline(i));
+
+    const activeReports = filterActiveEvidence(reports);
+    const activeTechnical = filterActiveEvidence(technical);
+    const activeCommercial = filterActiveEvidence(commercial);
+    const activeRisks = filterActiveEvidence(risks);
+    const activeDebt = filterActiveEvidence(debt);
+    const activeCosts = filterActiveEvidence(costs);
+    const activeCapacity = filterActiveEvidence(capacity);
+    const activeRoadmap = filterActiveEvidence(roadmap);
+    const activeDecisions = filterActiveEvidence(decisions);
+    const activeInvestor = filterActiveEvidence(investor);
+
+    const totalRawRows = reports.length + technical.length + commercial.length + risks.length + debt.length + costs.length + capacity.length + roadmap.length + decisions.length + investor.length;
+    const totalActiveRows = activeReports.length + activeTechnical.length + activeCommercial.length + activeRisks.length + activeDebt.length + activeCosts.length + activeCapacity.length + activeRoadmap.length + activeDecisions.length + activeInvestor.length;
+    const historicalBaselineCount = totalRawRows - totalActiveRows;
 
     // Deterministic score calculation: ignore null/unmeasured scores
     const calcScore = (items: any[]) => {
@@ -7500,19 +7518,26 @@ app.post(
     // 2. No critical technical failures (status !== 'fail')
     // 3. No open critical risks
     // 4. No open critical technical debt
-    // 5. Commercial volume is measured (commercial_volume_performance has status === 'measured')
-    // 6. Operating costs are measured (measured_state === 'MEASURED' exists)
+    // 5. Commercial volume is measured and clean (commercial_volume_performance has status === 'measured' and measured_state === 'MEASURED')
+    // 6. Operating costs are measured (measured_state === 'MEASURED' strictly required; PARTIAL does not satisfy finalScaleReady)
     // 7. Concurrency load capacity is measured (synthetic_vs_load_testing has status === 'pass' | 'measured')
     const hasTechnicalEvidence = activeTechnical.length > 0;
     const hasCriticalTechnicalFailure = activeTechnical.some(t => t.status === 'fail');
     const hasCriticalRisk = activeRisks.some(r => r.severity === 'critical' && r.status === 'open');
     const hasCriticalDebt = activeDebt.some(d => d.severity === 'critical' && d.status === 'open');
 
-    const isCommercialMeasured = activeCommercial.length > 0 && activeCommercial.some(c => c.assessment_key === 'commercial_volume_performance' && c.status === 'measured');
+    const isCommercialMeasured = activeCommercial.length > 0 && activeCommercial.some(c => {
+      const isMeasuredStatus = c.assessment_key === 'commercial_volume_performance' && c.status === 'measured';
+      const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : (c?.metadata || {});
+      const ev = typeof c?.evidence === 'string' ? JSON.parse(c.evidence) : (c?.evidence || {});
+      const measuredState = meta?.measured_state || ev?.measured_state;
+      return isMeasuredStatus && measuredState === 'MEASURED';
+    });
 
     const isCostEvidenceMeasured = activeCosts.length > 0 && activeCosts.some(c => {
       try {
-        const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : c?.metadata;
+        const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : (c?.metadata || {});
+        // Strictly MEASURED required for PL20 final scale ready; PARTIAL does NOT satisfy finalScaleReady
         return meta?.measured_state === 'MEASURED';
       } catch {
         return false;
@@ -7521,7 +7546,8 @@ app.post(
 
     const isCapacityLoadMeasured = activeCapacity.length > 0 && activeCapacity.some(c => {
       if (c.capacity_key === 'synthetic_vs_load_testing') {
-        return c.status === 'pass' || c.status === 'measured';
+        const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : (c?.metadata || {});
+        return (c.status === 'pass' || c.status === 'measured') && meta?.measured_state === 'MEASURED';
       }
       return false;
     });
@@ -7549,6 +7575,7 @@ app.post(
         roadmapItems: activeRoadmap.length,
         scaleDecisions: activeDecisions.length,
         investorChecks: activeInvestor.length,
+        historicalBaselineRows: historicalBaselineCount,
         technicalScore,
         commercialScore,
         capacityScore,
@@ -7581,6 +7608,7 @@ app.post(
 
     const isDbConnected = Boolean(supabase && storeId);
     const isSecurityActive = Boolean(effectiveJwtSecret && loginLimiter);
+    const measuredAt = new Date().toISOString();
 
     const rows = [
       {
@@ -7627,10 +7655,26 @@ app.post(
       store_id: storeId,
       ...row,
       executed_by: req.auth?.userId || null,
-      executed_at: new Date().toISOString(),
-      evidence: { runKey, isDbConnected, isSecurityActive, timestamp: new Date().toISOString() },
-      metadata: { source: 'api_final_scale_technical_assessment_run' },
-      updated_at: new Date().toISOString()
+      executed_at: measuredAt,
+      evidence: {
+        runKey,
+        source: 'runtime_system',
+        source_type: 'system_probes',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: isDbConnected && isSecurityActive ? 'MEASURED' : 'PARTIAL',
+        isDbConnected,
+        isSecurityActive,
+        timestamp: measuredAt
+      },
+      metadata: {
+        source: 'api_final_scale_technical_assessment_run',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: isDbConnected && isSecurityActive ? 'MEASURED' : 'PARTIAL'
+      },
+      updated_at: measuredAt
     }));
 
     const data = await runFinalScaleUpsert('final_technical_assessments', rows, 'store_id,assessment_key');
@@ -7654,12 +7698,33 @@ app.post(
     let refundedAmount = 0;
     let netPaidRevenue = 0;
     let aov = 0;
+    const anomalies: any[] = [];
+    let hasOrderAnomaly = false;
 
     const isPaidLike = (order: any): boolean => {
-      if (order.paid_at) return true;
-      const financialStatus = String(order.financial_status || '').toLowerCase().trim();
-      if (['paid', 'reconciled'].includes(financialStatus)) return true;
       const status = String(order.status || '').toLowerCase().trim();
+      const financialStatus = String(order.financial_status || '').toLowerCase().trim();
+      const isCanceledLike = ['cancelado', 'payment_failed', 'inventory_exception'].includes(status);
+
+      // Rule 1: cancelado + reconciled (or canceled with paid indicator)
+      // EXCLUDE from paid-like revenue, register conflict/anomaly, DO NOT add to gross/net revenue
+      if (isCanceledLike) {
+        if (order.paid_at || ['paid', 'reconciled'].includes(financialStatus)) {
+          anomalies.push({
+            orderId: order.id,
+            reason: 'CONFLICT_CANCELED_STATUS_WITH_PAID_FINANCIAL_INDICATOR',
+            status,
+            financialStatus,
+            hasPaidAt: Boolean(order.paid_at),
+            total: Number(order.total) || 0
+          });
+          hasOrderAnomaly = true;
+        }
+        return false;
+      }
+
+      if (order.paid_at) return true;
+      if (['paid', 'reconciled'].includes(financialStatus)) return true;
       if (['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(status)) return true;
       return false;
     };
@@ -7679,21 +7744,41 @@ app.post(
       aov = paidCount > 0 ? Math.round((grossPaidRevenue / paidCount) * 100) / 100 : 0;
     }
 
+    // Rule 1: measured_state = PARTIAL if conflicts exist
+    // Rule 3: low volume can be MEASURED (no arbitrary minimum orders needed)
+    let commercialMeasuredState: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED';
+    if (hasOrderAnomaly) {
+      commercialMeasuredState = 'PARTIAL';
+    } else if (totalOrders > 0) {
+      commercialMeasuredState = 'MEASURED';
+    } else {
+      commercialMeasuredState = 'NOT_MEASURED';
+    }
+
+    const measuredAt = new Date().toISOString();
     const evidencePayload = {
       runKey,
+      source: 'orders',
+      source_type: 'database_table',
       sourceTable: 'orders',
-      calculationVersion: 'pl20-01-hotfix-real-contract',
-      measuredAt: new Date().toISOString(),
+      calculation_version: 'pl20-01-v1',
+      calculationVersion: 'pl20-01-v1',
+      measured_at: measuredAt,
+      measuredAt,
+      measured_state: commercialMeasuredState,
+      measuredState: commercialMeasuredState,
       windowStart: 'all_time',
       windowEnd: 'all_time',
-      paidLikeDefinition: 'paid_at IS NOT NULL OR financial_status IN (paid,reconciled) OR status IN (pagado,empacado,enviado,entregado,partially_refunded)',
+      paidLikeDefinition: 'paid_at IS NOT NULL OR financial_status IN (paid,reconciled) OR status IN (pagado,empacado,enviado,entregado,partially_refunded) EXCLUDING canceled/failed statuses',
       totalOrders,
       paidCount,
       grossPaidRevenue,
       refundedAmount,
       netPaidRevenue,
       aov,
-      timestamp: new Date().toISOString()
+      hasOrderAnomaly,
+      anomalies,
+      timestamp: measuredAt
     };
 
     const rows = [
@@ -7711,10 +7796,10 @@ app.post(
         status: paidCount > 0 ? 'measured' : 'warning',
         score: null,
         finding: paidCount > 0
-          ? `Measured commercial orders: ${paidCount} (early sample size). Gross revenue: $${grossPaidRevenue.toFixed(2)}, Refunded: $${refundedAmount.toFixed(2)}, Net revenue: $${netPaidRevenue.toFixed(2)}, AOV: $${aov.toFixed(2)}.`
+          ? `Measured commercial orders: ${paidCount}${hasOrderAnomaly ? ' (PARTIAL: reconciliation anomaly detected)' : ''}. Gross revenue: $${grossPaidRevenue.toFixed(2)}, Refunded: $${refundedAmount.toFixed(2)}, Net revenue: $${netPaidRevenue.toFixed(2)}, AOV: $${aov.toFixed(2)}.`
           : 'Zero paid commercial transactions recorded in production yet. Structural capability is ready, but scale volume is unmeasured.',
         recommendation: paidCount > 0
-          ? 'Analyze cohort retention and repeat purchase behavior as sample size grows.'
+          ? (hasOrderAnomaly ? 'Resolve order reconciliation conflicts where canceled orders contain paid indicators.' : 'Analyze cohort retention and repeat purchase behavior as volume grows.')
           : 'Execute initial live purchase verification before scaling paid campaigns.'
       },
       {
@@ -7739,14 +7824,20 @@ app.post(
       store_id: storeId,
       ...row,
       executed_by: req.auth?.userId || null,
-      executed_at: new Date().toISOString(),
+      executed_at: measuredAt,
       evidence: evidencePayload,
-      metadata: { source: 'api_final_scale_commercial_assessment_run' },
-      updated_at: new Date().toISOString()
+      metadata: {
+        source: 'api_final_scale_commercial_assessment_run',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: commercialMeasuredState
+      },
+      updated_at: measuredAt
     }));
 
     const data = await runFinalScaleUpsert('final_commercial_assessments', rows, 'store_id,assessment_key');
-    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_commercial_assessment_run', entityType: 'final_commercial_assessments', metadata: { count: data.length, runKey } });
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_commercial_assessment_run', entityType: 'final_commercial_assessments', metadata: { count: data.length, runKey, measured_state: commercialMeasuredState, hasOrderAnomaly } });
     res.json({ status: 'ok', assessments: data });
   }));
 
@@ -7758,6 +7849,7 @@ app.post(
     const rawKey = req.body?.runKey || req.body?.run_key || 'risk-matrix';
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
+    const measuredAt = new Date().toISOString();
 
     const rows = [
       {
@@ -7794,9 +7886,16 @@ app.post(
       store_id: storeId,
       ...row,
       reviewed_by: req.auth?.userId || null,
-      reviewed_at: new Date().toISOString(),
-      metadata: { source: 'api_final_scale_risk_matrix_run', runKey },
-      updated_at: new Date().toISOString()
+      reviewed_at: measuredAt,
+      metadata: {
+        source: 'api_final_scale_risk_matrix_run',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: 'MEASURED',
+        runKey
+      },
+      updated_at: measuredAt
     }));
 
     const data = await runFinalScaleUpsert('strategic_risk_matrix', rows, 'store_id,risk_key');
@@ -7812,6 +7911,7 @@ app.post(
     const rawKey = req.body?.runKey || req.body?.run_key || 'technical-debt';
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
+    const measuredAt = new Date().toISOString();
 
     const rows = [
       {
@@ -7848,9 +7948,16 @@ app.post(
       store_id: storeId,
       ...row,
       reviewed_by: req.auth?.userId || null,
-      reviewed_at: new Date().toISOString(),
-      metadata: { source: 'api_final_scale_technical_debt_run', runKey },
-      updated_at: new Date().toISOString()
+      reviewed_at: measuredAt,
+      metadata: {
+        source: 'api_final_scale_technical_debt_run',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: 'MEASURED',
+        runKey
+      },
+      updated_at: measuredAt
     }));
 
     const data = await runFinalScaleUpsert('technical_debt_matrix', rows, 'store_id,debt_key');
@@ -7874,20 +7981,34 @@ app.post(
     const costKey = req.body?.costKey || req.body?.cost_key || 'monthly_operating_cost_baseline';
     validateFinalScaleKey(costKey, 'costKey');
 
+    // Rule 4: NOT_APPLICABLE forbidden for core stack components
+    const requestedState = String(req.body?.measured_state || req.body?.measuredState || req.body?.status || '').toUpperCase().trim();
+    if (['NOT_APPLICABLE', 'N/A', 'NOT_APP', 'NOT APPLICABLE'].includes(requestedState)) {
+      throw new AppError('NOT_APPLICABLE is forbidden for core stack components (Railway, Supabase, Stripe, Resend are active production dependencies)', 400);
+    }
+
+    const rawEstimates = [
+      { name: 'railwayEstimate', val: req.body?.railwayEstimate ?? req.body?.railway_estimate },
+      { name: 'supabaseEstimate', val: req.body?.supabaseEstimate ?? req.body?.supabase_estimate },
+      { name: 'stripeEstimate', val: req.body?.stripeEstimate ?? req.body?.stripe_variable_cost_estimate },
+      { name: 'emailEstimate', val: req.body?.emailEstimate ?? req.body?.email_cost_estimate }
+    ];
+
+    for (const est of rawEstimates) {
+      if (typeof est.val === 'string' && ['NOT_APPLICABLE', 'N/A', 'NOT APPLICABLE'].includes(est.val.trim().toUpperCase())) {
+        throw new AppError(`NOT_APPLICABLE is forbidden for core stack component ${est.name} (active production dependency)`, 400);
+      }
+    }
+
     // Deterministic validation: must be finite numbers >= 0
-    const railway = validateFinalScaleCostNumber(req.body?.railwayEstimate ?? req.body?.railway_estimate, 'railwayEstimate');
-    const supabaseCost = validateFinalScaleCostNumber(req.body?.supabaseEstimate ?? req.body?.supabase_estimate, 'supabaseEstimate');
-    const stripeCost = validateFinalScaleCostNumber(req.body?.stripeEstimate ?? req.body?.stripe_variable_cost_estimate, 'stripeEstimate');
-    const emailCost = validateFinalScaleCostNumber(req.body?.emailEstimate ?? req.body?.email_cost_estimate, 'emailEstimate');
+    const railway = validateFinalScaleCostNumber(rawEstimates[0].val, 'railwayEstimate');
+    const supabaseCost = validateFinalScaleCostNumber(rawEstimates[1].val, 'supabaseEstimate');
+    const stripeCost = validateFinalScaleCostNumber(rawEstimates[2].val, 'stripeEstimate');
+    const emailCost = validateFinalScaleCostNumber(rawEstimates[3].val, 'emailEstimate');
 
     const totalEstimate = railway + supabaseCost + stripeCost + emailCost;
 
-    const fieldsProvided = [
-      req.body?.railwayEstimate ?? req.body?.railway_estimate,
-      req.body?.supabaseEstimate ?? req.body?.supabase_estimate,
-      req.body?.stripeEstimate ?? req.body?.stripe_variable_cost_estimate,
-      req.body?.emailEstimate ?? req.body?.email_cost_estimate
-    ].filter(v => v !== undefined && v !== null && v !== '');
+    const fieldsProvided = rawEstimates.map(e => e.val).filter(v => v !== undefined && v !== null && v !== '');
 
     let measured_state: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED';
     if (fieldsProvided.length === 4) {
@@ -7898,6 +8019,7 @@ app.post(
       measured_state = 'NOT_MEASURED';
     }
 
+    const measuredAt = new Date().toISOString();
     const payload = {
       store_id: storeId,
       cost_key: costKey,
@@ -7912,22 +8034,25 @@ app.post(
         measured_state === 'MEASURED'
           ? 'Admin-supplied operational cost estimates (MEASURED).'
           : measured_state === 'PARTIAL'
-            ? 'Partial operational cost estimates (PARTIAL).'
+            ? 'Partial operational cost estimates (PARTIAL - preliminary review only, does not satisfy final scale ready).'
             : 'PL20 unestimated operating cost baseline (NOT_MEASURED).'
       ),
       generated_by: req.auth?.userId || null,
-      generated_at: new Date().toISOString(),
+      generated_at: measuredAt,
       metadata: {
         source: 'api_final_scale_operating_costs_run',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
         measured_state,
         has_explicit_estimates: fieldsProvided.length > 0,
         breakdown_available: totalEstimate > 0
       },
-      updated_at: new Date().toISOString()
+      updated_at: measuredAt
     };
 
     const data = await runFinalScaleUpsert('operating_cost_summaries', [payload], 'store_id,period,cost_key');
-    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_operating_costs_run', entityType: 'operating_cost_summaries', entityId: data[0]?.id, metadata: { period, costKey, totalEstimate } });
+    await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_operating_costs_run', entityType: 'operating_cost_summaries', entityId: data[0]?.id, metadata: { period, costKey, totalEstimate, measured_state } });
     res.json({ status: 'ok', costs: data });
   }));
 
@@ -7940,7 +8065,14 @@ app.post(
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
 
+    // Rule 4: load/capacity cannot be marked N/A
+    const requestedState = String(req.body?.measured_state || req.body?.measuredState || req.body?.status || '').toUpperCase().trim();
+    if (['NOT_APPLICABLE', 'N/A', 'NOT_APP', 'NOT APPLICABLE'].includes(requestedState)) {
+      throw new AppError('NOT_APPLICABLE is forbidden for core capacity dimensions (Railway runtime, Supabase DB, and concurrency load testing cannot be marked N/A)', 400);
+    }
+
     const memUsageMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+    const measuredAt = new Date().toISOString();
 
     const rows = [
       {
@@ -7970,14 +8102,25 @@ app.post(
         scale_limit: 'Unknown multi-user saturation threshold under heavy checkout load.',
         recommendation: 'Execute simulated load testing (100-500 CCU with k6) prior to high-volume campaigns.'
       }
-    ].map((row) => ({
-      store_id: storeId,
-      ...row,
-      measured_by: req.auth?.userId || null,
-      measured_at: new Date().toISOString(),
-      metadata: { source: 'api_final_scale_capacity_run', runKey, memUsageMb },
-      updated_at: new Date().toISOString()
-    }));
+    ].map((row) => {
+      const rowMeasuredState = row.status === 'not_measured' ? 'NOT_MEASURED' : 'MEASURED';
+      return {
+        store_id: storeId,
+        ...row,
+        measured_by: req.auth?.userId || null,
+        measured_at: measuredAt,
+        metadata: {
+          source: 'api_final_scale_capacity_run',
+          source_type: 'api',
+          calculation_version: 'pl20-01-v1',
+          measured_at: measuredAt,
+          measured_state: rowMeasuredState,
+          runKey,
+          memUsageMb
+        },
+        updated_at: measuredAt
+      };
+    });
 
     const data = await runFinalScaleUpsert('scale_capacity_assessments', rows, 'store_id,capacity_key');
     await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_capacity_run', entityType: 'scale_capacity_assessments', metadata: { count: data.length, runKey } });
@@ -8006,6 +8149,7 @@ app.post(
       throw new AppError(`Invalid status: must be one of ${validStatuses.join(', ')}`, 400);
     }
 
+    const measuredAt = new Date().toISOString();
     const payload = {
       store_id: storeId,
       roadmap_key: roadmapKey,
@@ -8018,8 +8162,15 @@ app.post(
       business_value: req.body?.businessValue || req.body?.business_value || null,
       technical_scope: req.body?.technicalScope || req.body?.technical_scope || null,
       created_by: req.auth?.userId || null,
-      metadata: req.body?.metadata || { source: 'api_final_scale_strategic_roadmap' },
-      updated_at: new Date().toISOString()
+      metadata: {
+        source: 'api_final_scale_strategic_roadmap',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: 'MEASURED',
+        ...(req.body?.metadata || {})
+      },
+      updated_at: measuredAt
     };
 
     const { data, error } = await supabase.from('strategic_roadmap_items').upsert(payload, { onConflict: 'store_id,roadmap_key' }).select().single();
@@ -8050,6 +8201,7 @@ app.post(
       throw new AppError(`Invalid status: must be one of ${validStatuses.join(', ')}`, 400);
     }
 
+    const measuredAt = new Date().toISOString();
     const payload = {
       store_id: storeId,
       decision_key: decisionKey,
@@ -8059,9 +8211,16 @@ app.post(
       conditions: req.body?.conditions || [],
       next_actions: req.body?.nextActions || req.body?.next_actions || [],
       decided_by: req.auth?.userId || null,
-      decided_at: new Date().toISOString(),
-      metadata: req.body?.metadata || { source: 'api_final_scale_decision' },
-      updated_at: new Date().toISOString()
+      decided_at: measuredAt,
+      metadata: {
+        source: 'api_final_scale_decision',
+        source_type: 'api',
+        calculation_version: 'pl20-01-v1',
+        measured_at: measuredAt,
+        measured_state: 'MEASURED',
+        ...(req.body?.metadata || {})
+      },
+      updated_at: measuredAt
     };
 
     const { data, error } = await supabase.from('scale_decision_records').upsert(payload, { onConflict: 'store_id,decision_key' }).select().single();
@@ -8078,6 +8237,7 @@ app.post(
     const rawKey = req.body?.runKey || req.body?.run_key || 'investor-readiness';
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
+    const measuredAt = new Date().toISOString();
 
     const rows = [
       {
@@ -8104,7 +8264,7 @@ app.post(
         status: 'warning',
         score: null,
         requirement: 'Multi-quarter audited financial history, validated CAC, LTV, and churn metrics.',
-        evidence: 'Early commercial launch phase; multi-quarter financial cohorts not yet accumulated.',
+        evidence: 'Low commercial volume does not invalidate measurement, but multi-quarter cohort scaling and retention remain unproven.',
         recommendation: 'Accumulate 3-6 months of production sales and retention data.'
       },
       {
@@ -8116,14 +8276,24 @@ app.post(
         evidence: 'Infrastructure components identified (Railway, Supabase, Stripe, Resend), but verified provider billing statements are unavailable.',
         recommendation: 'Ingest verified monthly billing exports once billing cycles conclude.'
       }
-    ].map((row) => ({
-      store_id: storeId,
-      ...row,
-      executed_by: req.auth?.userId || null,
-      executed_at: new Date().toISOString(),
-      metadata: { source: 'api_final_scale_investor_readiness_run', runKey },
-      updated_at: new Date().toISOString()
-    }));
+    ].map((row) => {
+      const rowMeasuredState = row.status === 'not_measured' ? 'NOT_MEASURED' : 'MEASURED';
+      return {
+        store_id: storeId,
+        ...row,
+        executed_by: req.auth?.userId || null,
+        executed_at: measuredAt,
+        metadata: {
+          source: 'api_final_scale_investor_readiness_run',
+          source_type: 'api',
+          calculation_version: 'pl20-01-v1',
+          measured_at: measuredAt,
+          measured_state: rowMeasuredState,
+          runKey
+        },
+        updated_at: measuredAt
+      };
+    });
 
     const data = await runFinalScaleUpsert('investor_readiness_checks', rows, 'store_id,check_key');
     await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_investor_readiness_run', entityType: 'investor_readiness_checks', metadata: { count: data.length, runKey } });
