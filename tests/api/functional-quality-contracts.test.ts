@@ -94,6 +94,19 @@ beforeAll(async () => {
           }
         });
       }
+      if (init?.body && (init.method === 'POST' || init.method === 'PUT' || init.method === 'PATCH')) {
+        let parsed: any;
+        try { parsed = JSON.parse(init.body); } catch (_e) { parsed = {}; }
+        const row = Array.isArray(parsed) ? (parsed[0] || {}) : parsed;
+        const resultRow = { id: 'mock-uuid-1', ...row };
+        return new Response(JSON.stringify(isSingle ? resultRow : (Array.isArray(parsed) ? parsed.map((r: any, i: number) => ({ id: `mock-uuid-${i + 1}`, ...r })) : [resultRow])), {
+          status: 200,
+          headers: {
+            'Content-Type': isSingle ? 'application/vnd.pgrst.object+json' : 'application/json',
+            'Content-Range': '0-0/1'
+          }
+        });
+      }
       if (isSingle) {
         return new Response(JSON.stringify({
           code: 'PGRST116',
@@ -430,6 +443,163 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(lastResponse!.body).not.toHaveProperty('email');
       expect(lastResponse!.body).not.toHaveProperty('password');
       expect(lastResponse!.body).not.toHaveProperty('userId');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // POST-LAUNCH 20: PL20-01 Evidence-Driven Final Scale Contracts
+  // --------------------------------------------------------------------------
+  describe('POST-LAUNCH 20 — PL20-01 Evidence-Driven Final Scale Contracts', () => {
+    it('1. PL20 admin routes reject unauthenticated guests with 401', async () => {
+      const summaryRes = await request(app).get('/api/admin/final-scale/summary');
+      expect(summaryRes.status).toBe(401);
+      expect(summaryRes.body).toMatchObject({ error: 'Unauthorized' });
+
+      const techRes = await request(app).post('/api/admin/final-scale/technical-assessment/run').send({});
+      expect(techRes.status).toBe(401);
+
+      const costsRes = await request(app).post('/api/admin/final-scale/operating-costs/run').send({});
+      expect(costsRes.status).toBe(401);
+    });
+
+    it('2. PL20 admin routes reject non-admin authenticated users with 403', async () => {
+      const token = authToken('user');
+      const response = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${token}`);
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ error: 'Admin access required' });
+
+      const postRes = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+      expect(postRes.status).toBe(403);
+    });
+
+    it('3. technical assessment derives evidence-backed criteria and marks unmeasured load capacity as warning/null', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-tech-assessment' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+      expect(Array.isArray(res.body.assessments)).toBe(true);
+
+      const keys = res.body.assessments.map((a: any) => a.assessment_key);
+      expect(keys).toContain('runtime_database_connectivity');
+      expect(keys).toContain('security_baseline_enforcement');
+      expect(keys).toContain('load_concurrency_capacity');
+
+      // Unmeasured load capacity must have score: null and status: 'warning'
+      const loadCapacity = res.body.assessments.find((a: any) => a.assessment_key === 'load_concurrency_capacity');
+      expect(loadCapacity).toBeDefined();
+      expect(loadCapacity.score).toBeNull();
+      expect(loadCapacity.status).toBe('warning');
+    });
+
+    it('4. commercial assessment distinguishes structural readiness from measured commercial metrics', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-commercial-assessment' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const assessments = res.body.assessments;
+      const foundation = assessments.find((a: any) => a.assessment_key === 'sales_checkout_foundation');
+      expect(foundation).toBeDefined();
+      expect(foundation.status).toBe('pass');
+
+      // Unmeasured dimensions must have score: null
+      const growth = assessments.find((a: any) => a.assessment_key === 'growth_and_traffic_attribution');
+      expect(growth).toBeDefined();
+      expect(growth.score).toBeNull();
+      expect(growth.status).toBe('not_measured');
+    });
+
+    it('5. capacity assessment marks unmeasured load testing as not_measured with score: null', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/capacity/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-capacity' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const synthetic = res.body.capacity.find((c: any) => c.capacity_key === 'synthetic_vs_load_testing');
+      expect(synthetic).toBeDefined();
+      expect(synthetic.score).toBeNull();
+      expect(synthetic.status).toBe('not_measured');
+    });
+
+    it('6. finalScaleReady is dynamically derived based on criteria and evidence completeness', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+      expect(res.body.summary).toHaveProperty('finalScaleReady');
+      expect(typeof res.body.summary.finalScaleReady).toBe('boolean');
+      expect(res.body.summary).toHaveProperty('evaluationRules');
+      expect(res.body.summary.evaluationRules).toHaveProperty('hasSufficientEvidence');
+    });
+
+    it('7. rejects negative or invalid operating cost estimates with 400', async () => {
+      const adminToken = authToken('admin');
+      const negRes = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09', railwayEstimate: -50 });
+      expect(negRes.status).toBe(400);
+      expect(negRes.body.error).toContain('railwayEstimate');
+
+      const nanRes = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09', supabaseEstimate: 'not-a-number' });
+      expect(nanRes.status).toBe(400);
+      expect(nanRes.body.error).toContain('supabaseEstimate');
+
+      const badPeriod = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: 'invalid-period' });
+      expect(badPeriod.status).toBe(400);
+      expect(badPeriod.body.error).toContain('period');
+    });
+
+    it('8. rejects malformed runKey with 400', async () => {
+      const adminToken = authToken('admin');
+      const badKeyRes = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'bad key with spaces and special @#$% chars' });
+      expect(badKeyRes.status).toBe(400);
+      expect(badKeyRes.body.error).toContain('runKey');
+    });
+
+    it('9. rejects invalid roadmap priority or status with 400', async () => {
+      const adminToken = authToken('admin');
+      const badRes = await request(app)
+        .post('/api/admin/final-scale/strategic-roadmap')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ roadmapKey: 'test-roadmap', priority: 'invalid-priority' });
+      expect(badRes.status).toBe(400);
+      expect(badRes.body.error).toContain('priority');
+    });
+
+    it('10. rejects invalid scale decision or status with 400', async () => {
+      const adminToken = authToken('admin');
+      const badRes = await request(app)
+        .post('/api/admin/final-scale/scale-decision')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ decisionKey: 'test-decision', decision: 'invalid-decision' });
+      expect(badRes.status).toBe(400);
+      expect(badRes.body.error).toContain('decision');
     });
   });
 });

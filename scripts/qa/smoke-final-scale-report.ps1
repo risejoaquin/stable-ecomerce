@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory=$true)][string]$BaseUrl,
   [Parameter(Mandatory=$true)][string]$Email,
-  [Parameter(Mandatory=$true)][string]$Password
+  [Parameter(Mandatory=$true)][string]$Password,
+  [switch]$IncludeMutations
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,25 +33,31 @@ if (-not $token) { $token = $login.accessToken }
 if (-not $token) { throw "Login did not return token/accessToken" }
 $headers = @{ Authorization = "Bearer $token" }
 
+# Read-only smoke checks (non-destructive routine validation)
 Invoke-Check "Final scale summary" "Get" "$BaseUrl/api/admin/final-scale/summary" $headers
 Invoke-Check "Technical assessment" "Get" "$BaseUrl/api/admin/final-scale/technical-assessment" $headers
-Invoke-Check "Run technical assessment" "Post" "$BaseUrl/api/admin/final-scale/technical-assessment/run" $headers @{ runKey="smoke-technical" }
 Invoke-Check "Commercial assessment" "Get" "$BaseUrl/api/admin/final-scale/commercial-assessment" $headers
-Invoke-Check "Run commercial assessment" "Post" "$BaseUrl/api/admin/final-scale/commercial-assessment/run" $headers @{ runKey="smoke-commercial" }
 Invoke-Check "Risk matrix" "Get" "$BaseUrl/api/admin/final-scale/risk-matrix" $headers
-Invoke-Check "Run risk matrix" "Post" "$BaseUrl/api/admin/final-scale/risk-matrix/run" $headers @{ runKey="smoke-risk" }
 Invoke-Check "Technical debt" "Get" "$BaseUrl/api/admin/final-scale/technical-debt" $headers
-Invoke-Check "Run technical debt" "Post" "$BaseUrl/api/admin/final-scale/technical-debt/run" $headers @{ runKey="smoke-debt" }
 Invoke-Check "Operating costs" "Get" "$BaseUrl/api/admin/final-scale/operating-costs" $headers
-Invoke-Check "Run operating costs" "Post" "$BaseUrl/api/admin/final-scale/operating-costs/run" $headers @{ runKey="smoke-costs" }
 Invoke-Check "Scale capacity" "Get" "$BaseUrl/api/admin/final-scale/capacity" $headers
-Invoke-Check "Run scale capacity" "Post" "$BaseUrl/api/admin/final-scale/capacity/run" $headers @{ runKey="smoke-capacity" }
 Invoke-Check "Strategic roadmap" "Get" "$BaseUrl/api/admin/final-scale/strategic-roadmap" $headers
-Invoke-Check "Create strategic roadmap item" "Post" "$BaseUrl/api/admin/final-scale/strategic-roadmap" $headers @{ roadmapKey="smoke-roadmap-item"; phase="Roadmap 2.0"; title="Smoke roadmap item"; objective="Validate strategic roadmap creation"; priority="low" }
 Invoke-Check "Scale decision" "Get" "$BaseUrl/api/admin/final-scale/scale-decision" $headers
-Invoke-Check "Create scale decision" "Post" "$BaseUrl/api/admin/final-scale/scale-decision" $headers @{ decisionKey="smoke-scale-decision"; decision="scale_carefully"; rationale="Smoke validation decision" }
 Invoke-Check "Investor readiness" "Get" "$BaseUrl/api/admin/final-scale/investor-readiness" $headers
-Invoke-Check "Run investor readiness" "Post" "$BaseUrl/api/admin/final-scale/investor-readiness/run" $headers @{ runKey="smoke-investor" }
 Invoke-Check "Admin diagnostics" "Get" "$BaseUrl/api/admin/diagnostics" $headers
 
-Write-Host "PASS final scale report smoke checks"
+if ($IncludeMutations) {
+  Write-Host "Executing controlled mutation smoke checks..."
+  Invoke-Check "Run technical assessment" "Post" "$BaseUrl/api/admin/final-scale/technical-assessment/run" $headers @{ runKey="smoke-technical" }
+  Invoke-Check "Run commercial assessment" "Post" "$BaseUrl/api/admin/final-scale/commercial-assessment/run" $headers @{ runKey="smoke-commercial" }
+  Invoke-Check "Run risk matrix" "Post" "$BaseUrl/api/admin/final-scale/risk-matrix/run" $headers @{ runKey="smoke-risk" }
+  Invoke-Check "Run technical debt" "Post" "$BaseUrl/api/admin/final-scale/technical-debt/run" $headers @{ runKey="smoke-debt" }
+  Invoke-Check "Run operating costs" "Post" "$BaseUrl/api/admin/final-scale/operating-costs/run" $headers @{ period="2026-09"; currency="USD"; railwayEstimate=0; supabaseEstimate=0; stripeEstimate=0; emailEstimate=0 }
+  Invoke-Check "Run scale capacity" "Post" "$BaseUrl/api/admin/final-scale/capacity/run" $headers @{ runKey="smoke-capacity" }
+  Invoke-Check "Create strategic roadmap item" "Post" "$BaseUrl/api/admin/final-scale/strategic-roadmap" $headers @{ roadmapKey="smoke-roadmap-item"; phase="Roadmap 2.0"; title="Smoke roadmap item"; objective="Validate strategic roadmap creation"; priority="low"; status="planned" }
+  Invoke-Check "Create scale decision" "Post" "$BaseUrl/api/admin/final-scale/scale-decision" $headers @{ decisionKey="smoke-scale-decision"; decision="scale_carefully"; status="approved"; rationale="Smoke validation decision" }
+  Invoke-Check "Run investor readiness" "Post" "$BaseUrl/api/admin/final-scale/investor-readiness/run" $headers @{ runKey="smoke-investor" }
+  Write-Host "PASS final scale report mutation smoke checks"
+} else {
+  Write-Host "PASS final scale report non-destructive read smoke checks. (Use -IncludeMutations to run mutating checks)"
+}
