@@ -1,6 +1,6 @@
 // @vitest-environment node
 import jwt from 'jsonwebtoken';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 const testSecret = 'qa-release-e-test-secret';
@@ -11,6 +11,15 @@ function authToken(role: 'user' | 'admin') {
 }
 
 let originalFetch: typeof globalThis.fetch;
+let lastOrdersQueryUrl = '';
+let customMockOrders: any[] | null = null;
+let customMockTableRows: Record<string, any[]> = {};
+
+beforeEach(() => {
+  lastOrdersQueryUrl = '';
+  customMockOrders = null;
+  customMockTableRows = {};
+});
 
 afterAll(() => {
   if (originalFetch) {
@@ -56,6 +65,7 @@ beforeAll(async () => {
         });
       }
       if (url.includes('/orders')) {
+        lastOrdersQueryUrl = url;
         if (url.includes('00000000-0000-0000-0000-000000000001')) {
           const orderObj = {
             id: '00000000-0000-0000-0000-000000000001',
@@ -86,13 +96,25 @@ beforeAll(async () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        return new Response(JSON.stringify([]), {
+        const returnedOrders = customMockOrders !== null ? customMockOrders : [];
+        return new Response(JSON.stringify(returnedOrders), {
           status: 200,
           headers: {
             'Content-Type': 'application/json',
-            'Content-Range': '0-0/0'
+            'Content-Range': `0-${Math.max(0, returnedOrders.length - 1)}/${returnedOrders.length}`
           }
         });
+      }
+      for (const [tableKey, mockRows] of Object.entries(customMockTableRows)) {
+        if (url.includes(`/${tableKey}`) && (!init || !init.method || init.method === 'GET')) {
+          return new Response(JSON.stringify(mockRows), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Range': `0-${Math.max(0, mockRows.length - 1)}/${mockRows.length}`
+            }
+          });
+        }
       }
       if (init?.body && (init.method === 'POST' || init.method === 'PUT' || init.method === 'PATCH')) {
         let parsed: any;
@@ -477,7 +499,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(postRes.status).toBe(403);
     });
 
-    it('3. technical assessment derives evidence-backed criteria and marks unmeasured load capacity as warning/null', async () => {
+    it('3. technical assessment sets score: null on all criteria and marks unmeasured load capacity as warning', async () => {
       const adminToken = authToken('admin');
       const res = await request(app)
         .post('/api/admin/final-scale/technical-assessment/run')
@@ -487,40 +509,113 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.body.status).toBe('ok');
       expect(Array.isArray(res.body.assessments)).toBe(true);
 
+      for (const item of res.body.assessments) {
+        expect(item.score).toBeNull();
+      }
+
       const keys = res.body.assessments.map((a: any) => a.assessment_key);
       expect(keys).toContain('runtime_database_connectivity');
       expect(keys).toContain('security_baseline_enforcement');
       expect(keys).toContain('load_concurrency_capacity');
 
-      // Unmeasured load capacity must have score: null and status: 'warning'
       const loadCapacity = res.body.assessments.find((a: any) => a.assessment_key === 'load_concurrency_capacity');
       expect(loadCapacity).toBeDefined();
       expect(loadCapacity.score).toBeNull();
       expect(loadCapacity.status).toBe('warning');
     });
 
-    it('4. commercial assessment distinguishes structural readiness from measured commercial metrics', async () => {
+    it('4. commercial assessment query selects production columns and NEVER queries payment_status', async () => {
       const adminToken = authToken('admin');
       const res = await request(app)
         .post('/api/admin/final-scale/commercial-assessment/run')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ runKey: 'test-commercial-assessment' });
+        .send({ runKey: 'test-query-check' });
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe('ok');
 
-      const assessments = res.body.assessments;
-      const foundation = assessments.find((a: any) => a.assessment_key === 'sales_checkout_foundation');
-      expect(foundation).toBeDefined();
-      expect(foundation.status).toBe('pass');
-
-      // Unmeasured dimensions must have score: null
-      const growth = assessments.find((a: any) => a.assessment_key === 'growth_and_traffic_attribution');
-      expect(growth).toBeDefined();
-      expect(growth.score).toBeNull();
-      expect(growth.status).toBe('not_measured');
+      // Verify Supabase query URL does NOT reference payment_status
+      expect(lastOrdersQueryUrl).not.toContain('payment_status');
+      expect(lastOrdersQueryUrl).toContain('financial_status');
+      expect(lastOrdersQueryUrl).toContain('paid_at');
+      expect(lastOrdersQueryUrl).toContain('refunded_amount');
     });
 
-    it('5. capacity assessment marks unmeasured load testing as not_measured with score: null', async () => {
+    it('5. commercial assessment paid-like contract correctly identifies paid orders and computes net metrics', async () => {
+      customMockOrders = [
+        { id: 'o-1', store_id: 'qa-store-id', paid_at: '2026-09-15T10:00:00Z', total: 100, refunded_amount: 0, status: 'arbitrary' },
+        { id: 'o-2', store_id: 'qa-store-id', paid_at: null, financial_status: 'paid', total: 150, refunded_amount: 25, status: 'pending_fulfillment' },
+        { id: 'o-3', store_id: 'qa-store-id', paid_at: null, financial_status: 'reconciled', total: 50, refunded_amount: 0, status: 'done' },
+        { id: 'o-4', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 75, refunded_amount: 0, status: 'pagado' },
+        { id: 'o-5', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 60, refunded_amount: 0, status: 'empacado' },
+        { id: 'o-6', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 40, refunded_amount: 0, status: 'enviado' },
+        { id: 'o-7', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 80, refunded_amount: 0, status: 'entregado' },
+        { id: 'o-8', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 90, refunded_amount: 20, status: 'partially_refunded' },
+        // Excluded:
+        { id: 'o-9', store_id: 'qa-store-id', paid_at: null, financial_status: 'unpaid', total: 200, refunded_amount: 0, status: 'pendiente' },
+        { id: 'o-10', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 300, refunded_amount: 0, status: 'cancelado' },
+        { id: 'o-11', store_id: 'qa-store-id', paid_at: null, financial_status: 'failed', total: 100, refunded_amount: 0, status: 'payment_failed' },
+        { id: 'o-12', store_id: 'qa-store-id', paid_at: null, financial_status: null, total: 100, refunded_amount: 0, status: 'inventory_exception' }
+      ];
+
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-paid-like' });
+      expect(res.status).toBe(200);
+
+      const perf = res.body.assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(perf).toBeDefined();
+      expect(perf.status).toBe('measured');
+      expect(perf.score).toBeNull();
+
+      // Evidence provenance checks
+      expect(perf.evidence).toMatchObject({
+        sourceTable: 'orders',
+        calculationVersion: 'pl20-01-hotfix-real-contract',
+        windowStart: 'all_time',
+        windowEnd: 'all_time',
+        totalOrders: 12,
+        paidCount: 8,
+        grossPaidRevenue: 645,
+        refundedAmount: 45,
+        netPaidRevenue: 600,
+        aov: 80.63
+      });
+      expect(perf.evidence.paidLikeDefinition).toContain('paid_at IS NOT NULL');
+      expect(perf.finding).toContain('645.00');
+      expect(perf.finding).toContain('45.00');
+      expect(perf.finding).toContain('600.00');
+      expect(perf.finding).toContain('80.63');
+    });
+
+    it('6. commercial assessment marks warning and score: null when zero paid commercial orders exist', async () => {
+      customMockOrders = [
+        { id: 'o-1', store_id: 'qa-store-id', paid_at: null, financial_status: null, status: 'pendiente', total: 50, refunded_amount: 0 }
+      ];
+
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-zero-orders' });
+      expect(res.status).toBe(200);
+
+      const assessments = res.body.assessments;
+      for (const a of assessments) {
+        expect(a.score).toBeNull();
+      }
+
+      const perf = assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(perf).toBeDefined();
+      expect(perf.status).toBe('warning');
+      expect(perf.finding).toContain('Zero paid commercial transactions');
+
+      const ops = assessments.find((a: any) => a.assessment_key === 'operations_and_fulfillment');
+      expect(ops.status).toBe('not_measured');
+      expect(ops.score).toBeNull();
+    });
+
+    it('7. capacity assessment sets score: null and marks synthetic load testing as not_measured', async () => {
       const adminToken = authToken('admin');
       const res = await request(app)
         .post('/api/admin/final-scale/capacity/run')
@@ -529,27 +624,116 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ok');
 
+      for (const c of res.body.capacity) {
+        expect(c.score).toBeNull();
+      }
+
+      const railway = res.body.capacity.find((c: any) => c.capacity_key === 'railway_runtime_capacity');
+      expect(railway.status).toBe('warning');
+
+      const db = res.body.capacity.find((c: any) => c.capacity_key === 'supabase_database_capacity');
+      expect(db.status).toBe('warning');
+
       const synthetic = res.body.capacity.find((c: any) => c.capacity_key === 'synthetic_vs_load_testing');
-      expect(synthetic).toBeDefined();
-      expect(synthetic.score).toBeNull();
       expect(synthetic.status).toBe('not_measured');
     });
 
-    it('6. finalScaleReady is dynamically derived based on criteria and evidence completeness', async () => {
+    it('8. investor readiness assessment sets score: null and marks operating cost transparency as not_measured', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/investor-readiness/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-investor' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      for (const check of res.body.checks) {
+        expect(check.score).toBeNull();
+      }
+
+      const costTransparency = res.body.checks.find((c: any) => c.check_key === 'operating_cost_transparency');
+      expect(costTransparency).toBeDefined();
+      expect(costTransparency.status).toBe('not_measured');
+      expect(costTransparency.score).toBeNull();
+    });
+
+    it('9. operating costs sets measured_state: NOT_MEASURED when unestimated', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09' });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const cost = res.body.costs[0];
+      expect(cost.total_estimate).toBe(0);
+      expect(cost.metadata.measured_state).toBe('NOT_MEASURED');
+      expect(cost.metadata.has_explicit_estimates).toBe(false);
+    });
+
+    it('10. operating costs sets measured_state: MEASURED when all four provider estimates are supplied', async () => {
+      const adminToken = authToken('admin');
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          railwayEstimate: 20,
+          supabaseEstimate: 50,
+          stripeEstimate: 15,
+          emailEstimate: 5
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const cost = res.body.costs[0];
+      expect(cost.total_estimate).toBe(90);
+      expect(cost.metadata.measured_state).toBe('MEASURED');
+      expect(cost.metadata.has_explicit_estimates).toBe(true);
+    });
+
+    it('11. isolates legacy seed rows and derives finalScaleReady === false when capacity and costs are unmeasured', async () => {
+      // Simulate database holding legacy seed rows and unmeasured capacity/cost states
+      customMockTableRows['strategic_risk_matrix'] = [
+        { id: 'seed-risk', risk_key: 'seed_critical_risk', severity: 'critical', status: 'open', metadata: { source: 'PL20 seed' } }
+      ];
+      customMockTableRows['technical_debt_matrix'] = [
+        { id: 'seed-debt', debt_key: 'seed_critical_debt', severity: 'critical', status: 'open', metadata: { source: 'scripts/db/026_post_launch_20' } }
+      ];
+      customMockTableRows['final_technical_assessments'] = [
+        { id: 't-1', assessment_key: 'runtime_database_connectivity', status: 'pass', score: null }
+      ];
+      customMockTableRows['scale_capacity_assessments'] = [
+        { id: 'c-1', capacity_key: 'synthetic_vs_load_testing', status: 'not_measured', score: null }
+      ];
+      customMockTableRows['operating_cost_summaries'] = [
+        { id: 'cost-1', total_estimate: 0, metadata: { measured_state: 'NOT_MEASURED' } }
+      ];
+
       const adminToken = authToken('admin');
       const res = await request(app)
         .get('/api/admin/final-scale/summary')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ok');
-      expect(res.body.summary).toHaveProperty('finalScaleReady');
-      expect(typeof res.body.summary.finalScaleReady).toBe('boolean');
-      expect(res.body.summary).toHaveProperty('evaluationRules');
-      expect(res.body.summary.evaluationRules).toHaveProperty('hasSufficientEvidence');
+
+      // Legacy seed rows are filtered out:
+      expect(res.body.summary.risks).toBe(0);
+      expect(res.body.summary.technicalDebtItems).toBe(0);
+      expect(res.body.summary.evaluationRules.hasCriticalRisk).toBe(false);
+      expect(res.body.summary.evaluationRules.hasCriticalDebt).toBe(false);
+
+      // Unmeasured capacity load testing and cost evidence enforce finalScaleReady === false
+      expect(res.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
+      expect(res.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
     });
 
-    it('7. rejects negative or invalid operating cost estimates with 400', async () => {
+    it('12. enforces strict input validation across PL20 endpoints', async () => {
       const adminToken = authToken('admin');
+
+      // Operating costs validation
       const negRes = await request(app)
         .post('/api/admin/final-scale/operating-costs/run')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -570,36 +754,30 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
         .send({ period: 'invalid-period' });
       expect(badPeriod.status).toBe(400);
       expect(badPeriod.body.error).toContain('period');
-    });
 
-    it('8. rejects malformed runKey with 400', async () => {
-      const adminToken = authToken('admin');
+      // RunKey validation
       const badKeyRes = await request(app)
         .post('/api/admin/final-scale/technical-assessment/run')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ runKey: 'bad key with spaces and special @#$% chars' });
       expect(badKeyRes.status).toBe(400);
       expect(badKeyRes.body.error).toContain('runKey');
-    });
 
-    it('9. rejects invalid roadmap priority or status with 400', async () => {
-      const adminToken = authToken('admin');
-      const badRes = await request(app)
+      // Roadmap validation
+      const badRoadmapRes = await request(app)
         .post('/api/admin/final-scale/strategic-roadmap')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ roadmapKey: 'test-roadmap', priority: 'invalid-priority' });
-      expect(badRes.status).toBe(400);
-      expect(badRes.body.error).toContain('priority');
-    });
+      expect(badRoadmapRes.status).toBe(400);
+      expect(badRoadmapRes.body.error).toContain('priority');
 
-    it('10. rejects invalid scale decision or status with 400', async () => {
-      const adminToken = authToken('admin');
-      const badRes = await request(app)
+      // Scale decision validation
+      const badDecisionRes = await request(app)
         .post('/api/admin/final-scale/scale-decision')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ decisionKey: 'test-decision', decision: 'invalid-decision' });
-      expect(badRes.status).toBe(400);
-      expect(badRes.body.error).toContain('decision');
+      expect(badDecisionRes.status).toBe(400);
+      expect(badDecisionRes.body.error).toContain('decision');
     });
   });
 });

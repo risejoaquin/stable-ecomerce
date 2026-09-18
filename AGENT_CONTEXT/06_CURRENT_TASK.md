@@ -1,33 +1,35 @@
 # CURRENT TASK
 
-TASK ID: PL20-01-EVIDENCE-DRIVEN-SCALE-ASSESSMENT
+TASK ID: PL20-01-HOTFIX-REAL-METRIC-CONTRACT
 PHASE: POST-LAUNCH 20
-STATUS: IN_PROGRESS
+STATUS: READY_FOR_CHATGPT_WEB_VALIDATION
 
 ## Objective
 
-Transition POST-LAUNCH 20 endpoints and data models from static seeded assessment values (e.g. 100/95/95, 95/92/94, 85/90/92, `finalScaleReady: true`) to an evidence-driven final commercial and technical scale assessment layer.
+Align POST-LAUNCH 20 final scale assessment with real production schema and measured evidence:
+1. Fix commercial assessment query to query only valid production columns on `orders` (no `payment_status`).
+2. Establish deterministic paid-like order contract (`paid_at IS NOT NULL OR financial_status IN (paid, reconciled) OR status IN (pagado, empacado, enviado, entregado, partially_refunded)`).
+3. Compute real commercial metrics: gross revenue, refunded amount, net revenue, AOV, embedding calculation provenance.
+4. Eliminate arbitrary and heuristic scores across all criteria (`score: null`).
+5. Add `measured_state: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED'` to operating costs.
+6. Enforce evidence-based scale readiness: `finalScaleReady` evaluates strictly to `false` when load capacity and operating costs are unmeasured.
+7. Isolate legacy seed rows from active summary counts and evaluation rules.
+8. Add 12 permanent contract tests in `tests/api/functional-quality-contracts.test.ts`.
 
-## Files in scope
+## Files modified
 
 - `server.ts`
 - `tests/api/functional-quality-contracts.test.ts`
-- `scripts/qa/smoke-final-scale-report.ps1`
-- `AGENT_CONTEXT/01_CURRENT_STATE.md`
-- `AGENT_CONTEXT/02_MASTER_ROADMAP.md`
-- `AGENT_CONTEXT/03_ACTIVE_PHASE.md`
 - `AGENT_CONTEXT/06_CURRENT_TASK.md`
 - `AGENT_CONTEXT/07_HANDOFF.md`
 - `AGENT_CONTEXT/08_LAST_VALIDATION.md`
-- `AGENT_CONTEXT/09_KNOWN_ISSUES.md`
 - `AGENT_CONTEXT/13_CHANGELOG.md`
-- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-18-pl20-01-evidence-driven-final-scale-assessment.md`
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-18-pl20-01-hotfix-real-metric-contract.md`
 
-## Key Execution Rules
+## Verification Summary
 
-1. Do NOT rerun legacy PL20 SQL (`026_post_launch_20_final_commercial_scale_report_strategic_roadmap.sql`).
-2. Do NOT recreate PL20 tables or reset Supabase.
-3. Do NOT touch Stripe live or send real emails.
-4. Prefer NO schema migration (use existing JSONB evidence/metadata columns).
-5. All scores must be backed by real evidence or set to `null` / status `not_measured`.
-6. Enforce strict admin authorization and input validation across all `/api/admin/final-scale/*` routes.
+- `npm run lint`: PASS (0 errors)
+- `npm test`: PASS (78/78 tests passed)
+- `npm run build`: PASS (Vite + esbuild server bundle)
+- `npm run test:e2e`: PASS (20/20 Playwright tests)
+- `.\scripts\qa\validate-release.ps1`: FINAL RESULT PASS (8/8 gates passed)

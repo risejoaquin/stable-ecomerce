@@ -7458,6 +7458,29 @@ app.post(
       getFinalScaleTable('investor_readiness_checks', 250)
     ]);
 
+    // Legacy seed isolation: filter out seeded rows so they do not pollute evidence-driven evaluations
+    const isLegacySeed = (item: any) => {
+      try {
+        const meta = typeof item?.metadata === 'string' ? JSON.parse(item.metadata) : item?.metadata;
+        const src = String(meta?.source || '');
+        return src.includes('PL20 seed') || src.includes('026_post_launch_20') || src.includes('scripts/db/026');
+      } catch {
+        return false;
+      }
+    };
+    const filterLegacy = (items: any[]) => items.filter(i => !isLegacySeed(i));
+
+    const activeReports = filterLegacy(reports);
+    const activeTechnical = filterLegacy(technical);
+    const activeCommercial = filterLegacy(commercial);
+    const activeRisks = filterLegacy(risks);
+    const activeDebt = filterLegacy(debt);
+    const activeCosts = filterLegacy(costs);
+    const activeCapacity = filterLegacy(capacity);
+    const activeRoadmap = filterLegacy(roadmap);
+    const activeDecisions = filterLegacy(decisions);
+    const activeInvestor = filterLegacy(investor);
+
     // Deterministic score calculation: ignore null/unmeasured scores
     const calcScore = (items: any[]) => {
       const validScores = items
@@ -7467,44 +7490,65 @@ app.post(
       return validScores.length ? Math.round(validScores.reduce((sum, s) => sum + s, 0) / validScores.length) : null;
     };
 
-    const technicalScore = calcScore(technical);
-    const commercialScore = calcScore(commercial);
-    const capacityScore = calcScore(capacity);
-    const investorReadinessScore = calcScore(investor);
+    const technicalScore = calcScore(activeTechnical);
+    const commercialScore = calcScore(activeCommercial);
+    const capacityScore = calcScore(activeCapacity);
+    const investorReadinessScore = calcScore(activeInvestor);
 
-    // Dynamic scale readiness evaluation:
-    // 1. No critical technical failures (status !== 'fail')
-    // 2. No open critical risks
-    // 3. No open critical technical debt
-    // 4. Sufficient evidence exists (technical assessments, risks, debt evaluated)
-    // 5. Technical score meets baseline threshold (>= 80)
-    const hasCriticalTechnicalFailure = technical.some(t => t.status === 'fail');
-    const hasCriticalRisk = risks.some(r => r.severity === 'critical' && r.status === 'open');
-    const hasCriticalDebt = debt.some(d => d.severity === 'critical' && d.status === 'open');
-    const hasSufficientEvidence = technical.length > 0 && risks.length > 0 && debt.length > 0;
-    const technicalMeetsThreshold = technicalScore !== null && technicalScore >= 80;
+    // Evidence-driven scale readiness evaluation:
+    // 1. Evidence exists for technical, risks, and debt
+    // 2. No critical technical failures (status !== 'fail')
+    // 3. No open critical risks
+    // 4. No open critical technical debt
+    // 5. Commercial volume is measured (commercial_volume_performance has status === 'measured')
+    // 6. Operating costs are measured (measured_state === 'MEASURED' exists)
+    // 7. Concurrency load capacity is measured (synthetic_vs_load_testing has status === 'pass' | 'measured')
+    const hasTechnicalEvidence = activeTechnical.length > 0;
+    const hasCriticalTechnicalFailure = activeTechnical.some(t => t.status === 'fail');
+    const hasCriticalRisk = activeRisks.some(r => r.severity === 'critical' && r.status === 'open');
+    const hasCriticalDebt = activeDebt.some(d => d.severity === 'critical' && d.status === 'open');
+
+    const isCommercialMeasured = activeCommercial.length > 0 && activeCommercial.some(c => c.assessment_key === 'commercial_volume_performance' && c.status === 'measured');
+
+    const isCostEvidenceMeasured = activeCosts.length > 0 && activeCosts.some(c => {
+      try {
+        const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : c?.metadata;
+        return meta?.measured_state === 'MEASURED';
+      } catch {
+        return false;
+      }
+    });
+
+    const isCapacityLoadMeasured = activeCapacity.length > 0 && activeCapacity.some(c => {
+      if (c.capacity_key === 'synthetic_vs_load_testing') {
+        return c.status === 'pass' || c.status === 'measured';
+      }
+      return false;
+    });
 
     const finalScaleReady = Boolean(
-      hasSufficientEvidence &&
+      hasTechnicalEvidence &&
       !hasCriticalTechnicalFailure &&
       !hasCriticalRisk &&
       !hasCriticalDebt &&
-      technicalMeetsThreshold
+      isCommercialMeasured &&
+      isCostEvidenceMeasured &&
+      isCapacityLoadMeasured
     );
 
     res.json({
       status: 'ok',
       summary: {
-        reports: reports.length,
-        technicalAssessments: technical.length,
-        commercialAssessments: commercial.length,
-        risks: risks.length,
-        technicalDebtItems: debt.length,
-        operatingCostSummaries: costs.length,
-        capacityAssessments: capacity.length,
-        roadmapItems: roadmap.length,
-        scaleDecisions: decisions.length,
-        investorChecks: investor.length,
+        reports: activeReports.length,
+        technicalAssessments: activeTechnical.length,
+        commercialAssessments: activeCommercial.length,
+        risks: activeRisks.length,
+        technicalDebtItems: activeDebt.length,
+        operatingCostSummaries: activeCosts.length,
+        capacityAssessments: activeCapacity.length,
+        roadmapItems: activeRoadmap.length,
+        scaleDecisions: activeDecisions.length,
+        investorChecks: activeInvestor.length,
         technicalScore,
         commercialScore,
         capacityScore,
@@ -7512,14 +7556,17 @@ app.post(
         roadmapClosedThrough: 'POST-LAUNCH 19 (QA / RELEASE E CLOSED)',
         finalScaleReady,
         evaluationRules: {
-          hasSufficientEvidence,
+          hasTechnicalEvidence,
           hasCriticalTechnicalFailure,
           hasCriticalRisk,
           hasCriticalDebt,
-          technicalMeetsThreshold
+          isCommercialMeasured,
+          isCostEvidenceMeasured,
+          isCapacityLoadMeasured,
+          finalScaleReady
         }
       },
-      latestReport: reports[0] || null
+      latestReport: activeReports[0] || null
     });
   }));
 
@@ -7540,7 +7587,7 @@ app.post(
         assessment_key: 'runtime_database_connectivity',
         area: 'runtime',
         status: isDbConnected ? 'pass' : 'fail',
-        score: isDbConnected ? 100 : 0,
+        score: null,
         finding: isDbConnected ? 'Runtime API, primary store resolution, and database connectivity operational.' : 'Database or primary store resolution failure.',
         recommendation: 'Maintain continuous endpoint diagnostics and database health probes.'
       },
@@ -7548,7 +7595,7 @@ app.post(
         assessment_key: 'security_baseline_enforcement',
         area: 'security',
         status: isSecurityActive ? 'pass' : 'fail',
-        score: isSecurityActive ? 95 : 0,
+        score: null,
         finding: 'JWT authentication, bcrypt password hashing, SEC-005 login rate limiter, and admin boundaries verified.',
         recommendation: 'Rotate secrets on schedule and maintain audit log monitoring.'
       },
@@ -7556,7 +7603,7 @@ app.post(
         assessment_key: 'automated_release_gate_quality',
         area: 'quality',
         status: 'pass',
-        score: 95,
+        score: null,
         finding: 'Automated release gates verified: 66/66 unit/API tests, 20/20 Playwright E2E tests, 0 lint errors, 0 secret scan findings.',
         recommendation: 'Enforce green quality gate on every pull request prior to deployment.'
       },
@@ -7564,7 +7611,7 @@ app.post(
         assessment_key: 'database_schema_reproducibility',
         area: 'database',
         status: 'pass',
-        score: 95,
+        score: null,
         finding: 'Supabase remote schema baseline synchronized and reproducible via version-controlled migration (20260918004527_remote_schema.sql).',
         recommendation: 'Maintain strictly incremental schema migrations for all future changes.'
       },
@@ -7600,44 +7647,74 @@ app.post(
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
 
-    // Query real commercial data from orders
+    // Query real commercial data from orders using ONLY production columns
     let totalOrders = 0;
     let paidCount = 0;
-    let grossRevenue = 0;
+    let grossPaidRevenue = 0;
+    let refundedAmount = 0;
+    let netPaidRevenue = 0;
     let aov = 0;
+
+    const isPaidLike = (order: any): boolean => {
+      if (order.paid_at) return true;
+      const financialStatus = String(order.financial_status || '').toLowerCase().trim();
+      if (['paid', 'reconciled'].includes(financialStatus)) return true;
+      const status = String(order.status || '').toLowerCase().trim();
+      if (['pagado', 'empacado', 'enviado', 'entregado', 'partially_refunded'].includes(status)) return true;
+      return false;
+    };
 
     if (supabase && storeId) {
       const { data: orderRows } = await supabase
         .from('orders')
-        .select('id, total, status, payment_status')
+        .select('id, total, status, financial_status, paid_at, refunded_amount, refund_status, refunded_at, created_at')
         .eq('store_id', storeId);
       const orders = orderRows || [];
       totalOrders = orders.length;
-      const paidOrders = orders.filter((o: any) => o.status === 'paid' || o.payment_status === 'paid');
+      const paidOrders = orders.filter(isPaidLike);
       paidCount = paidOrders.length;
-      grossRevenue = paidOrders.reduce((sum: number, o: any) => sum + (Number(o.total) || 0), 0);
-      aov = paidCount > 0 ? Math.round((grossRevenue / paidCount) * 100) / 100 : 0;
+      grossPaidRevenue = paidOrders.reduce((sum: number, o: any) => sum + (Number(o.total) || 0), 0);
+      refundedAmount = paidOrders.reduce((sum: number, o: any) => sum + (Number(o.refunded_amount) || 0), 0);
+      netPaidRevenue = Math.max(0, grossPaidRevenue - refundedAmount);
+      aov = paidCount > 0 ? Math.round((grossPaidRevenue / paidCount) * 100) / 100 : 0;
     }
+
+    const evidencePayload = {
+      runKey,
+      sourceTable: 'orders',
+      calculationVersion: 'pl20-01-hotfix-real-contract',
+      measuredAt: new Date().toISOString(),
+      windowStart: 'all_time',
+      windowEnd: 'all_time',
+      paidLikeDefinition: 'paid_at IS NOT NULL OR financial_status IN (paid,reconciled) OR status IN (pagado,empacado,enviado,entregado,partially_refunded)',
+      totalOrders,
+      paidCount,
+      grossPaidRevenue,
+      refundedAmount,
+      netPaidRevenue,
+      aov,
+      timestamp: new Date().toISOString()
+    };
 
     const rows = [
       {
         assessment_key: 'sales_checkout_foundation',
         area: 'sales',
         status: 'pass',
-        score: 90,
+        score: null,
         finding: `Checkout pipeline and Stripe payment configuration operational. Total orders recorded: ${totalOrders}, paid: ${paidCount}.`,
         recommendation: 'Monitor payment gateway webhooks and checkout conversion funnel.'
       },
       {
         assessment_key: 'commercial_volume_performance',
         area: 'revenue',
-        status: paidCount > 0 ? 'pass' : 'warning',
-        score: paidCount > 0 ? Math.min(100, 50 + paidCount * 5) : null,
+        status: paidCount > 0 ? 'measured' : 'warning',
+        score: null,
         finding: paidCount > 0
-          ? `Measured commercial orders: ${paidCount}, Gross revenue: $${grossRevenue.toFixed(2)}, AOV: $${aov.toFixed(2)}.`
+          ? `Measured commercial orders: ${paidCount} (early sample size). Gross revenue: $${grossPaidRevenue.toFixed(2)}, Refunded: $${refundedAmount.toFixed(2)}, Net revenue: $${netPaidRevenue.toFixed(2)}, AOV: $${aov.toFixed(2)}.`
           : 'Zero paid commercial transactions recorded in production yet. Structural capability is ready, but scale volume is unmeasured.',
         recommendation: paidCount > 0
-          ? 'Analyze cohort retention and repeat purchase behavior.'
+          ? 'Analyze cohort retention and repeat purchase behavior as sample size grows.'
           : 'Execute initial live purchase verification before scaling paid campaigns.'
       },
       {
@@ -7651,8 +7728,8 @@ app.post(
       {
         assessment_key: 'operations_and_fulfillment',
         area: 'operations',
-        status: paidCount > 0 ? 'pass' : 'not_measured',
-        score: paidCount > 0 ? 80 : null,
+        status: paidCount > 0 ? 'measured' : 'not_measured',
+        score: null,
         finding: paidCount > 0
           ? `Fulfillment operations active for ${paidCount} paid orders.`
           : 'Fulfillment operational pipeline is structured but live fulfillment volume is not yet measured.',
@@ -7663,7 +7740,7 @@ app.post(
       ...row,
       executed_by: req.auth?.userId || null,
       executed_at: new Date().toISOString(),
-      evidence: { runKey, totalOrders, paidCount, grossRevenue, aov, timestamp: new Date().toISOString() },
+      evidence: evidencePayload,
       metadata: { source: 'api_final_scale_commercial_assessment_run' },
       updated_at: new Date().toISOString()
     }));
@@ -7804,12 +7881,22 @@ app.post(
     const emailCost = validateFinalScaleCostNumber(req.body?.emailEstimate ?? req.body?.email_cost_estimate, 'emailEstimate');
 
     const totalEstimate = railway + supabaseCost + stripeCost + emailCost;
-    const hasExplicitEstimates = [
-      req.body?.railwayEstimate, req.body?.railway_estimate,
-      req.body?.supabaseEstimate, req.body?.supabase_estimate,
-      req.body?.stripeEstimate, req.body?.stripe_variable_cost_estimate,
-      req.body?.emailEstimate, req.body?.email_cost_estimate
-    ].some(v => v !== undefined && v !== null && v !== '');
+
+    const fieldsProvided = [
+      req.body?.railwayEstimate ?? req.body?.railway_estimate,
+      req.body?.supabaseEstimate ?? req.body?.supabase_estimate,
+      req.body?.stripeEstimate ?? req.body?.stripe_variable_cost_estimate,
+      req.body?.emailEstimate ?? req.body?.email_cost_estimate
+    ].filter(v => v !== undefined && v !== null && v !== '');
+
+    let measured_state: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED';
+    if (fieldsProvided.length === 4) {
+      measured_state = 'MEASURED';
+    } else if (fieldsProvided.length > 0) {
+      measured_state = 'PARTIAL';
+    } else {
+      measured_state = 'NOT_MEASURED';
+    }
 
     const payload = {
       store_id: storeId,
@@ -7821,12 +7908,19 @@ app.post(
       email_cost_estimate: emailCost,
       total_estimate: totalEstimate,
       currency,
-      notes: req.body?.notes || (hasExplicitEstimates ? 'Admin-supplied operational cost estimates.' : 'PL20 unestimated operating cost baseline.'),
+      notes: req.body?.notes || (
+        measured_state === 'MEASURED'
+          ? 'Admin-supplied operational cost estimates (MEASURED).'
+          : measured_state === 'PARTIAL'
+            ? 'Partial operational cost estimates (PARTIAL).'
+            : 'PL20 unestimated operating cost baseline (NOT_MEASURED).'
+      ),
       generated_by: req.auth?.userId || null,
       generated_at: new Date().toISOString(),
       metadata: {
         source: 'api_final_scale_operating_costs_run',
-        has_explicit_estimates: hasExplicitEstimates,
+        measured_state,
+        has_explicit_estimates: fieldsProvided.length > 0,
         breakdown_available: totalEstimate > 0
       },
       updated_at: new Date().toISOString()
@@ -7852,18 +7946,18 @@ app.post(
       {
         capacity_key: 'railway_runtime_capacity',
         area: 'railway',
-        status: 'ready',
-        score: 85,
-        current_capacity: `Single-container Node runtime (RSS: ${memUsageMb}MB). Suitable for low-to-medium baseline concurrency.`,
+        status: 'warning',
+        score: null,
+        current_capacity: `Single-container Node runtime (RSS: ${memUsageMb}MB). Single-process observation, not multi-user load proof.`,
         scale_limit: 'Requires autoscaling and replica configuration for sustained traffic surges.',
         recommendation: 'Monitor Railway CPU/memory utilization and configure scaling triggers.'
       },
       {
         capacity_key: 'supabase_database_capacity',
         area: 'supabase',
-        status: 'ready',
-        score: 85,
-        current_capacity: 'Postgres database connection pool active with baseline indexing and RLS.',
+        status: 'warning',
+        score: null,
+        current_capacity: 'Postgres database connection pool active with baseline indexing and RLS. Saturation under concurrent peak unmeasured.',
         scale_limit: 'Direct connection pool limit requires connection pooling under high concurrency.',
         recommendation: 'Monitor connection usage and query latency via Supabase metrics.'
       },
@@ -7990,7 +8084,7 @@ app.post(
         check_key: 'technical_architecture_and_docs',
         category: 'technical',
         status: 'pass',
-        score: 90,
+        score: null,
         requirement: 'Technical architecture, automated quality gates, and deployment runbooks documented.',
         evidence: 'CI quality gates established, 20/20 E2E tests, 66/66 unit/API tests, remote baseline migration synchronized.',
         recommendation: 'Maintain technical documentation and runbooks updated with each release milestone.'
@@ -7999,7 +8093,7 @@ app.post(
         check_key: 'governance_security_controls',
         category: 'governance',
         status: 'pass',
-        score: 88,
+        score: null,
         requirement: 'Security boundaries, role authorization, rate limiting, and audit logging operational.',
         evidence: 'Admin middleware active, SEC-005 login limiter active, immutable audit logs in writeAuditLog.',
         recommendation: 'Conduct periodic security reviews and maintain least-privilege database policies.'
@@ -8016,11 +8110,11 @@ app.post(
       {
         check_key: 'operating_cost_transparency',
         category: 'operations',
-        status: 'pass',
-        score: 80,
+        status: 'not_measured',
+        score: null,
         requirement: 'Documented operational infrastructure cost structure and provider breakdown.',
-        evidence: 'Infrastructure components identified (Railway, Supabase, Stripe, Resend).',
-        recommendation: 'Review actual monthly billing statements against operational projections.'
+        evidence: 'Infrastructure components identified (Railway, Supabase, Stripe, Resend), but verified provider billing statements are unavailable.',
+        recommendation: 'Ingest verified monthly billing exports once billing cycles conclude.'
       }
     ].map((row) => ({
       store_id: storeId,
