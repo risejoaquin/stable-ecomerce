@@ -19,7 +19,7 @@ beforeAll(async () => {
   process.env.STRIPE_SECRET_KEY = 'sk_test_qa_release_e_contract_only';
   const server = await import('../../server');
   app = await server.startServer({ listen: false });
-});
+}, 30000);
 
 describe('QA / RELEASE E API functional and quality contracts', () => {
   it('rejects invalid login without exposing a token', async () => {

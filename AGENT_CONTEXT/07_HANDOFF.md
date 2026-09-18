@@ -2,47 +2,48 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Block: Block A & Block B — Functional and Quality Regression Suite
-Task ID: QA-RELEASE-E-FUNCTIONAL-QUALITY-REGRESSION-20260917
+Block: Block C — Supabase Baseline Adoption & Reproducibility
+Task ID: QA-RELEASE-E-SUPABASE-BASELINE-20260917
 Commit/working tree:
-- HEAD: 2de122cc83615905ac6a87533a361051094327d7
-- origin/main: 2de122cc83615905ac6a87533a361051094327d7
-- Branch: main
+- HEAD: `749ca1c4598ee577b47d81cf285afbe928ffb58a`
+- origin/main: `749ca1c4598ee577b47d81cf285afbe928ffb58a`
+- Branch: `main`
 - Working tree:
-  - modified: `package.json` (added `@axe-core/playwright` devDependency)
-  - modified: `package-lock.json`
-  - modified: `server.ts` (minimal testability changes: export `startServer`, dynamic Vite import, conditional listen)
-  - modified: `tests/api/health.test.ts` (real server `/api/health` route test)
+  - modified: `tests/api/health.test.ts` (increased beforeAll hook timeout to 30s to prevent flaky server import timeouts)
+  - modified: `tests/api/functional-quality-contracts.test.ts` (increased beforeAll hook timeout to 30s)
   - modified: `AGENT_CONTEXT/06_CURRENT_TASK.md`
   - modified: `AGENT_CONTEXT/07_HANDOFF.md`
   - modified: `AGENT_CONTEXT/08_LAST_VALIDATION.md`
-  - untracked: `tests/api/functional-quality-contracts.test.ts` (7 API contract tests)
-  - untracked: `e2e/qa-release-e-functional-quality.spec.ts` (11 functional/accessibility/responsive E2E tests)
-  - untracked: `AGENT_CONTEXT/evidence/block-a/2026-09-17-functional-quality-regression.md`
-  - untracked: `AGENT_CONTEXT/evidence/block-b/2026-09-17-functional-quality-regression.md`
+  - untracked: `scripts/qa/database/inspect-remote-baseline.mjs`
+  - untracked: `supabase/.gitignore`
+  - untracked: `supabase/config.toml`
+  - untracked: `supabase/migrations/20260918004527_remote_schema.sql`
+  - untracked: `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-baseline-reproducibility.md`
 
 ## Completed
 
-- Minimal server testability implemented in `server.ts` without modifying production behavior.
-- Real `/api/health` verified in `tests/api/health.test.ts`.
-- 7 API contract tests implemented and verified in `tests/api/functional-quality-contracts.test.ts`.
-- 11 E2E tests in `e2e/qa-release-e-functional-quality.spec.ts` with complete network mocking.
-- Accessibility scans via `AxeBuilder` completed on Home and Product Detail with 0 critical violations.
-- Responsive layout verified across 320px, 390px, 768px, and 1440px with 0 horizontal overflow.
-- All 6 quality gates passed: `lint`, `test` (24/24), `build`, `test:e2e` (16/16), `qa:release`, `git diff --check`.
-- Detailed technical evidence reports generated in `AGENT_CONTEXT/evidence/block-a/` and `block-b/`.
+- Successfully linked to production Supabase project `dporfgsbwsyqzmlnqrug` (`stable-ecomerce`).
+- Executed `npx --yes supabase db pull` through Docker shadow database; created initial baseline migration `supabase/migrations/20260918004527_remote_schema.sql`.
+- Verified remote migration history synchronized to `20260918004527`.
+- Reviewed generated baseline SQL: 0 DROP, 0 INSERT with live data, 0 secrets, 0 auth/storage leaks.
+- Verified critical production security state in baseline: `finalize_paid_order` and `restock_refunded_order` are `SECURITY INVOKER` with immutable empty search_path, qualified relations, and restricted execute.
+- Confirmed absence of obsolete functions `decrement_stock` and `consume_coupon_after_payment`.
+- Started local Supabase Docker stack and successfully executed clean reconstruction via `npx --yes supabase db reset --local`.
+- Exhaustively compared local reconstructed schema vs remote production schema across 10 critical tables and 2 critical functions: 0 differences found.
+- Verified local runtime boundary enforcement: unauthenticated RPC calls blocked with SQLSTATE `42501`, `service_role` allowed.
+- Executed database linting and advisors: 0 schema lint errors locally and remotely.
+- Passed full validation gates: TypeScript, unit tests (24/24), build, secret scan, core regression (4/4), FAST gate, and RELEASE gate.
+- Generated comprehensive technical evidence in `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-baseline-reproducibility.md`.
 
 ## Next exact action for ChatGPT Web
 
-- Review Block A and Block B regression evidence.
-- Provide approval to stage and commit the functional and quality regression suite.
-- Decide sequencing for Block A / Block B closure.
+- Review Supabase baseline adoption evidence and schema reproducibility report.
+- Authorize staging and commit of baseline migration files and context updates.
+- Decide next step in AUDIT-01 roadmap.
 
 ## Evidence paths
 
-- `AGENT_CONTEXT/evidence/block-a/2026-09-17-functional-quality-regression.md`
-- `AGENT_CONTEXT/evidence/block-b/2026-09-17-functional-quality-regression.md`
-- `tests/api/health.test.ts`
-- `tests/api/functional-quality-contracts.test.ts`
-- `e2e/qa-release-e-functional-quality.spec.ts`
-- `artifacts/qa/20260917-165230-release/summary.md`
+- `AGENT_CONTEXT/evidence/block-c/2026-09-17-supabase-baseline-reproducibility.md`
+- `supabase/migrations/20260918004527_remote_schema.sql`
+- `supabase/config.toml`
+- `artifacts/qa/20260917-203512-release/summary.md`
