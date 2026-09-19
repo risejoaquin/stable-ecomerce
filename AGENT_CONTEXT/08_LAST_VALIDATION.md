@@ -1,34 +1,33 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-19T13:20:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03B Final Trust Hotfix: Release Gate Aggregation and Reviewed Security Authority)
+**Timestamp:** 2026-09-19T13:42:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03C Local Capacity Baseline)
 **Branch:** `main`
-**Base Commit:** `58255e9ac6ff1b54cc0530523d5f6d23207c22a4`
+**Base Commit:** `70fd3f8a89d05d4c0554f600815efea10d8087c0`
 
 ## 1. Validation Suite Status
 
 | Gate | Command | Result | Pass/Fail |
 |---|---|---|---|
-| TypeScript | `npm run lint` | 0 errors | PASS |
-| Unit & API Tests | `npm test` | 153 tests passed across 4 files (136 in functional-quality-contracts) | PASS (153/153) |
-| Production Build | `npm run build` | Vite client + esbuild server bundle | PASS |
-| E2E Tests | `npm run test:e2e` | 20 tests passed across 3 spec files | PASS (20/20) |
-| Secret Scan | `.\scripts\qa\security\scan-local-secrets.ps1` | 0 secrets detected | PASS |
-| Resend Webhook Security | `.\scripts\qa\security\validate-resend-webhook-signature.ps1` | All checks pass | PASS |
-| Legacy Upload Auth | `.\scripts\qa\security\validate-legacy-upload-authorization.ps1` | All checks pass | PASS |
-| Security Baseline Report | `.\scripts\qa\security\validate-security-baseline.ps1 -Mode Report` | Report executed cleanly | PASS |
-| Core Regression | `smoke-qa-release-e`, `smoke-mobile-ux-f`, `smoke-post-ux-c-hotfix-20`, `smoke-post-ux-c-hotfix-20-2` | 4/4 suites passing | PASS |
-| Release Gate | `npm run qa:release` (`.\scripts\qa\validate-release.ps1`) | All 8 release gates passed | PASS |
-| Git Diff Check | `git diff --check` | 0 whitespace or formatting errors | PASS |
+| Commit Binding | `git rev-parse HEAD; git rev-parse origin/main` | `70fd3f8a89d05d4c0554f600815efea10d8087c0` | PASS |
+| Local Isolation Preflight | Loopback check & environment secret scan | Ambient live variable stripped; `/api/readiness` confirms 100% isolated | PASS |
+| Local Build | `npm run build` | Clean Vite + esbuild bundle | PASS |
+| Local Server Startup | Port 3000 startup & clean shutdown | Express listening on port 3000, stopped cleanly | PASS |
+| SAFE_READ Route Verification | Manual inspection of 7 endpoints via `curl.exe` | 7/7 returned HTTP 200, zero redirects | PASS |
+| k6 Runner Availability | `k6 version` | Not installed on PATH | `BLOCKED_K6_NOT_INSTALLED` |
 
 ## 2. Key Verified Behaviors
 
-- `.github/workflows/quality-gate.yml` implements 3-job architecture: `quality` and `e2e` generate step artifacts, then `aggregate` combines them into unified `pl20-evidence/quality-gate.json`.
-- `release_gate.status` is `PASS` ONLY if both `quality` and `e2e` succeed. If `e2e` is skipped, `release_gate` is `NOT_MEASURED` (never `PASS`). If either fails, `release_gate` is `FAIL`.
-- `pl20-evidence/reviewed-security.json` is strictly maintained as candidate draft (`candidate: true`, `status: 'PREPARED_FOR_REVIEW'`, `reviewer_class: null`).
-- Antigravity/Codex agent cannot self-issue or impersonate `reviewer_class: 'chatgpt_web'`.
-- Draft candidate evidence cannot satisfy security blockers.
-- Stale reviewed security SHA referencing prior commits is rejected.
-- PL20-02 trust boundary remains intact: request-body claims of `VERIFIED_CI_EVIDENCE` or `REVIEWED_SECURITY_EVIDENCE` continue to be downgraded.
-- `finalScaleReady` evaluates strictly to `false`.
+- Target host `BASE_URL` is strictly `http://127.0.0.1:3000`.
+- All 7 approved `SAFE_READ` endpoints verified functional in isolated local environment:
+  - `/` (200)
+  - `/api/health` (200)
+  - `/api/readiness` (200 - isolated/unconfigured)
+  - `/api/public/store` (200)
+  - `/api/public/home` (200)
+  - `/api/public/categories` (200)
+  - `/api/products` (200)
+- Zero redirects toward `/checkout`, `/orders`, `/admin`, `/payment`, or `/refund`.
+- `k6` execution halted and reported as `BLOCKED_K6_NOT_INSTALLED` per explicit directive.
+- `finalScaleReady` strictly remains `false`.
 - PL20-03 remains ACTIVE; PL21 NOT STARTED.
