@@ -7444,7 +7444,7 @@ app.post(
     return num;
   };
 
-  app.get('/api/admin/final-scale/summary', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
+  app.get('/api/admin/final-scale/summary', requireAuth(), requireAdmin(), asyncHandler(async (req: any, res) => {
     const [reports, technical, commercial, risks, debt, costs, capacity, roadmap, decisions, investor] = await Promise.all([
       getFinalScaleTable('final_scale_reports', 50),
       getFinalScaleTable('final_technical_assessments', 250),
@@ -7513,14 +7513,99 @@ app.post(
     const capacityScore = calcScore(activeCapacity);
     const investorReadinessScore = calcScore(activeInvestor);
 
-    // Evidence-driven scale readiness evaluation:
-    // 1. Evidence exists for technical, risks, and debt
-    // 2. No critical technical failures (status !== 'fail')
-    // 3. No open critical risks
-    // 4. No open critical technical debt
-    // 5. Commercial volume is measured and clean (commercial_volume_performance has status === 'measured' and measured_state === 'MEASURED')
-    // 6. Operating costs are measured (measured_state === 'MEASURED' strictly required; PARTIAL does not satisfy finalScaleReady)
-    // 7. Concurrency load capacity is measured (synthetic_vs_load_testing has status === 'pass' | 'measured')
+    // -------------------------------------------------------------------------
+    // PL20-02 Evidence-Driven Technical Readiness & Dimension Evaluation
+    // -------------------------------------------------------------------------
+    const currentCommitSha = (req.query?.commit_sha ? String(req.query.commit_sha).trim() : null) ||
+                             process.env.RAILWAY_GIT_COMMIT_SHA ||
+                             process.env.GIT_COMMIT_SHA ||
+                             process.env.COMMIT_SHA ||
+                             null;
+
+    const requiredDimensionConfigs = [
+      { id: 'release_gate', aliases: ['technical_release_gate', 'automated_release_gate_quality'] },
+      { id: 'production_smoke', aliases: ['technical_production_smoke', 'production_smoke'] },
+      { id: 'build', aliases: ['technical_build', 'build'] },
+      { id: 'unit_tests', aliases: ['technical_unit_tests', 'unit_tests'] },
+      { id: 'e2e', aliases: ['technical_e2e', 'e2e'] },
+      { id: 'secret_scan', aliases: ['technical_secret_scan', 'secret_scan'] },
+      { id: 'database_reproducibility', aliases: ['technical_database_reproducibility', 'database_schema_reproducibility'] }
+    ];
+
+    const technicalDimensions: Record<string, any> = {};
+
+    for (const conf of requiredDimensionConfigs) {
+      const item = activeTechnical.find(t => conf.aliases.includes(t.assessment_key));
+      if (!item) {
+        technicalDimensions[conf.id] = { status: 'NOT_MEASURED', validated_commit_sha: null, classification: 'CI_EVIDENCE' };
+        continue;
+      }
+
+      const meta = typeof item?.metadata === 'string' ? JSON.parse(item.metadata) : (item?.metadata || {});
+      const ev = typeof item?.evidence === 'string' ? JSON.parse(item.evidence) : (item?.evidence || {});
+      const itemStatus = String(item.status || ev?.status || 'not_measured').toUpperCase();
+      const validatedSha = ev?.validated_commit_sha || meta?.validated_commit_sha || null;
+      const classification = ev?.source_classification || meta?.source_classification || 'CI_EVIDENCE';
+
+      let resolvedStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED';
+
+      if (itemStatus === 'NOT_MEASURED' || !validatedSha) {
+        resolvedStatus = 'NOT_MEASURED';
+      } else if (currentCommitSha && validatedSha !== currentCommitSha) {
+        resolvedStatus = 'STALE';
+      } else if (!currentCommitSha) {
+        // If current commit cannot be resolved safely at runtime: mark it STALE / NOT_MEASURED
+        resolvedStatus = 'STALE';
+      } else if (itemStatus === 'PASS') {
+        resolvedStatus = 'PASS';
+      } else if (itemStatus === 'FAIL') {
+        resolvedStatus = 'FAIL';
+      } else {
+        resolvedStatus = 'NOT_MEASURED';
+      }
+
+      technicalDimensions[conf.id] = {
+        status: resolvedStatus,
+        validated_commit_sha: validatedSha,
+        classification
+      };
+    }
+
+    // Security blockers dimension: technical.security_blockers.open_count
+    const secBlockerItem = activeTechnical.find(t => ['technical_security_blockers', 'security_blockers'].includes(t.assessment_key));
+    let securityBlockersOpenCount = 0;
+    let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' = 'PASS';
+
+    if (secBlockerItem) {
+      const ev = typeof secBlockerItem?.evidence === 'string' ? JSON.parse(secBlockerItem.evidence) : (secBlockerItem?.evidence || {});
+      const meta = typeof secBlockerItem?.metadata === 'string' ? JSON.parse(secBlockerItem.metadata) : (secBlockerItem?.metadata || {});
+      securityBlockersOpenCount = Number(ev?.open_count ?? meta?.open_count ?? 0);
+      const rawStatus = String(secBlockerItem.status || 'pass').toUpperCase();
+      securityBlockersStatus = securityBlockersOpenCount === 0 && rawStatus === 'PASS' ? 'PASS' : 'FAIL';
+    } else {
+      const openCritical = activeRisks.filter(r => r.severity === 'critical' && r.status === 'open').length +
+                           activeDebt.filter(d => d.severity === 'critical' && d.status === 'open').length;
+      securityBlockersOpenCount = openCritical;
+      securityBlockersStatus = openCritical === 0 ? 'PASS' : 'FAIL';
+    }
+
+    technicalDimensions['security_blockers'] = {
+      status: securityBlockersStatus,
+      open_count: securityBlockersOpenCount
+    };
+
+    const technicalEvidenceComplete = requiredDimensionConfigs.every(c => technicalDimensions[c.id].status !== 'NOT_MEASURED') &&
+                                      technicalDimensions.security_blockers.status !== 'NOT_MEASURED';
+
+    const technicalEvidenceCurrent = requiredDimensionConfigs.every(c => technicalDimensions[c.id].status !== 'STALE' && technicalDimensions[c.id].status !== 'NOT_MEASURED');
+
+    const technicalRequiredPass = Boolean(
+      technicalEvidenceComplete &&
+      technicalEvidenceCurrent &&
+      requiredDimensionConfigs.every(c => technicalDimensions[c.id].status === 'PASS') &&
+      securityBlockersOpenCount === 0
+    );
+
     const hasTechnicalEvidence = activeTechnical.length > 0;
     const hasCriticalTechnicalFailure = activeTechnical.some(t => t.status === 'fail');
     const hasCriticalRisk = activeRisks.some(r => r.severity === 'critical' && r.status === 'open');
@@ -7544,16 +7629,19 @@ app.post(
       }
     });
 
+    // Task 6 & 10: Capacity readiness requires verified multi-user load testing proof (not ordinary RSS / DB connection health)
     const isCapacityLoadMeasured = activeCapacity.length > 0 && activeCapacity.some(c => {
-      if (c.capacity_key === 'synthetic_vs_load_testing') {
+      if (c.capacity_key === 'synthetic_vs_load_testing' || c.capacity_key === 'capacity.load_test') {
         const meta = typeof c?.metadata === 'string' ? JSON.parse(c.metadata) : (c?.metadata || {});
-        return (c.status === 'pass' || c.status === 'measured') && meta?.measured_state === 'MEASURED';
+        const status = String(c.status || '').toLowerCase();
+        const hasLoadProof = Boolean(meta?.is_scale_capacity && meta?.load_test_evidence && Number(meta?.load_test_evidence?.concurrent_users) > 0);
+        return (status === 'pass' || status === 'measured') && meta?.measured_state === 'MEASURED' && hasLoadProof;
       }
       return false;
     });
 
     const finalScaleReady = Boolean(
-      hasTechnicalEvidence &&
+      technicalRequiredPass &&
       !hasCriticalTechnicalFailure &&
       !hasCriticalRisk &&
       !hasCriticalDebt &&
@@ -7584,6 +7672,11 @@ app.post(
         finalScaleReady,
         evaluationRules: {
           hasTechnicalEvidence,
+          technicalEvidenceComplete,
+          technicalEvidenceCurrent,
+          technicalRequiredPass,
+          technicalDimensions,
+          currentCommitSha,
           hasCriticalTechnicalFailure,
           hasCriticalRisk,
           hasCriticalDebt,
@@ -7606,76 +7699,259 @@ app.post(
     const runKey = validateFinalScaleKey(rawKey, 'runKey');
     const storeId = await getPrimaryStoreId();
 
+    const currentCommitSha = req.body?.commitSha ||
+                             req.body?.commit_sha ||
+                             req.body?.validated_commit_sha ||
+                             process.env.RAILWAY_GIT_COMMIT_SHA ||
+                             process.env.GIT_COMMIT_SHA ||
+                             process.env.COMMIT_SHA ||
+                             null;
+
     const isDbConnected = Boolean(supabase && storeId);
     const isSecurityActive = Boolean(effectiveJwtSecret && loginLimiter);
     const measuredAt = new Date().toISOString();
 
+    const ciEvidence = req.body?.ciEvidence || req.body?.ci_evidence || req.body?.dimensions || null;
+    const getCiDim = (key: string) => (ciEvidence && typeof ciEvidence === 'object') ? ciEvidence[key] : null;
+
     const rows = [
+      // 1. RUNTIME_OBSERVED: Database Connectivity
       {
         assessment_key: 'runtime_database_connectivity',
         area: 'runtime',
         status: isDbConnected ? 'pass' : 'fail',
         score: null,
-        finding: isDbConnected ? 'Runtime API, primary store resolution, and database connectivity operational.' : 'Database or primary store resolution failure.',
-        recommendation: 'Maintain continuous endpoint diagnostics and database health probes.'
+        finding: isDbConnected
+          ? 'Runtime API, primary store resolution, and database connectivity operational.'
+          : 'Database or primary store resolution failure.',
+        recommendation: 'Maintain continuous endpoint diagnostics and database health probes.',
+        source_classification: 'RUNTIME_OBSERVED',
+        source_type: 'system_probes',
+        validated_commit_sha: currentCommitSha
       },
+      // 2. RUNTIME_OBSERVED: Security Baseline Enforcement
       {
         assessment_key: 'security_baseline_enforcement',
         area: 'security',
         status: isSecurityActive ? 'pass' : 'fail',
         score: null,
-        finding: 'JWT authentication, bcrypt password hashing, SEC-005 login rate limiter, and admin boundaries verified.',
-        recommendation: 'Rotate secrets on schedule and maintain audit log monitoring.'
+        finding: isSecurityActive
+          ? 'JWT authentication, bcrypt password hashing, SEC-005 login rate limiter, and admin boundaries verified in active runtime.'
+          : 'Security middleware or credentials missing in active runtime.',
+        recommendation: 'Rotate secrets on schedule and maintain audit log monitoring.',
+        source_classification: 'RUNTIME_OBSERVED',
+        source_type: 'runtime_telemetry',
+        validated_commit_sha: currentCommitSha
       },
-      {
-        assessment_key: 'automated_release_gate_quality',
-        area: 'quality',
-        status: 'pass',
-        score: null,
-        finding: 'Automated release gates verified: 66/66 unit/API tests, 20/20 Playwright E2E tests, 0 lint errors, 0 secret scan findings.',
-        recommendation: 'Enforce green quality gate on every pull request prior to deployment.'
-      },
-      {
-        assessment_key: 'database_schema_reproducibility',
-        area: 'database',
-        status: 'pass',
-        score: null,
-        finding: 'Supabase remote schema baseline synchronized and reproducible via version-controlled migration (20260918004527_remote_schema.sql).',
-        recommendation: 'Maintain strictly incremental schema migrations for all future changes.'
-      },
+      // 3. RUNTIME_OBSERVED: Capacity Concurrency Warning
       {
         assessment_key: 'load_concurrency_capacity',
         area: 'capacity',
         status: 'warning',
         score: null,
         finding: 'High-concurrency load testing (100-500+ CCU) has not been performed in production. Synthetic smoke tests validate functional correctness only.',
-        recommendation: 'Execute distributed load test prior to aggressive paid marketing spend.'
-      }
-    ].map((row) => ({
-      store_id: storeId,
-      ...row,
-      executed_by: req.auth?.userId || null,
-      executed_at: measuredAt,
-      evidence: {
-        runKey,
-        source: 'runtime_system',
+        recommendation: 'Execute distributed load test prior to aggressive paid marketing spend.',
+        source_classification: 'RUNTIME_OBSERVED',
         source_type: 'system_probes',
-        calculation_version: 'pl20-01-v1',
-        measured_at: measuredAt,
-        measured_state: isDbConnected && isSecurityActive ? 'MEASURED' : 'PARTIAL',
-        isDbConnected,
-        isSecurityActive,
-        timestamp: measuredAt
+        validated_commit_sha: currentCommitSha
       },
-      metadata: {
-        source: 'api_final_scale_technical_assessment_run',
-        source_type: 'api',
-        calculation_version: 'pl20-01-v1',
-        measured_at: measuredAt,
-        measured_state: isDbConnected && isSecurityActive ? 'MEASURED' : 'PARTIAL'
-      },
-      updated_at: measuredAt
-    }));
+      // 4. CI_EVIDENCE: Automated Release Gate
+      (() => {
+        const dim = getCiDim('release_gate') || getCiDim('technical_release_gate');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_release_gate',
+          area: 'quality',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Automated release gate verified for commit ${validatedSha || 'unknown'}.`
+            : 'Automated release gate evidence not ingested or not measured for this deployment. Runtime cannot fabricate CI verification.',
+          recommendation: 'Enforce green quality gate on every pull request prior to deployment.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'ci_pipeline',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 5. CI_EVIDENCE: Production Smoke
+      (() => {
+        const dim = getCiDim('production_smoke') || getCiDim('technical_production_smoke');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_production_smoke',
+          area: 'production',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Production smoke verified against deployed endpoint for commit ${validatedSha || 'unknown'}.`
+            : 'Production smoke evidence not ingested or not measured. Runtime cannot fabricate production smoke proof.',
+          recommendation: 'Execute automated post-deployment smoke verification upon every deployment.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'smoke_suite',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 6. CI_EVIDENCE: Build Status
+      (() => {
+        const dim = getCiDim('build') || getCiDim('technical_build');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_build',
+          area: 'build',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Client and server production build artifacts verified for commit ${validatedSha || 'unknown'}.`
+            : 'Build verification evidence not ingested. Runtime cannot fabricate build pass.',
+          recommendation: 'Ensure clean build execution in CI prior to deployment.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'build_system',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 7. CI_EVIDENCE: Unit / API Tests
+      (() => {
+        const dim = getCiDim('unit_tests') || getCiDim('technical_unit_tests');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_unit_tests',
+          area: 'quality',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Automated unit and API test suite passed for commit ${validatedSha || 'unknown'}.`
+            : 'Unit/API test execution evidence not ingested. Runtime cannot fabricate test execution truth.',
+          recommendation: 'Run full unit/API test suite on all branches and release candidates.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'test_runner',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 8. CI_EVIDENCE: E2E Playwright Tests
+      (() => {
+        const dim = getCiDim('e2e') || getCiDim('technical_e2e');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_e2e',
+          area: 'quality',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Playwright browser E2E test suite passed for commit ${validatedSha || 'unknown'}.`
+            : 'E2E browser test evidence not ingested. Runtime cannot fabricate browser test execution.',
+          recommendation: 'Execute full Playwright E2E suite on staging/preview before production promotion.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'e2e_runner',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 9. CI_EVIDENCE: Secret Scan
+      (() => {
+        const dim = getCiDim('secret_scan') || getCiDim('technical_secret_scan');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_secret_scan',
+          area: 'security',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? `Repository secret scan verified clean for commit ${validatedSha || 'unknown'}.`
+            : 'Secret scan evidence not ingested. Runtime cannot fabricate secret scan cleanliness.',
+          recommendation: 'Run secret scanner on pre-commit and CI gates.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'security_scanner',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 10. PERSISTED_EVIDENCE: Database Schema Reproducibility
+      (() => {
+        const dim = getCiDim('database_reproducibility') || getCiDim('technical_database_reproducibility');
+        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
+        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        return {
+          assessment_key: 'technical_database_reproducibility',
+          area: 'database',
+          status,
+          score: null,
+          finding: status === 'pass'
+            ? 'Supabase remote schema baseline synchronized and reproducible via version-controlled migration.'
+            : 'Database schema reproducibility evidence not ingested. Runtime cannot fabricate baseline migration verification.',
+          recommendation: 'Maintain strictly incremental schema migrations for all future changes.',
+          source_classification: 'PERSISTED_EVIDENCE',
+          source_type: 'migration_history',
+          validated_commit_sha: validatedSha
+        };
+      })(),
+      // 11. CI_EVIDENCE: Security Blockers
+      (() => {
+        const dim = getCiDim('security_blockers') || getCiDim('technical_security_blockers');
+        const openCount = dim?.open_count !== undefined ? Number(dim.open_count) : 0;
+        const status = openCount === 0 ? 'pass' : 'fail';
+        return {
+          assessment_key: 'technical_security_blockers',
+          area: 'security',
+          status,
+          score: null,
+          finding: openCount === 0
+            ? 'Zero critical P0/P1 security blockers open.'
+            : `${openCount} critical security blockers unresolved.`,
+          recommendation: 'Remediate critical security findings before scaling production traffic.',
+          source_classification: 'CI_EVIDENCE',
+          source_type: 'security_audit',
+          validated_commit_sha: currentCommitSha,
+          open_count: openCount
+        };
+      })()
+    ].map((row) => {
+      const rowStatus = String(row.status || 'not_measured').toLowerCase();
+      const isMeasured = ['pass', 'fail', 'warning'].includes(rowStatus);
+      const rowMeasuredState = isMeasured ? 'MEASURED' : 'NOT_MEASURED';
+      const validatedCommitSha = (row as any).validated_commit_sha || null;
+
+      return {
+        store_id: storeId,
+        assessment_key: row.assessment_key,
+        area: row.area,
+        status: row.status,
+        score: null,
+        finding: row.finding,
+        recommendation: row.recommendation,
+        executed_by: req.auth?.userId || null,
+        executed_at: measuredAt,
+        evidence: {
+          runKey,
+          source: row.source_classification || 'system_probes',
+          source_classification: row.source_classification || 'RUNTIME_OBSERVED',
+          source_type: row.source_type || 'system_probes',
+          calculation_version: 'pl20-02-v1',
+          calculationVersion: 'pl20-02-v1',
+          measured_at: measuredAt,
+          measured_state: rowMeasuredState,
+          validated_commit_sha: validatedCommitSha,
+          open_count: (row as any).open_count,
+          isDbConnected,
+          isSecurityActive,
+          timestamp: measuredAt
+        },
+        metadata: {
+          source: 'api_final_scale_technical_assessment_run',
+          source_type: 'api',
+          source_classification: row.source_classification || 'RUNTIME_OBSERVED',
+          calculation_version: 'pl20-02-v1',
+          measured_at: measuredAt,
+          measured_state: rowMeasuredState,
+          validated_commit_sha: validatedCommitSha,
+          open_count: (row as any).open_count
+        },
+        updated_at: measuredAt
+      };
+    });
 
     const data = await runFinalScaleUpsert('final_technical_assessments', rows, 'store_id,assessment_key');
     await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_technical_assessment_run', entityType: 'final_technical_assessments', metadata: { count: data.length, runKey } });
@@ -7756,20 +8032,44 @@ app.post(
     }
 
     const measuredAt = new Date().toISOString();
+    const rawMetrics = {
+      totalOrders,
+      paidCount,
+      grossPaidRevenue,
+      refundedAmount,
+      netPaidRevenue,
+      aov
+    };
+
+    const caveats = [
+      paidCount < 100
+        ? `Low commercial volume (${paidCount} paid orders); multi-quarter cohort retention and repeat purchase behavior remain unproven at scale.`
+        : 'Production commercial volume measured.',
+      ...(hasOrderAnomaly ? ['Reconciliation anomaly detected: canceled orders contain paid financial indicators.'] : [])
+    ];
+
     const evidencePayload = {
       runKey,
       source: 'orders',
       source_type: 'database_table',
       sourceTable: 'orders',
-      calculation_version: 'pl20-01-v1',
-      calculationVersion: 'pl20-01-v1',
+      calculation_version: 'pl20-02-v1',
+      calculationVersion: 'pl20-02-v1',
       measured_at: measuredAt,
       measuredAt,
       measured_state: commercialMeasuredState,
       measuredState: commercialMeasuredState,
+      freshness_threshold: 86400,
+      freshnessThresholdSeconds: 86400,
+      measurement_window: 'all_time',
+      measurement_window_start: 'all_time',
+      measurement_window_end: 'all_time',
       windowStart: 'all_time',
       windowEnd: 'all_time',
       paidLikeDefinition: 'paid_at IS NOT NULL OR financial_status IN (paid,reconciled) OR status IN (pagado,empacado,enviado,entregado,partially_refunded) EXCLUDING canceled/failed statuses',
+      raw_metrics: rawMetrics,
+      rawMetrics,
+      caveats,
       totalOrders,
       paidCount,
       grossPaidRevenue,
@@ -7829,9 +8129,10 @@ app.post(
       metadata: {
         source: 'api_final_scale_commercial_assessment_run',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
-        measured_state: commercialMeasuredState
+        measured_state: commercialMeasuredState,
+        caveats
       },
       updated_at: measuredAt
     }));
@@ -7890,7 +8191,7 @@ app.post(
       metadata: {
         source: 'api_final_scale_risk_matrix_run',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
         measured_state: 'MEASURED',
         runKey
@@ -7952,7 +8253,7 @@ app.post(
       metadata: {
         source: 'api_final_scale_technical_debt_run',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
         measured_state: 'MEASURED',
         runKey
@@ -8042,18 +8343,28 @@ app.post(
       metadata: {
         source: 'api_final_scale_operating_costs_run',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
         measured_state,
         has_explicit_estimates: fieldsProvided.length > 0,
-        breakdown_available: totalEstimate > 0
+        breakdown_available: totalEstimate > 0,
+        actual_or_estimated: 'estimated',
+        provided_by: req.auth?.userId || null,
+        period,
+        currency,
+        providers: {
+          railway: { provider: 'Railway', amount: railway, actual_or_estimated: 'estimated', provided: fieldsProvided.includes(rawEstimates[0].val) },
+          supabase: { provider: 'Supabase', amount: supabaseCost, actual_or_estimated: 'estimated', provided: fieldsProvided.includes(rawEstimates[1].val) },
+          stripe: { provider: 'Stripe', amount: stripeCost, actual_or_estimated: 'estimated', provided: fieldsProvided.includes(rawEstimates[2].val) },
+          email: { provider: 'Resend', amount: emailCost, actual_or_estimated: 'estimated', provided: fieldsProvided.includes(rawEstimates[3].val) }
+        }
       },
       updated_at: measuredAt
     };
 
     const data = await runFinalScaleUpsert('operating_cost_summaries', [payload], 'store_id,period,cost_key');
     await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_operating_costs_run', entityType: 'operating_cost_summaries', entityId: data[0]?.id, metadata: { period, costKey, totalEstimate, measured_state } });
-    res.json({ status: 'ok', costs: data });
+    res.json({ status: 'ok', costs: data, cost: data[0] });
   }));
 
   app.get('/api/admin/final-scale/capacity', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
@@ -8073,50 +8384,79 @@ app.post(
 
     const memUsageMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
     const measuredAt = new Date().toISOString();
+    const loadTestPayload = req.body?.loadTest || req.body?.load_test || null;
+    const hasLoadTestPayload = Boolean(loadTestPayload && typeof loadTestPayload === 'object');
+    const loadTestStatus = hasLoadTestPayload ? String(loadTestPayload.status || 'measured').toLowerCase() : 'not_measured';
 
     const rows = [
       {
         capacity_key: 'railway_runtime_capacity',
         area: 'railway',
+        semantic_dimension: 'runtime_health',
         status: 'warning',
         score: null,
-        current_capacity: `Single-container Node runtime (RSS: ${memUsageMb}MB). Single-process observation, not multi-user load proof.`,
+        current_capacity: `Single-container Node runtime telemetry (RSS: ${memUsageMb}MB). Telemetry reflects single-process health, not multi-user scale capacity.`,
         scale_limit: 'Requires autoscaling and replica configuration for sustained traffic surges.',
-        recommendation: 'Monitor Railway CPU/memory utilization and configure scaling triggers.'
+        recommendation: 'Monitor Railway CPU/memory utilization and configure scaling triggers.',
+        is_scale_capacity: false,
+        source_type: 'runtime_telemetry'
       },
       {
         capacity_key: 'supabase_database_capacity',
         area: 'supabase',
+        semantic_dimension: 'database_runtime_health',
         status: 'warning',
         score: null,
-        current_capacity: 'Postgres database connection pool active with baseline indexing and RLS. Saturation under concurrent peak unmeasured.',
+        current_capacity: 'Postgres database connection pool active. Connection health is operational, but database pressure and connection saturation under concurrent peak load remain unmeasured.',
         scale_limit: 'Direct connection pool limit requires connection pooling under high concurrency.',
-        recommendation: 'Monitor connection usage and query latency via Supabase metrics.'
+        recommendation: 'Monitor connection usage and query latency via Supabase metrics.',
+        is_scale_capacity: false,
+        source_type: 'runtime_telemetry'
       },
       {
         capacity_key: 'synthetic_vs_load_testing',
         area: 'load_testing',
-        status: 'not_measured',
+        semantic_dimension: 'capacity.load_test',
+        status: loadTestStatus,
         score: null,
-        current_capacity: 'Synthetic smoke checks pass; real multi-user concurrent load test NOT performed.',
-        scale_limit: 'Unknown multi-user saturation threshold under heavy checkout load.',
-        recommendation: 'Execute simulated load testing (100-500 CCU with k6) prior to high-volume campaigns.'
+        current_capacity: hasLoadTestPayload
+          ? `Load test executed: ${loadTestPayload.concurrent_users || 'unknown'} CCU, p95 latency: ${loadTestPayload.p95_latency_ms || 'unknown'}ms.`
+          : 'Synthetic smoke checks pass; real multi-user concurrent load test NOT performed.',
+        scale_limit: hasLoadTestPayload
+          ? `Validated threshold: ${loadTestPayload.concurrent_users || 'unknown'} CCU.`
+          : 'Unknown multi-user saturation threshold under heavy checkout load.',
+        recommendation: 'Execute simulated load testing (100-500 CCU with k6) prior to high-volume campaigns.',
+        is_scale_capacity: true,
+        source_type: 'load_testing_tool',
+        load_test_evidence: loadTestPayload
       }
     ].map((row) => {
-      const rowMeasuredState = row.status === 'not_measured' ? 'NOT_MEASURED' : 'MEASURED';
+      const rowStatus = String(row.status || 'not_measured').toLowerCase();
+      const isMeasured = ['pass', 'measured'].includes(rowStatus);
+      const rowMeasuredState = isMeasured ? 'MEASURED' : (rowStatus === 'warning' ? 'PARTIAL' : 'NOT_MEASURED');
+
       return {
         store_id: storeId,
-        ...row,
+        capacity_key: row.capacity_key,
+        area: row.area,
+        status: row.status,
+        score: null,
+        current_capacity: row.current_capacity,
+        scale_limit: row.scale_limit,
+        recommendation: row.recommendation,
         measured_by: req.auth?.userId || null,
         measured_at: measuredAt,
         metadata: {
           source: 'api_final_scale_capacity_run',
-          source_type: 'api',
-          calculation_version: 'pl20-01-v1',
+          source_type: row.source_type,
+          semantic_dimension: row.semantic_dimension,
+          is_scale_capacity: row.is_scale_capacity,
+          calculation_version: 'pl20-02-v1',
           measured_at: measuredAt,
           measured_state: rowMeasuredState,
           runKey,
-          memUsageMb
+          memUsageMb,
+          load_test_evidence: (row as any).load_test_evidence || null
         },
         updated_at: measuredAt
       };
@@ -8124,7 +8464,7 @@ app.post(
 
     const data = await runFinalScaleUpsert('scale_capacity_assessments', rows, 'store_id,capacity_key');
     await writeAuditLog({ actorUserId: req.auth?.userId, action: 'final_scale_capacity_run', entityType: 'scale_capacity_assessments', metadata: { count: data.length, runKey } });
-    res.json({ status: 'ok', capacity: data });
+    res.json({ status: 'ok', capacity: data, assessments: data });
   }));
 
   app.get('/api/admin/final-scale/strategic-roadmap', requireAuth(), requireAdmin(), asyncHandler(async (_req: any, res) => {
@@ -8165,7 +8505,7 @@ app.post(
       metadata: {
         source: 'api_final_scale_strategic_roadmap',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
         measured_state: 'MEASURED',
         ...(req.body?.metadata || {})
@@ -8215,7 +8555,7 @@ app.post(
       metadata: {
         source: 'api_final_scale_decision',
         source_type: 'api',
-        calculation_version: 'pl20-01-v1',
+        calculation_version: 'pl20-02-v1',
         measured_at: measuredAt,
         measured_state: 'MEASURED',
         ...(req.body?.metadata || {})
@@ -8246,7 +8586,7 @@ app.post(
         status: 'pass',
         score: null,
         requirement: 'Technical architecture, automated quality gates, and deployment runbooks documented.',
-        evidence: 'CI quality gates established, 20/20 E2E tests, 66/66 unit/API tests, remote baseline migration synchronized.',
+        evidence: 'Automated CI quality gates established, unit/API and Playwright browser E2E suites passing in pipeline, remote baseline migration synchronized.',
         recommendation: 'Maintain technical documentation and runbooks updated with each release milestone.'
       },
       {
@@ -8286,7 +8626,7 @@ app.post(
         metadata: {
           source: 'api_final_scale_investor_readiness_run',
           source_type: 'api',
-          calculation_version: 'pl20-01-v1',
+          calculation_version: 'pl20-02-v1',
           measured_at: measuredAt,
           measured_state: rowMeasuredState,
           runKey

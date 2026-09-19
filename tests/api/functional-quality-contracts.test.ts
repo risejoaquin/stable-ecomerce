@@ -571,7 +571,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       // Evidence provenance checks
       expect(perf.evidence).toMatchObject({
         sourceTable: 'orders',
-        calculationVersion: 'pl20-01-v1',
+        calculationVersion: 'pl20-02-v1',
         measured_state: 'MEASURED',
         windowStart: 'all_time',
         windowEnd: 'all_time',
@@ -935,6 +935,433 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       // Only the v1 row is active; legacy row is excluded and counted in historicalBaselineRows
       expect(res.body.summary.technicalAssessments).toBe(1);
       expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // POST-LAUNCH 20: PL20-02 Measurement Snapshot & Technical Evidence Integrity
+  // --------------------------------------------------------------------------
+  describe('POST-LAUNCH 20 — PL20-02 Measurement Snapshot & Technical Evidence Integrity', () => {
+    const adminToken = authToken('admin');
+    const targetCommit = 'pl20-target-sha-abcdef123456';
+
+    const createPassingCiEvidence = (commitSha: string) => {
+      const keys = [
+        'technical_release_gate',
+        'technical_production_smoke',
+        'technical_build',
+        'technical_unit_tests',
+        'technical_e2e',
+        'technical_secret_scan',
+        'technical_database_reproducibility'
+      ];
+      const measuredAt = new Date().toISOString();
+      return keys.map((k, idx) => ({
+        id: `ci-tech-${idx + 1}`,
+        assessment_key: k,
+        status: 'pass',
+        score: null,
+        metadata: {
+          source: 'github_actions_ci',
+          source_type: 'ci_pipeline',
+          source_classification: 'CI_EVIDENCE',
+          calculation_version: 'pl20-02-v1',
+          measured_at: measuredAt,
+          measured_state: 'MEASURED',
+          validated_commit_sha: commitSha
+        },
+        evidence: {
+          validated_commit_sha: commitSha,
+          source_classification: 'CI_EVIDENCE'
+        }
+      }));
+    };
+
+    it('1. runtime cannot fabricate CI PASS (calling technical assessment without CI evidence marks CI dimensions NOT_MEASURED)', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const ciKeys = [
+        'technical_release_gate',
+        'technical_production_smoke',
+        'technical_build',
+        'technical_unit_tests',
+        'technical_e2e',
+        'technical_secret_scan',
+        'technical_database_reproducibility'
+      ];
+
+      for (const ciKey of ciKeys) {
+        const item = res.body.assessments.find((a: any) => a.assessment_key === ciKey);
+        expect(item).toBeDefined();
+        expect(item.status).toBe('not_measured');
+        const expectedClassification = ciKey === 'technical_database_reproducibility' ? 'PERSISTED_EVIDENCE' : 'CI_EVIDENCE';
+        expect(item.metadata.source_classification).toBe(expectedClassification);
+        expect(item.metadata.validated_commit_sha).toBeNull();
+      }
+
+      // Runtime dimensions are classified as RUNTIME_OBSERVED
+      const dbItem = res.body.assessments.find((a: any) => a.assessment_key === 'runtime_database_connectivity');
+      expect(dbItem).toBeDefined();
+      expect(dbItem.metadata.source_classification).toBe('RUNTIME_OBSERVED');
+    });
+
+    it('2. missing CI evidence => technicalRequiredPass false', async () => {
+      // Setup mock where CI dimensions are missing from technical assessments
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'rt-1',
+          assessment_key: 'runtime_database_connectivity',
+          status: 'pass',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_technical_assessment_run',
+            source_type: 'api',
+            source_classification: 'RUNTIME_OBSERVED',
+            calculation_version: 'pl20-02-v1',
+            measured_at: new Date().toISOString(),
+            measured_state: 'MEASURED'
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalEvidenceComplete).toBe(false);
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+
+    it('3. stale commit evidence => technicalRequiredPass false', async () => {
+      // Evidence validated for an older commit
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence('older-commit-sha-99999');
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.release_gate.status).toBe('STALE');
+      expect(rules.technicalDimensions.build.status).toBe('STALE');
+      expect(rules.technicalEvidenceCurrent).toBe(false);
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('4. failed release gate => technicalRequiredPass false', async () => {
+      const evidence = createPassingCiEvidence(targetCommit);
+      const gateItem = evidence.find(e => e.assessment_key === 'technical_release_gate')!;
+      gateItem.status = 'fail';
+
+      customMockTableRows['final_technical_assessments'] = evidence;
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.release_gate.status).toBe('FAIL');
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('5. missing production smoke => technicalRequiredPass false', async () => {
+      // All CI items present except production smoke
+      const evidence = createPassingCiEvidence(targetCommit).filter(e => e.assessment_key !== 'technical_production_smoke');
+      customMockTableRows['final_technical_assessments'] = evidence;
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.production_smoke.status).toBe('NOT_MEASURED');
+      expect(rules.technicalEvidenceComplete).toBe(false);
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('6. required technical evidence all current and pass => technicalRequiredPass true', async () => {
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalEvidenceComplete).toBe(true);
+      expect(rules.technicalEvidenceCurrent).toBe(true);
+      expect(rules.technicalRequiredPass).toBe(true);
+    });
+
+    it('7. runtime RSS does not satisfy capacity load evidence', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/capacity/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-capacity-runtime-rss' });
+      expect(res.status).toBe(200);
+
+      const rssItem = res.body.assessments.find((a: any) => a.capacity_key === 'railway_runtime_capacity');
+      expect(rssItem).toBeDefined();
+      expect(rssItem.metadata.semantic_dimension).toBe('runtime_health');
+      expect(rssItem.metadata.is_scale_capacity).toBe(false);
+    });
+
+    it('8. DB connectivity does not satisfy load capacity', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/capacity/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-capacity-db-conn' });
+      expect(res.status).toBe(200);
+
+      const dbItem = res.body.assessments.find((a: any) => a.capacity_key === 'supabase_database_capacity');
+      expect(dbItem).toBeDefined();
+      expect(dbItem.metadata.semantic_dimension).toBe('database_runtime_health');
+      expect(dbItem.metadata.is_scale_capacity).toBe(false);
+
+      // Verify that in summary, runtime DB health does not satisfy load capacity
+      customMockTableRows['scale_capacity_assessments'] = [dbItem];
+      const summaryRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
+    });
+
+    it('9. commercial metrics retain exact provenance and no PII', async () => {
+      customMockOrders = [
+        { id: 'o-pii-1', store_id: 'qa-store-id', customer_email: 'secret@buyer.com', paid_at: '2026-09-17T00:00:00Z', total: 100, refunded_amount: 0, status: 'pagado' }
+      ];
+
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-provenance-no-pii' });
+      expect(res.status).toBe(200);
+
+      const perf = res.body.assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(perf).toBeDefined();
+      expect(perf.metadata).toMatchObject({
+        source: 'api_final_scale_commercial_assessment_run',
+        source_type: 'api',
+        calculation_version: 'pl20-02-v1',
+        measured_state: 'MEASURED'
+      });
+      expect(perf.evidence).toMatchObject({
+        measurement_window: 'all_time',
+        freshness_threshold: 86400,
+        raw_metrics: expect.objectContaining({ totalOrders: 1, paidCount: 1, grossPaidRevenue: 100 })
+      });
+      expect(Array.isArray(perf.evidence.caveats)).toBe(true);
+
+      // PII leak audit
+      const serialized = JSON.stringify(res.body);
+      expect(serialized).not.toContain('secret@buyer.com');
+    });
+
+    it('10. commercial low volume remains measured + warning track record', async () => {
+      customMockOrders = [
+        { id: 'o-low-1', store_id: 'qa-store-id', paid_at: '2026-09-17T00:00:00Z', total: 50, refunded_amount: 0, status: 'pagado' }
+      ];
+
+      const res = await request(app)
+        .post('/api/admin/final-scale/commercial-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ runKey: 'test-low-vol' });
+      expect(res.status).toBe(200);
+
+      const perf = res.body.assessments.find((a: any) => a.assessment_key === 'commercial_volume_performance');
+      expect(perf.status).toBe('measured');
+      expect(perf.score).toBeNull();
+      expect(perf.evidence.caveats[0]).toContain('Low commercial volume');
+    });
+
+    it('11. partial provider costs remain insufficient', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ period: '2026-09', railwayEstimate: 15, supabaseEstimate: 25 });
+      expect(res.status).toBe(200);
+      expect(res.body.cost.metadata.measured_state).toBe('PARTIAL');
+
+      customMockTableRows['operating_cost_summaries'] = [res.body.cost];
+      const summaryRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(false);
+    });
+
+    it('12. legacy static rows remain excluded', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['strategic_risk_matrix'] = [
+        {
+          id: 'v1-risk',
+          risk_key: 'known_risk',
+          severity: 'low',
+          status: 'open',
+          metadata: {
+            source: 'api_final_scale_risk_matrix_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        },
+        {
+          id: 'legacy-risk',
+          risk_key: 'legacy_seed_risk',
+          severity: 'critical',
+          status: 'open',
+          metadata: { source: 'PL20 seed script' }
+        }
+      ];
+
+      const res = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.risks).toBe(1);
+      expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(1);
+      expect(res.body.summary.evaluationRules.hasCriticalRisk).toBe(false);
+    });
+
+    it('13. finalScaleReady remains false while capacity is not measured', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
+      customMockTableRows['final_commercial_assessments'] = [
+        {
+          id: 'comm-1',
+          assessment_key: 'commercial_volume_performance',
+          status: 'measured',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_commercial_assessment_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        }
+      ];
+      customMockTableRows['operating_cost_summaries'] = [
+        {
+          id: 'cost-1',
+          cost_key: 'monthly_operating_cost_baseline',
+          metadata: {
+            source: 'api_final_scale_operating_costs_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        }
+      ];
+      // Capacity is ordinary runtime health, NOT scale capacity
+      customMockTableRows['scale_capacity_assessments'] = [
+        {
+          id: 'cap-1',
+          capacity_key: 'railway_runtime_capacity',
+          status: 'pass',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_capacity_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            semantic_dimension: 'runtime_health',
+            is_scale_capacity: false
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalRequiredPass).toBe(true);
+      expect(rules.isCommercialMeasured).toBe(true);
+      expect(rules.isCostEvidenceMeasured).toBe(true);
+      expect(rules.isCapacityLoadMeasured).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+
+    it('14. finalScaleReady remains false while costs are not measured', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
+      customMockTableRows['final_commercial_assessments'] = [
+        {
+          id: 'comm-1',
+          assessment_key: 'commercial_volume_performance',
+          status: 'measured',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_commercial_assessment_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        }
+      ];
+      // Capacity has verified load test evidence
+      customMockTableRows['scale_capacity_assessments'] = [
+        {
+          id: 'cap-scale-1',
+          capacity_key: 'synthetic_vs_load_testing',
+          status: 'measured',
+          score: null,
+          metadata: {
+            source: 'load_test_runner',
+            source_type: 'automated_runner',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            semantic_dimension: 'capacity.load_test',
+            is_scale_capacity: true,
+            load_test_evidence: {
+              concurrent_users: 50,
+              p95_latency_ms: 320
+            }
+          }
+        }
+      ];
+      // Costs are NOT_MEASURED
+      customMockTableRows['operating_cost_summaries'] = [
+        {
+          id: 'cost-unmeasured-1',
+          cost_key: 'monthly_operating_cost_baseline',
+          metadata: {
+            source: 'api_final_scale_operating_costs_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'NOT_MEASURED'
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalRequiredPass).toBe(true);
+      expect(rules.isCommercialMeasured).toBe(true);
+      expect(rules.isCapacityLoadMeasured).toBe(true);
+      expect(rules.isCostEvidenceMeasured).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });
 });
