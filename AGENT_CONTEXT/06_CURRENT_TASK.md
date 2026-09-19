@@ -1,20 +1,18 @@
 # CURRENT TASK
 
-TASK ID: PL20-03D-REMOTE-CAPACITY-READINESS-ASSESSMENT
+TASK ID: PL20-03D-REMOTE-CAPACITY-READINESS-ASSESSMENT-HOTFIX
 PHASE: POST-LAUNCH 20
 STATUS: READY_FOR_CHATGPT_WEB_VALIDATION (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03 ACTIVE; PL20-03D COMPLETE; PL21 NOT STARTED; finalScaleReady EXPECTED FALSE)
 
 ## Objective
 
-Assess readiness for a safe isolated remote/staging capacity baseline:
-1. **Remote Environment Discovery (Task 1):** Inspected Railway (`heroic-solace`), Supabase (`dporfgsbwsyqzmlnqrug`), and GitHub Actions. Confirmed ONLY production environments exist (no Railway preview, no Railway staging, no secondary Supabase project).
-2. **Environment Classification (Task 2):** Target `https://selfcaresinners.com` is `PRODUCTION`. Staging/preview is unprovisioned (`UNKNOWN` / non-existent).
-3. **Backend Isolation (Task 3):** Any ephemeral preview without dedicated sandbox credentials would use production Supabase/Stripe/Resend (`PREVIEW_USES_PRODUCTION_BACKEND` -> disqualified).
-4. **SAFE_READ Verification (Task 4):** Zero remote k6 tests executed. No non-production target exists for manual GET inspection.
-5. **Observability Assessment (Tasks 5-6):** Evaluated Railway CLI metrics (`cpu`, `memory`, `http`, `deployments`, `replicas`) and documented Supabase Free tier metric constraints.
-6. **Staging Proposals & Stop Conditions (Tasks 7-8):** Proposed candidate values (1 VU, 30s, 1s sleep) and hard abort stop conditions for any future isolated staging test.
-7. **Cost Integrity (Task 9):** Preserved cost facts (Railway `PARTIAL`, Supabase `MEASURED/free tier`, Stripe `PARTIAL`, Resend `MEASURED/free tier`, `COST_MEASURED = false`).
-8. **Recommendation (Task 10):** `NO_ISOLATED_REMOTE_ENVIRONMENT`.
+Harden evidence integrity and assumptions in the PL20-03D remote capacity readiness assessment:
+1. **Removed Unsourced Numeric Thresholds (Task 1):** Removed arbitrary numeric stop thresholds for HTTP error rate, CPU saturation, and memory saturation. Replaced with qualitative stop conditions (unexpected/systemic 5xx, unhandled 500, crash/restart, material CPU saturation, material memory pressure, DB connection refusal, unexpected mutation, provider side effect, customer impact). Marked numeric thresholds: `PENDING_REMOTE_BASELINE_OR_SLO_APPROVAL`.
+2. **Restored Stripe Fact (Task 2):** Restored exact operator fact: approximately 2.9% + conditional 6 MXN in some cases. Actual period fee total remains unknown. Stripe remains `PARTIAL` with `amount = null`.
+3. **Preserved Core Findings (Task 3):** Preserved `NO_ISOLATED_REMOTE_ENVIRONMENT`. Railway is production only. Supabase is production only. Zero staging, zero preview, zero remote load executed.
+4. **Cleaned Qualitative Wording (Task 4):** Cleaned Supabase connection limits to qualitative descriptions without presenting approximate provider numbers as authoritative PL20 capacity thresholds.
+5. **Durable Operating Costs (Task 5):** Railway = `PARTIAL`, Supabase = `MEASURED/free tier`, Stripe = `PARTIAL`, Resend = `MEASURED/free tier`, `COST_MEASURED = false`.
+6. **Code & Platform Immutability:** No changes to `server.ts`, tests, k6 harness, workflows, Supabase, Railway, Stripe, or Resend.
 
 ## Files modified
 
@@ -26,8 +24,9 @@ Assess readiness for a safe isolated remote/staging capacity baseline:
 
 ## Verification Summary
 
-- Remote Environment Inventory: Verified (only `production` exists)
-- Remote Infrastructure Changes: 0 (read-only discovery)
-- Load Test Runs: 0 (strictly prohibited & enforced)
-- Recommendation State: `NO_ISOLATED_REMOTE_ENVIRONMENT`
+- Unsourced Numeric Thresholds: Removed (marked `PENDING_REMOTE_BASELINE_OR_SLO_APPROVAL`)
+- Stripe Operating Fact: Restored ("approximately 2.9% + conditional 6 MXN in some cases", `amount = null`)
+- Remote Recommendation State: Preserved (`NO_ISOLATED_REMOTE_ENVIRONMENT`)
+- Remote Infrastructure Changes: 0
+- Remote Load Tests: 0
 - `finalScaleReady`: Strictly `false`

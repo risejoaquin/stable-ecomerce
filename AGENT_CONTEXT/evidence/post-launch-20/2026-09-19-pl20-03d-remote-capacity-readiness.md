@@ -135,7 +135,7 @@ Inspected capabilities of Railway platform and CLI (`railway metrics --json`):
 
 | Metric / Dimension | Availability on Supabase Free Tier | Observation Method | Limitation / Fact |
 |---|---|---|---|
-| **Connection Count / Pool Pressure** | Partial / Dashboard only | Supabase Dashboard "Database Health" | Free tier has strict connection limits (~60 direct). No automated CLI metric scraping without custom SQL on `pg_stat_activity`. |
+| **Connection Count / Pool Pressure** | Partial / Dashboard only | Supabase Dashboard "Database Health" | Free tier enforces direct connection ceilings and pooler limits; automated CLI metric scraping without custom SQL on `pg_stat_activity` is unavailable. Approximate provider limits are not treated as authoritative PL20 capacity thresholds. |
 | **Query Latency** | Partial | App-level probe (`/api/readiness`) & Dashboard Reports | `/api/readiness` measures ping latency (`latencyMs`). Deep latency trends require Pro plan or `pg_stat_statements`. |
 | **Slow Queries** | Partial | Supabase Dashboard Reports | Dashboard shows top slow queries; no real-time webhook or alerting on Free tier. |
 | **Pool Behavior (Supavisor)** | Partial | Dashboard Pooler tab | PgBouncer/Supavisor stats visible in web UI only. |
@@ -156,18 +156,22 @@ Inspected capabilities of Railway platform and CLI (`railway metrics --json`):
 
 ---
 
-## 9. Task 8: Hard Abort Stop Conditions
+## 9. Task 8: Qualitative Hard Abort Stop Conditions
 
-If a remote capacity test is authorized in the future on an isolated target, execution must abort immediately upon any of the following:
+If a remote capacity test is authorized in the future on an isolated target, execution must abort immediately upon any of the following qualitative stop conditions:
 
-1. **HTTP 5xx Spike:** Any systemic 5xx on non-readiness routes (> 1% error rate) or any unhandled 500 error.
-2. **App Container Restart:** Any container crash, exit, or deployment restart (`replicas.crashed > 0`).
-3. **CPU Saturation:** Container CPU utilization > 80% (sustained > 2.4 vCPU).
-4. **Memory Saturation:** Container memory utilization > 85% (> 3.4 GB) or sustained steep upward trajectory.
-5. **Database Connection Errors:** Any `remaining connection slots are reserved`, connection pool exhaustion, or DB timeout.
-6. **Unexpected Data Mutation:** Any database insert, update, or delete during the test window.
-7. **External Provider Calls:** Any outbound call to Stripe API (`api.stripe.com`) or Resend API (`api.resend.com`).
-8. **Customer Impact:** Any degradation of production traffic or customer-facing operations.
+- **Unexpected or Systemic 5xx:** Any unexpected or systemic 5xx error on test endpoints.
+- **Unhandled 500:** Any unhandled 500 Internal Server Error or application exception.
+- **Container Crash / Restart:** Any container exit, crash, or deployment restart event.
+- **Material CPU Saturation:** Material CPU saturation or sustained saturation indication on the host container.
+- **Material Memory Pressure:** Material memory pressure or sustained upward trajectory indicating memory accumulation.
+- **Database Connection Refusal / Exhaustion:** Any database connection refusal, pool exhaustion, or database timeout.
+- **Unexpected Data Mutation:** Any unexpected database insert, update, or delete during the test window.
+- **Provider Side Effect:** Any outbound provider call, webhook dispatch, or external integration trigger (Stripe, Resend).
+- **Customer Impact:** Any observable impact on customer-facing operations or production traffic.
+
+> **Status of Numeric Thresholds:** `PENDING_REMOTE_BASELINE_OR_SLO_APPROVAL`.
+> Numeric thresholds (e.g. error rate percentages, CPU/memory percentage limits) were not derived from approved baseline evidence, documented product SLOs, provider-plan limits, or official operational guidance, and are therefore strictly excluded from serving as normative stop thresholds. Do not invent replacements.
 
 ---
 
@@ -179,9 +183,12 @@ Facts regarding operating cost dimensions are strictly preserved:
 |---|---|---|---|
 | **Railway** | 192 MXN across account | `PARTIAL` (shared account across 4 services, unallocated) | Attributable amount is `null` |
 | **Supabase** | 0 MXN | `MEASURED` (current Free tier) | 0 MXN |
-| **Stripe** | ~2.9% + 3 MXN per transaction | `PARTIAL` (variable fees only, 0 MXN fixed) | Attributable amount is `null` |
+| **Stripe** | approximately 2.9% + conditional 6 MXN in some cases | `PARTIAL` (actual period fee total unknown; amount = null) | Attributable amount is `null` |
 | **Resend** | 0 MXN | `MEASURED` (current Free tier) | 0 MXN |
 | **`COST_MEASURED`** | **`false`** | Strictly preserved | `total_estimate` is `null` |
+
+> **Stripe Cost Fact & Governance:**
+> The actual current operator fact is: approximately 2.9% + conditional 6 MXN in some cases. The actual period fee total remains unknown. Stripe remains `PARTIAL` with `amount = null`. Do NOT calculate fees from the fee schedule.
 
 ---
 
