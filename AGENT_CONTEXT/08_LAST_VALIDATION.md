@@ -1,28 +1,31 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-19T14:26:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03C Local Capacity Baseline Reproducibility Hotfix)
+**Timestamp:** 2026-09-19T16:07:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03D Remote Capacity Readiness Assessment)
 **Branch:** `main`
-**Base Commit:** `74c693fa285d01c37781b2251f0cf2aff0d67a40`
+**Base Commit:** `4397742e7bcca890768f1c58ce8e68418a7f6ff6`
 
-## 1. Validation Suite Status
+## 1. Validation & Discovery Suite Status
 
-| Gate | Command | Result | Pass/Fail |
+| Gate / Assessment | Command / Source | Result | Status |
 |---|---|---|---|
-| Unit & Contract Tests | `npm test` | 163 tests passed across 4 files (including 10 new harness contracts) | PASS |
-| Local Build | `npm run build` | Clean Vite + esbuild bundle | PASS |
-| k6 Harness Contract Tests | Contract tests 1-10 in Vitest VM | Localhost, loopback, prod locks, /checkout, /admin, /orders, query/frag rejection all PASS | PASS |
-| Local Reproducibility Run (Run 2) | `k6 run -e ... .\scripts\load\pl20-baseline.k6.js` | 35 requests, 0.997 req/s, 0.85ms p50, 11.27ms p95, 0 crashes | PASS |
-| Side Effect & Log Audit | Server log inspection (`pino` JSON) | 0 mutations, 0 provider calls, 0 DB queries, 0 crashes, 5 x 503 on `/api/readiness` | PASS |
+| Railway Environments | `railway environment list --json` | 1 environment only (`production`) | PASS (Evaluated) |
+| Railway Services | `railway service list --json` | 1 service for repo (`stable-ecomerce` at `selfcaresinners.com`) | PASS (Evaluated) |
+| Supabase Projects | `supabase/.temp/project-ref` | 1 project only (`dporfgsbwsyqzmlnqrug` - production) | PASS (Evaluated) |
+| GitHub Deployments | `gh api repos/.../deployments` | All deployments target `production` | PASS (Evaluated) |
+| Remote Load Execution | None executed | Zero remote load tests launched | PASS (Enforced) |
+| Infrastructure Creation | None created | Zero new services/environments provisioned | PASS (Enforced) |
+| Production Changes | None made | Production untouched | PASS (Enforced) |
 
-## 2. Key Verified Behaviors
+## 2. Key Assessment Findings
 
-- `normalizeBaseUrl` in `scripts/load/pl20-baseline.k6.js` uses deterministic regex URL parser compatible with k6 Goja engine.
-- Rejection of query parameters (`?`) and fragments (`#`).
-- Rejection of paths after root.
-- Rejection of forbidden mutation routes (`/checkout`, `/admin`, `/orders`, `/refund`, `/payment`, `/webhook`).
-- Production lock strictly enforced on `https://selfcaresinners.com`.
-- Run 2 reproduced clean local baseline execution against exact tree to be committed.
+- **Recommendation:** `NO_ISOLATED_REMOTE_ENVIRONMENT`.
+- Zero staging or preview infrastructure exists for this repository.
+- Live production database (`dporfgsbwsyqzmlnqrug`) and live Stripe account (`SolidBit`) are the only configured remote backends.
+- Ephemeral Railway previews without dedicated sandbox credentials would inherit live production credentials (`PREVIEW_USES_PRODUCTION_BACKEND`).
+- Railway CLI provides native CPU, memory, HTTP status, and restart metrics via `railway metrics --json`.
+- Supabase Free tier lacks automated CLI metrics and has 1-day log retention.
 - `capacity.local_baseline = MEASURED`.
+- `COST_MEASURED = false`.
 - `finalScaleReady` strictly remains `false`.
 - PL20-03 remains ACTIVE; PL21 NOT STARTED.

@@ -2,38 +2,40 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Phase: POST-LAUNCH 20 — PL20-03C Local Capacity Baseline Reproducibility Hotfix
-Task ID: PL20-03C-LOCAL-CAPACITY-BASELINE-REPRODUCIBILITY-HOTFIX
+Phase: POST-LAUNCH 20 — PL20-03D Remote Capacity Readiness Assessment
+Task ID: PL20-03D-REMOTE-CAPACITY-READINESS-ASSESSMENT
 Working tree status:
-- Target commit: `fix(pl20): make k6 baseline harness reproducible`
+- Target commit: `4397742e7bcca890768f1c58ce8e68418a7f6ff6`
 - Branch: `main`
-- Status: `READY_FOR_CHATGPT_WEB_VALIDATION` (PL20-01 PASS; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03 ACTIVE; PL20-03C LOCAL BASELINE REPRODUCIBLE; PL21 NOT STARTED; finalScaleReady EXPECTED FALSE)
+- Status: `READY_FOR_CHATGPT_WEB_VALIDATION` (PL20-01 PASS; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03 ACTIVE; PL20-03D COMPLETE; PL21 NOT STARTED; finalScaleReady EXPECTED FALSE)
 
-## Summary of Executed Verification
+## Summary of Executed Assessment
 
-1. **k6 Harness Goja Compatibility Fix (Tasks 1-3):**
-   - Confirmed uncommitted diff in `scripts/load/pl20-baseline.k6.js` is strictly the k6 Goja engine compatibility fix replacing WHATWG `new URL` with a deterministic regex parser.
-   - Hardened with explicit rejection of query (`?`) and fragment (`#`), non-root route paths, and forbidden mutation routes (`/checkout`, `/admin`, `/orders`, `/refund`, `/payment`, `/webhook`).
-   - Strictly preserved locked production guard (`https://selfcaresinners.com` throws unless `ALLOW_PRODUCTION_LOAD_TEST=true`).
+1. **Remote Environment Inventory (Tasks 1 & 2):**
+   - Railway CLI query `railway environment list --json` confirmed only 1 environment in project `heroic-solace`: `production` (`b4af6a5d-c5fb-45bb-b0c6-b5c13ebb1997`). Zero staging or preview environments exist.
+   - Railway service `stable-ecomerce` is mapped to `https://selfcaresinners.com` (`PRODUCTION`).
+   - Supabase project reference is `dporfgsbwsyqzmlnqrug` (`PRODUCTION`). No secondary staging database exists.
+   - GitHub Actions deployments strictly target `production`.
 
-2. **Harness Contract Tests (Task 4):**
-   - Implemented 10 regression tests in `tests/api/functional-quality-contracts.test.ts` directly testing the extracted `normalizeBaseUrl` function in a VM sandbox with `__ENV`.
-   - Verified localhost acceptance, loopback acceptance, production locking, override authorization, `/checkout`, `/admin`, `/orders` rejection, non-root path rejection, malformed URL rejection, and query/fragment rejection.
-   - All 163 unit and contract tests in the repository pass.
+2. **Backend Isolation Check (Task 3):**
+   - Any naive preview created on Railway would inherit production credentials (live Supabase, live Stripe account `SolidBit`, live Resend).
+   - Classified as `PREVIEW_USES_PRODUCTION_BACKEND` -> strictly disqualified from load baselining.
 
-3. **Reproducibility Run (Run 2) (Task 5):**
-   - Executed second k6 run against the exact tree to be committed (1 VU, 30s duration, 1s sleep, target `http://127.0.0.1:3000`).
-   - Results: 35 total requests (~0.997 req/s), 0.85ms median latency, 11.27ms p95 latency, 37.97ms max latency.
-   - Exactly 5 x 503 HTTP responses (strictly from `/api/readiness` reflecting isolated offline development state).
-   - Examined server logs: 0 crashes, 0 DB errors, 0 cloud provider calls (Stripe/Resend/Supabase), 0 email activity, 0 mutations, 0 webhook triggers.
+3. **Safe Read & Probe Bounds (Task 4):**
+   - Zero remote k6 runs executed.
+   - No remote non-production target exists for manual GET inspection.
+   - Production target `https://selfcaresinners.com` remains locked.
 
-4. **Evidence Provenance (Task 6):**
-   - Updated `2026-09-19-pl20-03c-local-capacity-baseline-execution.md` documenting both Run 1 (initial run with local compatibility fix) and Run 2 (reproducibility run with committed harness).
+4. **Observability Review (Tasks 5 & 6):**
+   - Railway CLI exposes CPU, memory, HTTP latency/status codes, replicas, and deployment events via `railway metrics --json`.
+   - Documented Supabase Free tier limitations (no automated CLI metrics; connection pooler stats in dashboard only; 1-day log retention).
 
-5. **Interpretation & Constraints:**
-   - `capacity.local_baseline = MEASURED`
-   - `CAPACITY_BASELINE_MEASURED = false`
-   - `CAPACITY_SCALE_MEASURED = false`
-   - `isCapacityLoadMeasured = false`
-   - `finalScaleReady` strictly evaluates to `false`.
-   - No staging, Railway, or production load tests executed.
+5. **Staging Proposals & Stop Conditions (Tasks 7 & 8):**
+   - Formulated conservative proposals (1 VU, 30s, 1s sleep) and 8 hard abort stop conditions for any future isolated staging test.
+
+6. **Cost State (Task 9):**
+   - Railway = `PARTIAL`, Supabase = `MEASURED/free tier`, Stripe = `PARTIAL`, Resend = `MEASURED/free tier`, `COST_MEASURED = false`.
+
+7. **Recommendation State (Task 10):**
+   - **`NO_ISOLATED_REMOTE_ENVIRONMENT`**
+   - No load test executed. No infrastructure created. Production untouched. `finalScaleReady` strictly false.
