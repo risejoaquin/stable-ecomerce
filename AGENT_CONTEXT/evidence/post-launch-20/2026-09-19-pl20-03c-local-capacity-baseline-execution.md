@@ -1,8 +1,8 @@
 # POST-LAUNCH 20 (PL20-03C): Local Capacity Baseline Execution & Status Report
 
 **Date:** 2026-09-19
-**Phase:** POST-LAUNCH 20 (PL20-01 PASS; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03 ACTIVE; PL20-03C AUTHORIZED; PL21 NOT STARTED)
-**Evaluated Commit SHA:** `70fd3f8a89d05d4c0554f600815efea10d8087c0`
+**Phase:** POST-LAUNCH 20 (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03 ACTIVE; PL20-03C LOCAL BASELINE MEASURED; PL21 NOT STARTED)
+**Evaluated Commit SHA:** `c3ab494930b0f595a50ea35300c051ac148f997c`
 **Status:** READY_FOR_CHATGPT_WEB_VALIDATION
 **`finalScaleReady`:** Strictly `false`
 
@@ -14,28 +14,49 @@
 git rev-parse HEAD
 git rev-parse origin/main
 ```
-- **HEAD:** `70fd3f8a89d05d4c0554f600815efea10d8087c0`
-- **origin/main:** `70fd3f8a89d05d4c0554f600815efea10d8087c0`
-- **Status:** PASS (Exact match).
+- **HEAD:** `c3ab494930b0f595a50ea35300c051ac148f997c`
+- **origin/main:** `c3ab494930b0f595a50ea35300c051ac148f997c`
+- **Status:** PASS (Exact match, origin/main has not advanced).
 
 ---
 
-## 2. Task 2: Local Isolation Preflight
+## 2. Task 2: Remote CI Status
 
-### 2.1 Target Host Policy
-- Target URL: `http://127.0.0.1:3000` (Loopback only).
-- Disallowed hosts (`selfcaresinners.com`, `railway.app`, external targets): Strictly rejected.
+Inspected GitHub Actions runs for commit `c3ab494930b0f595a50ea35300c051ac148f997c`:
 
-### 2.2 Environment Secret Scan
-Inspected environment variables for live credentials:
-- **Scan Result:**
-  ```text
-  Variable: SOLIDPOS_SUPABASE_DATABASE_URL
-  HasValue: true
-  LooksProductionOrLive: true
+| Workflow | Run ID | Trigger | Duration | Result | Note |
+|---|---|---|---|---|---|
+| Selfcare Quality Gate | 35468354537 | push | 1m56s | `completed success` | Lint, unit tests, build, secret scan, core regression, security baseline, e2e, aggregate all PASS |
+| Selfcare Production Smoke | 35468357893 | deployment_status | 25s | `completed failure` | Known deployment-status race (smoke fired before Railway container finished cold boot) |
+| Selfcare Production Smoke | 35468418696 | deployment_status | 30s | `completed success` | Subsequent same-SHA exact-commit run succeeded completely |
+
+- **Status:** PASS. Both Quality Gate and same-SHA Production Smoke completed successfully.
+
+---
+
+## 3. Task 3: Local k6 Installation
+
+- **Package Manager:** `winget install --id Grafana.k6 --exact`
+- **Installed Binary Path:** `C:\Program Files\k6\k6.exe`
+- **Version Command:**
+  ```powershell
+  & "C:\Program Files\k6\k6.exe" version
   ```
-- **Analysis:** An ambient environment variable from another local repository (`SOLIDPOS`) contained a live `supabase.co` URL.
-- **Remediation:** Stripped `SOLIDPOS_SUPABASE_DATABASE_URL` in the local execution session prior to spinning up the local application.
+- **Exact Installed Version:** `k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)`
+- **Scope Discipline:** No unrelated tooling, extensions, or packages were installed.
+
+---
+
+## 4. Task 4: Local Isolation Preflight
+
+### 4.1 Target Host Policy
+- Target URL: `http://127.0.0.1:3000` (Loopback only).
+- Disallowed hosts (`selfcaresinners.com`, `railway.app`, external hosts): Strictly rejected.
+
+### 4.2 Environment Secret Scan
+Inspected environment variables for live credentials:
+- **Preflight Scan:** Ambient variable `SOLIDPOS_SUPABASE_DATABASE_URL` (belonging to another workspace) was detected and stripped from the execution session.
+- **Provider Audit:** Re-checked `SUPABASE`, `DATABASE`, `POSTGRES`, `SERVICE_ROLE`, `STRIPE`, `RESEND`, `RAILWAY`, `VITE_SUPABASE`. No secrets printed. No live/production indicators active.
 - **Verification via `/api/readiness`:**
   ```json
   {
@@ -48,58 +69,111 @@ Inspected environment variables for live credentials:
     }
   }
   ```
-- Confirmed that no production Supabase URL, no service-role key, no Stripe live key, and no Resend key are loaded into the running app.
+- **Status:** PASS (100% local isolation confirmed).
 
 ---
 
-## 3. Tasks 3 & 5: Local App Preparation & SAFE_READ Verification
+## 5. Tasks 5 & 6: Local App Preparation & SAFE_READ Verification
 
 Built project locally with `npm run build` and launched `node dist/server.cjs` on port 3000.
 Manually inspected all 7 approved `SAFE_READ` endpoints using `curl.exe`:
 
 | Route | Method | HTTP Status | Redirect URL | Response Inspection |
 |---|---|---|---|---|
-| `/` | `GET` | `200` | (none) | Clean HTML served by Vite/Express |
+| `/` | `GET` | `200` | (none) | HTML served by Vite/Express |
 | `/api/health` | `GET` | `200` | (none) | `{"status":"ok","service":"selfcare-sinners-web","environment":"development","version":"local"}` |
-| `/api/readiness` | `GET` | `200` | (none) | `{"status":"degraded", checks: { supabase: not configured, stripe: false, email: false }}` |
+| `/api/readiness` | `GET` | `503` | (none) | `{"status":"degraded", checks: { supabase: not configured, stripe: false, email: false }}` (503 expected in isolated local mode) |
 | `/api/public/store` | `GET` | `200` | (none) | `{"store":{"name":"Terra & Tide"},"products":[]}` |
 | `/api/public/home` | `GET` | `200` | (none) | `{"banners":[],"categories":[],"featuredProducts":[],"campaigns":[]}` |
 | `/api/public/categories` | `GET` | `200` | (none) | `{"data":[]}` |
 | `/api/products` | `GET` | `200` | (none) | `{"data":[],"total":0,"page":1,"pageSize":20}` |
 
-- **Redirect Check:** Zero redirects toward `/checkout`, `/orders`, `/admin`, `/payment`, or `/refund`.
+- **Redirect Check:** Zero redirects toward `/checkout`, `/orders`, `/admin`, `/payment`, `/refund`, or `/webhook`.
 - **Side Effect Check:** Zero mutations, zero emails, zero database write operations.
 
 ---
 
-## 4. Task 6: k6 Runner Status
+## 6. Tasks 7 & 8: Local k6 Baseline Execution & Exact Metrics
 
-```powershell
-k6 version
-```
-- **Exit Code:** `1`
-- **Error:** `k6 : El término 'k6' no se reconoce como nombre de un cmdlet, función, archivo de script o programa ejecutable.`
-- **Result:** **`BLOCKED_K6_NOT_INSTALLED`**
-- **Safety Directive Enforced:** In strict accordance with Task 6 ("If unavailable: report BLOCKED_K6_NOT_INSTALLED. Do not install anything automatically without reporting first"), no packages or software were installed automatically.
-- **Available Host Package Managers:** Both `winget` (0.0.0.0) and `choco` (0.12.1.0) are present and ready to install `k6` upon authorization.
+### 6.1 Execution Parameters
+- `BASE_URL`: `http://127.0.0.1:3000`
+- `PL20_ENVIRONMENT`: `local`
+- `PL20_STAGE`: `LOCAL_BASELINE_01`
+- `APPROVED_VUS`: `1`
+- `APPROVED_DURATION`: `30s`
+- `APPROVED_SLEEP_SECONDS`: `1`
+- `ALLOW_PRODUCTION_LOAD_TEST`: Strictly unset (not present)
+- `k6` summary output path: `AGENT_CONTEXT/evidence/post-launch-20/pl20-03c-local-baseline-summary.json`
+
+### 6.2 k6 Harness Mechanical Compatibility Note
+k6's Goja runtime does not implement the WHATWG `URL` class global (`ReferenceError: URL is not defined`). In accordance with `AGENTS.md` mechanical fix guidelines, `normalizeBaseUrl` in `scripts/load/pl20-baseline.k6.js` was adjusted to use a regex URL parser while preserving every security constraint (loopback/host root only, forbidden route checks, and locked production guard).
+
+### 6.3 Exact Metrics Captured
+
+| Metric | Value | Description / Note |
+|---|---|---|
+| `k6_version` | `k6 v2.2.0` | Grafana k6 Windows amd64 |
+| `evaluated_commit_sha` | `c3ab494930b0f595a50ea35300c051ac148f997c` | Exact bound commit |
+| `requests_total` | `35` | 5 complete iterations x 7 endpoints |
+| `requests_per_second` | `0.9969799597001331` | ~1.00 req/s with 1s inter-request sleep |
+| `error_rate` | `0.14285714285714285` | 5 / 35 requests (503 on `/api/readiness` due to unconfigured providers) |
+| `p50_latency_ms` | `0.8072 ms` | Median duration |
+| `p95_latency_ms` | `5.7263 ms` | 95th percentile duration |
+| `p99_latency_ms` | `null` | Capped sample size (< 100 requests) |
+| `max_latency_ms` | `40.4526 ms` | Maximum request duration |
+| `http_5xx_count` | `5` | Exactly the 5 calls to `/api/readiness` returning HTTP 503 |
+| `checks_passed` | `65 / 70` (92.86%) | 35/35 no redirect to mutation flow; 30/35 status is 2xx/3xx |
+| `performance_score` | `null` | Strictly omitted |
+| `arbitrary_slo` | `null` | Strictly omitted |
+
+### 6.4 Route Breakdown
+- `/`: 5 requests, 5 x 200 OK
+- `/api/health`: 5 requests, 5 x 200 OK
+- `/api/readiness`: 5 requests, 5 x 503 Service Unavailable (intentional degraded status due to unconfigured external cloud providers in local isolation)
+- `/api/public/store`: 5 requests, 5 x 200 OK
+- `/api/public/home`: 5 requests, 5 x 200 OK
+- `/api/public/categories`: 5 requests, 5 x 200 OK
+- `/api/products`: 5 requests, 5 x 200 OK
 
 ---
 
-## 5. Task 8: Server Log Review
+## 7. Task 9: Server Log & Side Effect Review
 
-Inspected local application logs (`pino` JSON output):
-- **5xx Errors:** 0
-- **App Crashes:** 0
-- **Database Errors:** 0 (database client safely unconfigured)
-- **External Calls:** 0 (Stripe, Resend, Sentry completely isolated)
-- **Mutation Routes:** 0
+Inspected local application server logs (`pino` JSON output):
+- **5xx count:** 5 (exclusively from `/api/readiness` 503)
+- **Server crashes:** 0
+- **Database errors:** 0
+- **Provider calls:** 0
+- **Stripe calls:** 0
+- **Resend calls:** 0
+- **Email activity:** 0
+- **Order mutation:** 0
+- **Inventory mutation:** 0
+- **Admin mutation:** 0
+- **Webhook activity:** 0
+- **Status:** PASS (No unexpected mutations, leaks, or side effects).
 
 ---
 
-## 6. Task 9: Capacity State & Interpretation
+## 8. Tasks 10: Result Interpretation & Capacity State
 
-- **`capacity.local_baseline`:** `BLOCKED_K6_NOT_INSTALLED` (app harness validated; k6 runner installation pending approval).
+- **`capacity.local_baseline`:** `MEASURED`
+- **`CAPACITY_BASELINE_MEASURED`:** `false`
 - **`CAPACITY_SCALE_MEASURED`:** `false`
 - **`isCapacityLoadMeasured`:** `false`
 - **`finalScaleReady`:** Strictly `false`
-- **Exclusions:** No production capacity claimed. No Railway capacity claimed. No CCU capacity claimed. No scale readiness claimed.
+
+### Explicit Evidence Boundaries
+This first local baseline proves:
+1. Approved k6 test harness runs to completion against local app.
+2. Target route list adheres strictly to the approved `SAFE_READ` set.
+3. Metric capture and summary extraction function deterministically.
+4. Local isolation prevents any accidental cloud provider calls or mutations.
+
+This local baseline **DOES NOT** prove:
+- Production capacity.
+- Staging capacity.
+- Railway container scale capacity.
+- Supabase connection pressure capacity.
+- Concurrent User (CCU) certification.
+- Scale readiness.
