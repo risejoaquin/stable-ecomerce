@@ -1,0 +1,79 @@
+{
+  "schema_version": "pl20-reviewed-security-v1",
+  "repository": "risejoaquin/stable-ecomerce",
+  "validated_commit_sha": "77fef0eb2923751bd1f515187604343276948dba",
+  "reviewed_at": "2026-09-19T12:47:00Z",
+  "reviewer_class": "chatgpt_web",
+  "scope": {
+    "included": [
+      "secret_scan",
+      "security_baseline",
+      "core_regression",
+      "known_issues",
+      "dependency_vulnerabilities",
+      "pl20_trust_boundary"
+    ],
+    "excluded": [],
+    "time_window_start": null,
+    "time_window_end": null
+  },
+  "sources": [
+    {
+      "source_type": "ci_secret_scan",
+      "reference": "https://github.com/risejoaquin/stable-ecomerce/actions/runs/35465028391",
+      "status": "PASS",
+      "commit_sha": "77fef0eb2923751bd1f515187604343276948dba",
+      "limitations": [
+        "Checks repository source code only, does not inspect live environment secrets"
+      ]
+    },
+    {
+      "source_type": "security_baseline_report",
+      "reference": "https://github.com/risejoaquin/stable-ecomerce/actions/runs/35465028391",
+      "status": "PASS",
+      "commit_sha": "77fef0eb2923751bd1f515187604343276948dba",
+      "findings": [
+        "Resend webhook signature verification validated",
+        "Legacy upload route restricted to admin role",
+        "CSP unsafe-inline baseline reported"
+      ]
+    },
+    {
+      "source_type": "core_regression_contracts",
+      "reference": "https://github.com/risejoaquin/stable-ecomerce/actions/runs/35465028391",
+      "status": "PASS",
+      "commit_sha": "77fef0eb2923751bd1f515187604343276948dba"
+    },
+    {
+      "source_type": "known_issues_inventory",
+      "reference": "AGENT_CONTEXT/09_KNOWN_ISSUES.md",
+      "status": "REVIEWED",
+      "open_items": [
+        "PL20 active measurement phase",
+        "Dependency vulnerability baseline under controlled monitoring"
+      ]
+    },
+    {
+      "source_type": "dependency_vulnerability_review",
+      "reference": "npm audit baseline (2 moderate, 1 high mitigated/reviewed)",
+      "status": "REVIEWED",
+      "open_items": [
+        "Production-only multer vulnerability mitigated by upload route authorization and validation gates"
+      ]
+    },
+    {
+      "source_type": "pl20_trust_boundary",
+      "reference": "AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-03b-reviewed-security-evidence-contract.md",
+      "status": "REVIEWED"
+    }
+  ],
+  "critical_open_count": 0,
+  "high_open_count": 1,
+  "known_exceptions": [
+    "Production-only multer vulnerability is mitigated by requireAdmin authorization and input validation on upload routes."
+  ],
+  "caveats": [
+    "High vulnerability reviewed and accepted with documented mitigation; no unresolved critical blockers exist."
+  ],
+  "status": "PASS"
+}

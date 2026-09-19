@@ -7608,10 +7608,10 @@ app.post(
         }
       }
 
-      // Task 6: E2E Trust Gap
-      // Selfcare Quality Gate does NOT run Playwright E2E.
-      // Therefore, technical.e2e.status cannot currently become VERIFIED_CI_EVIDENCE from that workflow.
-      if (conf.id === 'e2e' && workflowIdentity && /quality\s*gate/i.test(String(workflowIdentity))) {
+      // E2E Trust Gap:
+      // Generic Selfcare Quality Gate without dedicated e2e runner does NOT prove Playwright E2E.
+      // Therefore, technical.e2e.status claiming generic Quality Gate without dedicated runner is downgraded.
+      if (conf.id === 'e2e' && (origin !== 'persisted_trusted_import' || (workflowIdentity && /^selfcare\s*quality\s*gate$/i.test(String(workflowIdentity).trim())))) {
         classification = 'MANUAL_EVIDENCE';
       }
 
@@ -7645,7 +7645,7 @@ app.post(
     // Task 1 & 5: Security blockers dimension: technical.security_blockers.open_count
     const secBlockerItem = activeTechnical.find(t => ['technical_security_blockers', 'security_blockers'].includes(t.assessment_key));
     let securityBlockersOpenCount: number | null = null;
-    let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' = 'NOT_MEASURED';
+    let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' | 'PARTIAL' = 'NOT_MEASURED';
     let securityBlockersClassification: string = 'NOT_MEASURED';
     let secEvidenceRef: string | null = null;
     let secValidatedSha: string | null = null;
@@ -7705,6 +7705,8 @@ app.post(
         securityBlockersStatus = 'NOT_MEASURED';
       } else if (secValidatedSha && currentCommitSha && secValidatedSha !== currentCommitSha) {
         securityBlockersStatus = 'STALE';
+      } else if (rawStatus === 'PARTIAL') {
+        securityBlockersStatus = 'PARTIAL';
       } else if (securityBlockersOpenCount === 0 && (rawStatus === 'PASS' || rawStatus === 'MEASURED')) {
         securityBlockersStatus = 'PASS';
       } else if (securityBlockersOpenCount > 0) {

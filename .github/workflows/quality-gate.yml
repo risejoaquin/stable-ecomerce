@@ -28,22 +28,196 @@ jobs:
         run: npm ci
 
       - name: TypeScript
+        id: lint
         run: npm run lint
 
       - name: Unit tests
+        id: unit_tests
         run: npm test
 
       - name: Build
+        id: build
         run: npm run build
 
       - name: Secret scan
+        id: secret_scan
         shell: pwsh
         run: .\scripts\qa\security\scan-local-secrets.ps1
 
       - name: Core regression contracts
+        id: core_regression
         shell: pwsh
         run: .\scripts\qa\regression\validate-regression-core.ps1
 
       - name: Security baseline report
+        id: security_baseline
         shell: pwsh
         run: .\scripts\qa\security\validate-security-baseline.ps1 -Mode Report
+
+      - name: Generate PL20 Quality Gate Evidence
+        if: always()
+        shell: pwsh
+        env:
+          BUILD_OUTCOME: ${{ steps.build.conclusion }}
+          UNIT_TESTS_OUTCOME: ${{ steps.unit_tests.conclusion }}
+          SECRET_SCAN_OUTCOME: ${{ steps.secret_scan.conclusion }}
+          CORE_REGRESSION_OUTCOME: ${{ steps.core_regression.conclusion }}
+          SECURITY_BASELINE_OUTCOME: ${{ steps.security_baseline.conclusion }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          New-Item -ItemType Directory -Force -Path pl20-evidence | Out-Null
+
+          function Map-Status($conclusion) {
+            if ($conclusion -eq 'success') { return 'PASS' }
+            if ($conclusion -eq 'skipped' -or [string]::IsNullOrWhiteSpace($conclusion)) { return 'NOT_MEASURED' }
+            return 'FAIL'
+          }
+
+          $buildStatus = Map-Status $env:BUILD_OUTCOME
+          $unitStatus = Map-Status $env:UNIT_TESTS_OUTCOME
+          $secretStatus = Map-Status $env:SECRET_SCAN_OUTCOME
+          $coreStatus = Map-Status $env:CORE_REGRESSION_OUTCOME
+          $baselineStatus = Map-Status $env:SECURITY_BASELINE_OUTCOME
+
+          $allPassed = ($buildStatus -eq 'PASS' -and $unitStatus -eq 'PASS' -and $secretStatus -eq 'PASS' -and $coreStatus -eq 'PASS' -and $baselineStatus -eq 'PASS')
+          $jobStatus = if ($allPassed) { 'PASS' } else { 'FAIL' }
+          $jobConclusion = if ($allPassed) { 'success' } else { 'failure' }
+
+          $manifest = [ordered]@{
+            schema_version   = 'pl20-ci-evidence-v1'
+            repository       = $env:REPO
+            workflow_name    = $env:WORKFLOW
+            workflow_run_id  = [int64]$env:RUN_ID
+            workflow_attempt = [int]$env:RUN_ATTEMPT
+            event            = $env:EVENT_NAME
+            head_sha         = $env:HEAD_SHA
+            started_at       = [DateTime]::UtcNow.ToString("o")
+            completed_at     = [DateTime]::UtcNow.ToString("o")
+            conclusion       = $jobConclusion
+            dimensions       = [ordered]@{
+              release_gate      = [ordered]@{
+                status     = $jobStatus
+                step_name  = 'quality+e2e aggregate'
+                conclusion = $jobConclusion
+              }
+              build             = [ordered]@{
+                status     = $buildStatus
+                step_name  = 'Build'
+                conclusion = $env:BUILD_OUTCOME
+              }
+              unit_tests        = [ordered]@{
+                status     = $unitStatus
+                step_name  = 'Unit tests'
+                conclusion = $env:UNIT_TESTS_OUTCOME
+              }
+              secret_scan       = [ordered]@{
+                status     = $secretStatus
+                step_name  = 'Secret scan'
+                conclusion = $env:SECRET_SCAN_OUTCOME
+              }
+              core_regression   = [ordered]@{
+                status     = $coreStatus
+                step_name  = 'Core regression contracts'
+                conclusion = $env:CORE_REGRESSION_OUTCOME
+              }
+              security_baseline = [ordered]@{
+                status     = $baselineStatus
+                step_name  = 'Security baseline report'
+                conclusion = $env:SECURITY_BASELINE_OUTCOME
+              }
+            }
+          }
+
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
+
+      - name: Upload PL20 Quality Gate Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/
+          retention-days: 30
+
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build
+        id: build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        id: playwright_install
+        run: npx playwright install chromium
+
+      - name: Playwright E2E
+        id: e2e
+        run: npm run test:e2e
+
+      - name: Generate PL20 E2E Evidence
+        if: always()
+        shell: pwsh
+        env:
+          E2E_OUTCOME: ${{ steps.e2e.conclusion }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          New-Item -ItemType Directory -Force -Path pl20-evidence | Out-Null
+
+          $status = if ($env:E2E_OUTCOME -eq 'success') { 'PASS' } elseif ($env:E2E_OUTCOME -eq 'skipped' -or [string]::IsNullOrWhiteSpace($env:E2E_OUTCOME)) { 'NOT_MEASURED' } else { 'FAIL' }
+          $conclusion = if ($status -eq 'PASS') { 'success' } else { 'failure' }
+
+          $e2eManifest = [ordered]@{
+            schema_version    = 'pl20-ci-evidence-v1'
+            repository        = $env:REPO
+            workflow_name     = $env:WORKFLOW
+            workflow_run_id   = [int64]$env:RUN_ID
+            workflow_attempt  = [int]$env:RUN_ATTEMPT
+            event             = $env:EVENT_NAME
+            head_sha          = $env:HEAD_SHA
+            started_at        = [DateTime]::UtcNow.ToString("o")
+            completed_at      = [DateTime]::UtcNow.ToString("o")
+            conclusion        = $conclusion
+            dimension         = 'e2e'
+            status            = $status
+            test_command      = 'npm run test:e2e'
+            browser           = 'chromium'
+            base_url          = 'http://localhost:3000'
+            server_command    = 'npm run start'
+            external_services = 'mocked_or_not_required'
+            caveats           = @()
+          }
+
+          $e2eManifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/e2e.json" -Encoding UTF8
+
+      - name: Upload PL20 E2E Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pl20-evidence-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/e2e.json
+          retention-days: 30

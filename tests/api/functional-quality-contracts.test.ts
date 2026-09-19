@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { verifyQualityGateImport, verifyE2eImport, verifyProductionSmokeImport, verifyReviewedSecurityManifestInput } from '../../src/server/ci/trusted-ci-importer.js';
 
 const testSecret = 'qa-release-e-test-secret';
 let app: Awaited<ReturnType<typeof import('../../server').startServer>>;
@@ -2019,6 +2020,647 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
         .get('/api/admin/final-scale/summary')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+  });
+
+  describe('POST-LAUNCH 20 (PL20-03B): Trusted CI Artifacts and Reviewed Security Evidence', () => {
+    const validCommit = '77fef0eb2923751bd1f515187604343276948dba';
+    const adminToken = authToken('admin');
+
+    it('1. E2E PASS impossible without real E2E job success', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 12345,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimension: 'e2e',
+        status: 'PASS',
+        test_command: 'npm run test:e2e',
+        browser: 'chromium',
+        base_url: 'http://localhost:3000',
+        server_command: 'npm run start',
+        external_services: 'mocked_or_not_required'
+      };
+
+      // Real GitHub metadata has e2e job failed
+      const fakeFailedRun: any = {
+        id: 12345,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'failure',
+        job_conclusions: { quality: 'success', e2e: 'failure' }
+      };
+
+      const result = verifyE2eImport({
+        manifest,
+        gitHubRun: fakeFailedRun,
+        evaluatedCommitSha: validCommit,
+        artifactName: 'pl20-evidence-e2e-12345-1'
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.record.status).toBe('FAIL');
+    });
+
+    it('2. fake artifact JSON alone rejected', async () => {
+      const invalidManifest: any = {
+        schema_version: 'pl20-invalid-version',
+        repository: 'risejoaquin/stable-ecomerce'
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest: invalidManifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Schema invalid');
+    });
+
+    it('3. wrong repository rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'evil/attacker-repo',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {}
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'evil/attacker-repo',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Wrong repository rejected');
+    });
+
+    it('4. wrong workflow rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Fake Workflow',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {}
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Fake Workflow',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Wrong workflow rejected');
+    });
+
+    it('5. wrong run ID rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 111,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {}
+      };
+      const run: any = {
+        id: 222,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Wrong run ID rejected');
+    });
+
+    it('6. wrong attempt rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {}
+      };
+      const run: any = {
+        id: 123,
+        attempt: 2,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Wrong attempt rejected');
+    });
+
+    it('7. wrong SHA rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: 'sha-aaa',
+        dimensions: {}
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: 'sha-bbb',
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Wrong SHA rejected');
+    });
+
+    it('8. failed job cannot manifest as PASS', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {
+          build: { status: 'PASS', step_name: 'Build' },
+          unit_tests: { status: 'PASS', step_name: 'Unit tests' }
+        }
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'failure',
+        step_conclusions: { build: 'failure', unit_tests: 'success' }
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.build.status).toBe('FAIL');
+      expect(result.records!.release_gate.status).toBe('FAIL');
+    });
+
+    it('9. stale run cannot satisfy current commit', async () => {
+      const oldCommit = '0000000000000000000000000000000000000000';
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 123,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: oldCommit,
+        dimensions: {
+          build: { status: 'PASS' }
+        }
+      };
+      const run: any = {
+        id: 123,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: oldCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const result = verifyQualityGateImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit // newer evaluated commit
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.build.status).toBe('STALE');
+      expect(result.records!.release_gate.status).toBe('STALE');
+    });
+
+    it('10. duplicate import is idempotent', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Quality Gate',
+        workflow_run_id: 999,
+        workflow_attempt: 1,
+        event: 'push',
+        head_sha: validCommit,
+        dimensions: {
+          build: { status: 'PASS' }
+        }
+      };
+      const run: any = {
+        id: 999,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success'
+      };
+      const res1 = verifyQualityGateImport({ manifest, gitHubRun: run, evaluatedCommitSha: validCommit });
+      const res2 = verifyQualityGateImport({ manifest, gitHubRun: run, evaluatedCommitSha: validCommit });
+      expect(res1.records!.build.idempotency_key).toBe(res2.records!.build.idempotency_key);
+      expect(res1.records!.build.idempotency_key).toBe(`build:999:1:${validCommit}`);
+    });
+
+    it('11. request-body VERIFIED_CI still downgraded', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            build: {
+              status: 'pass',
+              validated_commit_sha: validCommit,
+              measured_at: new Date().toISOString(),
+              evidence_reference: 'run:123',
+              workflow_identity: 'Selfcare Quality Gate',
+              source_classification: 'VERIFIED_CI_EVIDENCE',
+              origin: 'persisted_trusted_import' // Spoof attempt in body
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const buildDim = res.body.assessments.find((a: any) => a.assessment_key === 'technical_build');
+      expect(buildDim.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(buildDim.origin).toBe('request_body');
+    });
+
+    it('12. production smoke expected/deployed mismatch rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Production Smoke',
+        workflow_run_id: 555,
+        workflow_attempt: 1,
+        event: 'deployment_status',
+        expected_commit: 'commit-aaa',
+        deployed_commit: 'commit-bbb', // Mismatch!
+        target_url: 'https://selfcaresinners.com',
+        conclusion: 'success',
+        validation_result: 'PASS',
+        measured_at: new Date().toISOString()
+      };
+      const run: any = {
+        id: 555,
+        attempt: 1,
+        workflow_name: 'Selfcare Production Smoke',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: 'commit-aaa',
+        event: 'deployment_status',
+        conclusion: 'success'
+      };
+      const result = verifyProductionSmokeImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: 'commit-aaa'
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('mismatch rejected');
+    });
+
+    it('13. skipped smoke cannot PASS', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-ci-evidence-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        workflow_name: 'Selfcare Production Smoke',
+        workflow_run_id: 556,
+        workflow_attempt: 1,
+        event: 'deployment_status',
+        expected_commit: validCommit,
+        deployed_commit: validCommit,
+        target_url: 'https://selfcaresinners.com',
+        conclusion: 'skipped',
+        validation_result: 'PASS',
+        measured_at: new Date().toISOString()
+      };
+      const run: any = {
+        id: 556,
+        attempt: 1,
+        workflow_name: 'Selfcare Production Smoke',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'deployment_status',
+        conclusion: 'skipped'
+      };
+      const result = verifyProductionSmokeImport({
+        manifest,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Skipped smoke cannot PASS');
+    });
+
+    it('14. reviewed security request-body spoof rejected', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'codex', // Unauthorized caller class!
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'codex'
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unauthorized reviewer class');
+    });
+
+    it('15. missing reviewed security => security blockers NOT_MEASURED', async () => {
+      customMockTableRows['final_technical_assessments'] = [];
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalDimensions.security_blockers.status).toBe('NOT_MEASURED');
+      expect(res.body.summary.evaluationRules.technicalDimensions.security_blockers.open_count).toBeNull();
+    });
+
+    it('16. critical_open_count > 0 => FAIL', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 2, // Critical finding open!
+        high_open_count: 0,
+        status: 'FAIL'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(true);
+      expect(result.record.status).toBe('FAIL');
+      expect(result.record.open_count).toBe(2);
+    });
+
+    it('17. zero blockers with current complete review can PASS', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(true);
+      expect(result.record.status).toBe('PASS');
+      expect(result.record.open_count).toBe(0);
+      expect(result.record.origin).toBe('reviewed_security');
+      expect(result.record.source_classification).toBe('REVIEWED_SECURITY_EVIDENCE');
+    });
+
+    it('18. unreviewed HIGH => PARTIAL', async () => {
+      const manifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'UNREVIEWED' }, // unreviewed!
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 1, // High vulnerability not reviewed/mitigated!
+        known_exceptions: [],
+        caveats: [],
+        status: 'PARTIAL'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(true);
+      expect(result.record.status).toBe('PARTIAL');
+    });
+
+    const createTrustedPassingAssessments = (commitSha: string) => {
+      const keys = [
+        'technical_release_gate',
+        'technical_production_smoke',
+        'technical_build',
+        'technical_unit_tests',
+        'technical_e2e',
+        'technical_secret_scan',
+        'technical_database_reproducibility',
+        'technical_security_blockers'
+      ];
+      const measuredAt = new Date().toISOString();
+      return keys.map((k, idx) => {
+        const isDb = k === 'technical_database_reproducibility';
+        const isSec = k === 'technical_security_blockers';
+        const isE2e = k === 'technical_e2e';
+        const classification = isDb ? 'PERSISTED_EVIDENCE' : (isSec ? 'REVIEWED_SECURITY_EVIDENCE' : 'VERIFIED_CI_EVIDENCE');
+        const origin = isDb
+          ? 'persisted_database_evidence'
+          : (isSec ? 'reviewed_security' : 'persisted_trusted_import');
+        const workflowIdentity = isE2e ? 'Selfcare Quality Gate / e2e' : (k === 'technical_production_smoke' ? 'Selfcare Production Smoke' : 'Selfcare Quality Gate');
+
+        return {
+          id: `pl20-03b-tech-${idx + 1}`,
+          assessment_key: k,
+          status: 'pass',
+          score: null,
+          origin,
+          source_classification: classification,
+          open_count: isSec ? 0 : undefined,
+          metadata: {
+            source: isSec ? 'security_audit' : 'github_actions_ci',
+            source_type: isDb ? 'migration_history' : (isSec ? 'security_audit' : 'ci_pipeline'),
+            source_classification: classification,
+            origin,
+            calculation_version: 'pl20-ci-evidence-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            validated_commit_sha: commitSha,
+            evidence_reference: `run:3542280042${idx}`,
+            workflow_identity: workflowIdentity,
+            open_count: isSec ? 0 : undefined
+          },
+          evidence: {
+            validated_commit_sha: commitSha,
+            source_classification: classification,
+            origin,
+            evidence_reference: `run:3542280042${idx}`,
+            workflow_identity: workflowIdentity,
+            measured_at: measuredAt,
+            open_count: isSec ? 0 : undefined
+          }
+        };
+      });
+    };
+
+    it('19. PL20-02 trust boundary unchanged', async () => {
+      // Direct insertion of a row claiming VERIFIED_CI_EVIDENCE without trusted origin must be downgraded by summary
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'claim-untrusted-1',
+          assessment_key: 'technical_build',
+          area: 'build',
+          status: 'pass',
+          score: null,
+          source_classification: 'VERIFIED_CI_EVIDENCE',
+          origin: 'request_body', // not persisted_trusted_import!
+          metadata: {
+            source: 'github_actions_ci',
+            source_type: 'ci_pipeline',
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'request_body',
+            calculation_version: 'pl20-ci-evidence-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            validated_commit_sha: validCommit,
+            evidence_reference: 'run:123',
+            workflow_identity: 'Selfcare Quality Gate'
+          },
+          evidence: {
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'request_body',
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:123',
+            workflow_identity: 'Selfcare Quality Gate'
+          }
+        }
+      ];
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalDimensions.build.classification).toBe('MANUAL_EVIDENCE');
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('20. finalScaleReady remains false unless all independent dimensions pass', async () => {
+      // Even if all technical dimensions have mock trusted passes, operating costs are PARTIAL and capacity is false
+      customMockTableRows['final_technical_assessments'] = createTrustedPassingAssessments(validCommit);
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(true);
+      // Operating costs and capacity are not scale-ready, so finalScaleReady MUST remain false!
       expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });

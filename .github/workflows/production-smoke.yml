@@ -46,8 +46,60 @@ jobs:
           ref: ${{ steps.deployment.outputs.expected_commit }}
 
       - name: Validate production
+        id: smoke_validate
         shell: powershell
         run: >-
           .\scripts\qa\validate-production.ps1
           -BaseUrl "https://selfcaresinners.com"
           -ExpectedCommit "${{ steps.deployment.outputs.expected_commit }}"
+
+      - name: Generate PL20 Production Smoke Evidence
+        if: always()
+        shell: pwsh
+        env:
+          VALIDATION_OUTCOME: ${{ steps.smoke_validate.conclusion }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_COMMIT: ${{ steps.deployment.outputs.expected_commit }}
+        run: |
+          New-Item -ItemType Directory -Force -Path pl20-evidence | Out-Null
+
+          $deployedCommit = $null
+          try {
+            $health = Invoke-RestMethod -Uri "https://selfcaresinners.com/api/health" -TimeoutSec 10
+            $deployedCommit = $health.version
+          } catch {
+            $deployedCommit = $null
+          }
+
+          $isSuccess = ($env:VALIDATION_OUTCOME -eq 'success' -and -not [string]::IsNullOrWhiteSpace($deployedCommit) -and $deployedCommit -eq $env:EXPECTED_COMMIT)
+          $validationResult = if ($isSuccess) { 'PASS' } else { 'FAIL' }
+          $conclusion = if ($isSuccess) { 'success' } else { 'failure' }
+
+          $manifest = [ordered]@{
+            schema_version    = 'pl20-ci-evidence-v1'
+            repository        = $env:REPO
+            workflow_name     = $env:WORKFLOW
+            workflow_run_id   = [int64]$env:RUN_ID
+            workflow_attempt  = [int]$env:RUN_ATTEMPT
+            event             = $env:EVENT_NAME
+            expected_commit   = $env:EXPECTED_COMMIT
+            deployed_commit   = $deployedCommit
+            target_url        = 'https://selfcaresinners.com'
+            conclusion        = $conclusion
+            validation_result = $validationResult
+            measured_at       = [DateTime]::UtcNow.ToString("o")
+          }
+
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/production-smoke.json" -Encoding UTF8
+
+      - name: Upload PL20 Production Smoke Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pl20-evidence-production-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/production-smoke.json
+          retention-days: 30
