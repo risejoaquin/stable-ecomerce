@@ -177,3 +177,52 @@ This local baseline **DOES NOT** prove:
 - Supabase connection pressure capacity.
 - Concurrent User (CCU) certification.
 - Scale readiness.
+
+---
+
+## 9. Reproducibility Run (Run 2) & Committed Harness Verification
+
+### 9.1 Provenance & Compatibility Fix
+- **Initial Run (Run 1):** Executed on `c3ab494930b0f595a50ea35300c051ac148f997c` with a local compatibility fix in `scripts/load/pl20-baseline.k6.js` (unblocking k6 Goja engine's lack of WHATWG `new URL` support via deterministic regex URL parsing).
+- **Harness Commit:** The exact regex parser, hardened with strict query/fragment rejection (`?` / `#`) and non-root path rejection, is committed in `scripts/load/pl20-baseline.k6.js`.
+- **Harness Contract Tests:** Added 10 regression tests in `tests/api/functional-quality-contracts.test.ts` verifying loopback acceptance, localhost acceptance, production locking, production override, `/checkout`, `/admin`, `/orders` rejection, non-root path rejection, malformed URL rejection, and query/fragment rejection.
+- **Script Path:** `scripts/load/pl20-baseline.k6.js`
+- **k6 Version:** `k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)`
+
+### 9.2 Reproducibility Run (Run 2) Execution Parameters
+- `BASE_URL`: `http://127.0.0.1:3000`
+- `PL20_ENVIRONMENT`: `local`
+- `PL20_STAGE`: `LOCAL_BASELINE_01`
+- `APPROVED_VUS`: `1`
+- `APPROVED_DURATION`: `30s`
+- `APPROVED_SLEEP_SECONDS`: `1`
+- `ALLOW_PRODUCTION_LOAD_TEST`: Strictly unset
+
+### 9.3 Run 2 Exact Metrics
+
+| Metric | Run 1 Value | Run 2 Value | Description / Note |
+|---|---|---|---|
+| `k6_version` | `k6 v2.2.0` | `k6 v2.2.0` | Exact matching engine |
+| `requests_total` | `35` | `35` | Exactly 5 complete iterations x 7 SAFE_READ endpoints |
+| `requests_per_second` | `0.997` | `0.996661267334933` | Deterministic ~1.00 req/s with 1s sleep |
+| `error_rate` | `0.142857` | `0.14285714285714285` | 5 / 35 requests (strictly 503 on `/api/readiness`) |
+| `p50_latency_ms` | `0.8072 ms` | `0.8467 ms` | Median duration |
+| `p95_latency_ms` | `5.7263 ms` | `11.2685 ms` | 95th percentile duration |
+| `p99_latency_ms` | `null` | `null` | Sample size < 100 requests |
+| `max_latency_ms` | `40.4526 ms` | `37.9741 ms` | Maximum request duration |
+| `http_5xx_count` | `5` | `5` | Exactly the 5 calls to `/api/readiness` returning 503 |
+| `checks_passed` | `65 / 70` | `65 / 70` | 35/35 no redirect (100%); 30/35 status is 2xx/3xx |
+
+### 9.4 Run 2 Server Log & Side Effect Review
+- **5xx count:** 5 (exclusively `/api/readiness` 503)
+- **Server crashes:** 0
+- **Database errors:** 0
+- **Provider calls:** 0
+- **Stripe calls:** 0
+- **Resend calls:** 0
+- **Email activity:** 0
+- **Order mutations:** 0
+- **Inventory mutations:** 0
+- **Admin mutations:** 0
+- **Webhook activity:** 0
+- **Reproducibility Verdict:** PASS (Deterministic execution verified).

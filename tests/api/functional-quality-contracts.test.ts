@@ -3126,4 +3126,77 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });
+
+  describe('PL20-03C k6 Baseline Harness URL Normalization Contracts', () => {
+    let normalizeBaseUrl: (value: string) => string;
+    let vmSandbox: { __ENV: Record<string, string>; normalizeBaseUrl: (value: string) => string };
+
+    beforeAll(async () => {
+      const fs = await import('fs');
+      const vm = await import('vm');
+      const path = await import('path');
+      const scriptPath = path.resolve(process.cwd(), 'scripts/load/pl20-baseline.k6.js');
+      const code = fs.readFileSync(scriptPath, 'utf8');
+      const match = code.match(/function normalizeBaseUrl\([^\)]*\)\s*\{[\s\S]*?\n\}/);
+      if (!match) throw new Error('normalizeBaseUrl function not found in scripts/load/pl20-baseline.k6.js');
+      vmSandbox = {
+        __ENV: {},
+        normalizeBaseUrl: () => ''
+      };
+      vm.runInNewContext(match[0], vmSandbox);
+      normalizeBaseUrl = (val: string) => vmSandbox.normalizeBaseUrl(val);
+    });
+
+    beforeEach(() => {
+      vmSandbox.__ENV = {};
+    });
+
+    it('1. accepts valid localhost without route path', () => {
+      expect(normalizeBaseUrl('http://localhost:3000')).toBe('http://localhost:3000');
+      expect(normalizeBaseUrl('http://localhost:3000/')).toBe('http://localhost:3000');
+    });
+
+    it('2. accepts valid loopback without route path', () => {
+      expect(normalizeBaseUrl('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000');
+      expect(normalizeBaseUrl('http://127.0.0.1:3000/')).toBe('http://127.0.0.1:3000');
+    });
+
+    it('3. rejects production target when ALLOW_PRODUCTION_LOAD_TEST is not true', () => {
+      expect(() => normalizeBaseUrl('https://selfcaresinners.com')).toThrow(/Production target is locked/);
+      expect(() => normalizeBaseUrl('https://selfcaresinners.com/')).toThrow(/Production target is locked/);
+    });
+
+    it('4. accepts production target when ALLOW_PRODUCTION_LOAD_TEST is true', () => {
+      vmSandbox.__ENV.ALLOW_PRODUCTION_LOAD_TEST = 'true';
+      expect(normalizeBaseUrl('https://selfcaresinners.com')).toBe('https://selfcaresinners.com');
+      expect(normalizeBaseUrl('https://selfcaresinners.com/')).toBe('https://selfcaresinners.com');
+    });
+
+    it('5. rejects BASE_URL containing /checkout', () => {
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000/checkout')).toThrow();
+    });
+
+    it('6. rejects BASE_URL containing /admin', () => {
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000/admin')).toThrow();
+    });
+
+    it('7. rejects BASE_URL containing /orders', () => {
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000/orders')).toThrow();
+    });
+
+    it('8. rejects non-root path after host', () => {
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000/api/health')).toThrow(/must represent host\/root only/);
+    });
+
+    it('9. rejects malformed URLs', () => {
+      expect(() => normalizeBaseUrl('not-a-valid-url')).toThrow(/must be a valid absolute URL/);
+      expect(() => normalizeBaseUrl('')).toThrow(/must be a valid absolute URL/);
+      expect(() => normalizeBaseUrl('ftp://127.0.0.1:3000')).toThrow(/must be a valid absolute URL/);
+    });
+
+    it('10. rejects URLs with query parameters or fragments', () => {
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000?debug=1')).toThrow(/must not include query parameters or fragments/);
+      expect(() => normalizeBaseUrl('http://127.0.0.1:3000#main')).toThrow(/must not include query parameters or fragments/);
+    });
+  });
 });

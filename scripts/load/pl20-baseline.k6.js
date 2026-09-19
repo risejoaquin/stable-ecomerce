@@ -69,24 +69,31 @@ function parseApprovedSleepSeconds(value) {
 }
 
 function normalizeBaseUrl(value) {
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
+  const raw = String(value || '').trim();
+  if (raw.includes('?') || raw.includes('#')) {
+    throw new Error('BASE_URL must not include query parameters or fragments.');
+  }
+
+  const match = raw.match(/^(https?):\/\/([^/:]+)(?::(\d+))?(\/.*)?$/i);
+  if (!match) {
     throw new Error('BASE_URL must be a valid absolute URL representing only the host/root.');
   }
 
+  const protocol = match[1].toLowerCase();
+  const hostname = match[2].toLowerCase();
+  const port = match[3] ? `:${match[3]}` : '';
+  const path = (match[4] || '').replace(/\/$/, '').toLowerCase();
+
   const forbiddenPathParts = ['/checkout', '/orders', '/admin', '/refund', '/payment', '/webhook'];
-  const path = parsed.pathname.replace(/\/$/, '').toLowerCase();
   if (path && path !== '') {
     throw new Error('BASE_URL must represent host/root only; do not include a route path.');
   }
-  const fullUrl = parsed.href.toLowerCase();
+  const fullUrl = raw.toLowerCase();
   if (forbiddenPathParts.some((part) => fullUrl.includes(part))) {
     throw new Error('BASE_URL contains a forbidden mutation or side-effect path.');
   }
 
-  const origin = parsed.origin.replace(/\/$/, '');
+  const origin = `${protocol}://${hostname}${port}`;
   const isProduction = origin === 'https://selfcaresinners.com';
   if (isProduction && __ENV.ALLOW_PRODUCTION_LOAD_TEST !== 'true') {
     throw new Error('Production target is locked. Set ALLOW_PRODUCTION_LOAD_TEST=true only after explicit ChatGPT Web/user approval.');
