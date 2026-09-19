@@ -7682,7 +7682,9 @@ app.post(
           rawClassification = 'MANUAL_EVIDENCE';
         }
       } else if (rawClassification === 'REVIEWED_SECURITY_EVIDENCE') {
-        if (secOrigin !== 'reviewed_security') {
+        const isCandidate = ev?.candidate === true || meta?.candidate === true || rawStatus === 'PREPARED_FOR_REVIEW' || rawStatus === 'DRAFT';
+        const hasReviewer = Boolean(ev?.reviewer_class || meta?.reviewer_class || secBlockerItem?.reviewer_class);
+        if (secOrigin !== 'reviewed_security' || isCandidate || !hasReviewer) {
           rawClassification = 'MANUAL_EVIDENCE';
         }
       } else if (rawClassification === 'PERSISTED_EVIDENCE') {
@@ -7699,7 +7701,9 @@ app.post(
         securityBlockersOpenCount = null;
       }
 
-      if (rawStatus === 'NOT_MEASURED' || securityBlockersOpenCount === null) {
+      const isCandidateDraft = ev?.candidate === true || meta?.candidate === true || rawStatus === 'PREPARED_FOR_REVIEW' || rawStatus === 'DRAFT';
+
+      if (rawStatus === 'NOT_MEASURED' || securityBlockersOpenCount === null || isCandidateDraft) {
         securityBlockersStatus = 'NOT_MEASURED';
       } else if (!secMeasuredAt) {
         securityBlockersStatus = 'NOT_MEASURED';

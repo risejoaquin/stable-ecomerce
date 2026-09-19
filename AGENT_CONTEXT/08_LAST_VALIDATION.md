@@ -1,16 +1,16 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-19T13:00:47-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03B: Trusted CI Artifacts and Reviewed Security Evidence)
+**Timestamp:** 2026-09-19T13:20:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03B Final Trust Hotfix: Release Gate Aggregation and Reviewed Security Authority)
 **Branch:** `main`
-**Base Commit:** `77fef0eb2923751bd1f515187604343276948dba`
+**Base Commit:** `58255e9ac6ff1b54cc0530523d5f6d23207c22a4`
 
 ## 1. Validation Suite Status
 
 | Gate | Command | Result | Pass/Fail |
 |---|---|---|---|
 | TypeScript | `npm run lint` | 0 errors | PASS |
-| Unit & API Tests | `npm test` | 142 tests passed across 4 files (125 in functional-quality-contracts) | PASS (142/142) |
+| Unit & API Tests | `npm test` | 153 tests passed across 4 files (136 in functional-quality-contracts) | PASS (153/153) |
 | Production Build | `npm run build` | Vite client + esbuild server bundle | PASS |
 | E2E Tests | `npm run test:e2e` | 20 tests passed across 3 spec files | PASS (20/20) |
 | Secret Scan | `.\scripts\qa\security\scan-local-secrets.ps1` | 0 secrets detected | PASS |
@@ -23,14 +23,12 @@
 
 ## 2. Key Verified Behaviors
 
-- GitHub Actions `.github/workflows/quality-gate.yml` splits `quality` and `e2e` into separate jobs, generating schema `pl20-ci-evidence-v1` artifacts.
-- GitHub Actions `.github/workflows/production-smoke.yml` generates `pl20-evidence/production-smoke.json` artifact with deployed commit validation.
-- `src/server/ci/trusted-ci-importer.ts` verifies CI manifests against trusted GitHub API run metadata.
-- Fake artifact JSON, wrong repository, wrong workflow, wrong run ID, wrong attempt, and wrong SHA are rejected.
-- Failed job conclusions in GitHub metadata cannot manifest as PASS.
-- Mismatched or skipped production smoke runs are rejected.
-- Request-body assertions claiming `VERIFIED_CI_EVIDENCE` or `origin: 'persisted_trusted_import'` are downgraded to `MANUAL_EVIDENCE`.
-- Reviewed security manifest requires authorized reviewer class (`chatgpt_web`, `human_operator`, `security_reviewer`), 6 mandatory source categories, freshness against evaluated commit SHA, and 0 critical blockers.
-- High vulnerabilities without review yield `PARTIAL`; reviewed + mitigated high vulnerabilities remain documented exceptions without blocking.
-- `finalScaleReady` evaluates strictly to `false` (costs PARTIAL, capacity load unmeasured).
+- `.github/workflows/quality-gate.yml` implements 3-job architecture: `quality` and `e2e` generate step artifacts, then `aggregate` combines them into unified `pl20-evidence/quality-gate.json`.
+- `release_gate.status` is `PASS` ONLY if both `quality` and `e2e` succeed. If `e2e` is skipped, `release_gate` is `NOT_MEASURED` (never `PASS`). If either fails, `release_gate` is `FAIL`.
+- `pl20-evidence/reviewed-security.json` is strictly maintained as candidate draft (`candidate: true`, `status: 'PREPARED_FOR_REVIEW'`, `reviewer_class: null`).
+- Antigravity/Codex agent cannot self-issue or impersonate `reviewer_class: 'chatgpt_web'`.
+- Draft candidate evidence cannot satisfy security blockers.
+- Stale reviewed security SHA referencing prior commits is rejected.
+- PL20-02 trust boundary remains intact: request-body claims of `VERIFIED_CI_EVIDENCE` or `REVIEWED_SECURITY_EVIDENCE` continue to be downgraded.
+- `finalScaleReady` evaluates strictly to `false`.
 - PL20-03 remains ACTIVE; PL21 NOT STARTED.

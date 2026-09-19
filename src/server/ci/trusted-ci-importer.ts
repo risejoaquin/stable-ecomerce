@@ -170,15 +170,24 @@ export function validateProductionSmokeManifest(manifest: any): { valid: boolean
 /**
  * Validates the basic schema of a Reviewed Security manifest.
  */
-export function validateReviewedSecurityManifest(manifest: any): { valid: boolean; error?: string } {
+export function validateReviewedSecurityManifest(manifest: any): { valid: boolean; error?: string; isCandidate?: boolean } {
   if (!manifest || typeof manifest !== 'object') {
     return { valid: false, error: 'Manifest must be a non-null object' };
   }
   if (manifest.schema_version !== 'pl20-reviewed-security-v1') {
     return { valid: false, error: `Invalid schema_version: expected 'pl20-reviewed-security-v1', got '${manifest.schema_version}'` };
   }
-  if (!manifest.repository || !manifest.validated_commit_sha || !manifest.reviewed_at || !manifest.reviewer_class) {
-    return { valid: false, error: 'Missing required metadata (repository, validated_commit_sha, reviewed_at, reviewer_class)' };
+  if (manifest.candidate === true || manifest.status === 'PREPARED_FOR_REVIEW' || manifest.status === 'DRAFT') {
+    if (!manifest.repository || !manifest.validated_commit_sha) {
+      return { valid: false, error: 'Missing required candidate metadata (repository, validated_commit_sha)' };
+    }
+    return { valid: true, isCandidate: true };
+  }
+  if (!manifest.reviewer_class || String(manifest.reviewer_class).trim().toLowerCase() === 'pending' || String(manifest.reviewer_class).trim().toLowerCase() === 'null') {
+    return { valid: false, error: 'Missing reviewer cannot PASS: reviewer_class is required and must be authorized' };
+  }
+  if (!manifest.repository || !manifest.validated_commit_sha || !manifest.reviewed_at) {
+    return { valid: false, error: 'Missing required metadata (repository, validated_commit_sha, reviewed_at)' };
   }
   if (!manifest.scope || !Array.isArray(manifest.scope?.included)) {
     return { valid: false, error: 'Missing scope.included array' };
@@ -189,7 +198,7 @@ export function validateReviewedSecurityManifest(manifest: any): { valid: boolea
   if (typeof manifest.critical_open_count !== 'number' || typeof manifest.high_open_count !== 'number') {
     return { valid: false, error: 'critical_open_count and high_open_count must be explicit numbers' };
   }
-  return { valid: true };
+  return { valid: true, isCandidate: false };
 }
 
 /**
@@ -339,12 +348,84 @@ export function verifyQualityGateImport(options: {
   let releaseGateStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED';
   if (isStale) {
     releaseGateStatus = 'STALE';
+  } else if (e2eJobConclusion === 'skipped' || manifest.dimensions?.e2e?.status === 'NOT_MEASURED') {
+    releaseGateStatus = 'NOT_MEASURED';
   } else if (!runSucceeded || qualityJobConclusion !== 'success' || (e2eJobConclusion && e2eJobConclusion !== 'success')) {
     releaseGateStatus = 'FAIL';
   } else {
     // If quality dimensions passed and run succeeded
     const allQualityDimsPass = Object.values(records).every(r => r.status === 'PASS');
     releaseGateStatus = allQualityDimsPass ? 'PASS' : 'FAIL';
+  }
+
+  if (manifest.dimensions?.e2e) {
+    const rawE2e = manifest.dimensions.e2e;
+    const manifestE2eStatus = rawE2e?.status?.toUpperCase() || 'NOT_MEASURED';
+    let resolvedE2eStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED';
+    if (isStale) {
+      resolvedE2eStatus = 'STALE';
+    } else if (e2eJobConclusion === 'skipped' || manifestE2eStatus === 'NOT_MEASURED') {
+      resolvedE2eStatus = 'NOT_MEASURED';
+    } else if (e2eJobConclusion === 'failure' || manifestE2eStatus === 'FAIL') {
+      resolvedE2eStatus = 'FAIL';
+    } else if (e2eJobConclusion === 'success' && manifestE2eStatus === 'PASS') {
+      resolvedE2eStatus = 'PASS';
+    } else {
+      resolvedE2eStatus = 'FAIL';
+    }
+
+    const e2eIdempotencyKey = `e2e:${gitHubRun.id}:${gitHubRun.attempt}:${gitHubRun.head_sha}`;
+    records['e2e'] = {
+      assessment_key: 'technical_e2e',
+      status: resolvedE2eStatus,
+      origin: 'persisted_trusted_import',
+      source_classification: 'VERIFIED_CI_EVIDENCE',
+      validated_commit_sha: gitHubRun.head_sha,
+      workflow_name: gitHubRun.workflow_name,
+      workflow_identity: `${gitHubRun.workflow_name} / e2e`,
+      workflow_run_id: gitHubRun.id,
+      workflow_attempt: gitHubRun.attempt,
+      event: gitHubRun.event,
+      measured_at: manifest.completed_at || new Date().toISOString(),
+      evidence_reference: `https://github.com/${gitHubRun.repository}/actions/runs/${gitHubRun.id}`,
+      artifact_name: artifactName || `pl20-evidence-quality-gate-${gitHubRun.id}-${gitHubRun.attempt}`,
+      manifest_path: 'pl20-evidence/quality-gate.json',
+      idempotency_key: e2eIdempotencyKey,
+      evidence: {
+        classification: 'VERIFIED_CI_EVIDENCE',
+        origin: 'persisted_trusted_import',
+        dimension: 'technical.e2e.status',
+        status: resolvedE2eStatus,
+        validated_commit_sha: gitHubRun.head_sha,
+        workflow_name: gitHubRun.workflow_name,
+        workflow_identity: `${gitHubRun.workflow_name} / e2e`,
+        workflow_run_id: gitHubRun.id,
+        workflow_attempt: gitHubRun.attempt,
+        event: gitHubRun.event,
+        conclusion: gitHubRun.conclusion,
+        evidence_reference: `https://github.com/${gitHubRun.repository}/actions/runs/${gitHubRun.id}`,
+        artifact_name: artifactName || `pl20-evidence-quality-gate-${gitHubRun.id}-${gitHubRun.attempt}`,
+        manifest_path: 'pl20-evidence/quality-gate.json',
+        imported_at: new Date().toISOString(),
+        provenance_version: 'pl20-ci-evidence-v1'
+      },
+      metadata: {
+        source: 'github_actions_artifact_import',
+        source_type: 'github_actions_verified',
+        measured_state: resolvedE2eStatus === 'NOT_MEASURED' ? 'NOT_MEASURED' : 'MEASURED',
+        calculation_version: 'pl20-ci-evidence-v1',
+        trusted_import: true,
+        origin: 'persisted_trusted_import',
+        classification: 'VERIFIED_CI_EVIDENCE',
+        idempotency_key: e2eIdempotencyKey,
+        repository: gitHubRun.repository,
+        workflow_name: gitHubRun.workflow_name,
+        workflow_identity: `${gitHubRun.workflow_name} / e2e`,
+        workflow_run_id: gitHubRun.id,
+        workflow_attempt: gitHubRun.attempt,
+        validated_commit_sha: gitHubRun.head_sha
+      }
+    };
   }
 
   const rgIdempotencyKey = `release_gate:${gitHubRun.id}:${gitHubRun.attempt}:${gitHubRun.head_sha}`;
@@ -658,9 +739,25 @@ export function verifyReviewedSecurityManifestInput(options: {
     return { success: false, error: `Schema invalid: ${schemaValidation.error}` };
   }
 
+  // Task 2 & Task 6 test 6: draft security candidate cannot satisfy security blockers
+  if (schemaValidation.isCandidate || (manifest as any).candidate === true || manifest.status === 'PREPARED_FOR_REVIEW' || manifest.status === 'DRAFT') {
+    return {
+      success: false,
+      error: `Draft security candidate cannot satisfy security blockers (status: '${manifest.status || 'DRAFT'}'). Requires authorized review.`
+    };
+  }
+
   // Task 16 test 3: wrong repository rejected
   if (manifest.repository !== 'risejoaquin/stable-ecomerce') {
     return { success: false, error: `Wrong repository rejected: expected 'risejoaquin/stable-ecomerce', got '${manifest.repository}'` };
+  }
+
+  // Task 6 test 8: missing reviewer cannot PASS
+  if (!manifest.reviewer_class || String(manifest.reviewer_class).trim().toLowerCase() === 'pending' || String(manifest.reviewer_class).trim().toLowerCase() === 'null') {
+    return {
+      success: false,
+      error: 'Missing reviewer cannot PASS: reviewer_class is required and must be authorized'
+    };
   }
 
   // Task 11 & Task 16 test 14: reviewer_class check; request-body spoof rejected
@@ -672,10 +769,28 @@ export function verifyReviewedSecurityManifestInput(options: {
     };
   }
 
+  // Task 2 & Task 6 test 7: Antigravity-created candidate cannot impersonate chatgpt_web review
+  if (callerClass && ['antigravity', 'codex', 'agent', 'automation'].includes(callerClass.toLowerCase())) {
+    if (reviewerClass === 'chatgpt_web') {
+      return {
+        success: false,
+        error: `Antigravity/agent caller cannot self-issue or impersonate reviewer_class 'chatgpt_web'`
+      };
+    }
+  }
+
   if (callerClass && !ALLOWED_REVIEWER_CLASSES.includes(callerClass)) {
     return {
       success: false,
       error: `Caller class '${callerClass}' cannot self-promote evidence to reviewed_security`
+    };
+  }
+
+  // Task 3 & Task 6 test 5: stale reviewed-security SHA rejected
+  if (evaluatedCommitSha && manifest.validated_commit_sha !== evaluatedCommitSha) {
+    return {
+      success: false,
+      error: `Stale reviewed-security SHA rejected: manifest '${manifest.validated_commit_sha}' != evaluated '${evaluatedCommitSha}'`
     };
   }
 
@@ -763,6 +878,70 @@ export function verifyReviewedSecurityManifestInput(options: {
       reviewed_at: manifest.reviewed_at,
       idempotency_key: idempotencyKey,
       open_count: criticalCount
+    }
+  };
+
+  return { success: true, record };
+}
+
+/**
+ * Verifies or prepares a Candidate Security Manifest (authored by Antigravity / Codex).
+ * Candidate evidence is non-authoritative and CANNOT satisfy security blockers.
+ */
+export function verifySecurityReviewCandidate(options: {
+  manifest: any;
+  evaluatedCommitSha?: string;
+  callerClass?: string;
+}): {
+  success: boolean;
+  error?: string;
+  record?: any;
+} {
+  const { manifest, evaluatedCommitSha } = options;
+  if (!manifest || typeof manifest !== 'object') {
+    return { success: false, error: 'Manifest must be a non-null object' };
+  }
+  if (manifest.repository !== 'risejoaquin/stable-ecomerce') {
+    return { success: false, error: 'Wrong repository rejected' };
+  }
+  if (manifest.reviewer_class) {
+    return { success: false, error: 'Candidate manifest cannot self-assert reviewer_class before review' };
+  }
+
+  const criticalCount = Number(manifest.critical_open_count ?? 0);
+  const highCount = Number(manifest.high_open_count ?? 0);
+
+  const record = {
+    assessment_key: 'technical_security_blockers',
+    status: 'NOT_MEASURED',
+    open_count: null,
+    origin: 'security_review_candidate',
+    source_classification: 'CANDIDATE_EVIDENCE',
+    candidate: true,
+    candidate_status: 'PREPARED_FOR_REVIEW',
+    validated_commit_sha: manifest.validated_commit_sha,
+    critical_candidate_count: criticalCount,
+    high_candidate_count: highCount,
+    evidence: {
+      classification: 'CANDIDATE_EVIDENCE',
+      origin: 'security_review_candidate',
+      candidate: true,
+      status: 'PREPARED_FOR_REVIEW',
+      validated_commit_sha: manifest.validated_commit_sha,
+      critical_open_count: criticalCount,
+      high_open_count: highCount,
+      sources: manifest.sources || [],
+      known_exceptions: manifest.known_exceptions || [],
+      caveats: manifest.caveats || []
+    },
+    metadata: {
+      source: 'security_review_candidate',
+      source_type: 'candidate_draft',
+      origin: 'security_review_candidate',
+      classification: 'CANDIDATE_EVIDENCE',
+      candidate: true,
+      measured_state: 'NOT_MEASURED',
+      validated_commit_sha: manifest.validated_commit_sha
     }
   };
 

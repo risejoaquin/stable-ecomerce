@@ -54,10 +54,11 @@ jobs:
         shell: pwsh
         run: .\scripts\qa\security\validate-security-baseline.ps1 -Mode Report
 
-      - name: Generate PL20 Quality Gate Evidence
+      - name: Generate PL20 Quality Step Evidence
         if: always()
         shell: pwsh
         env:
+          LINT_OUTCOME: ${{ steps.lint.conclusion }}
           BUILD_OUTCOME: ${{ steps.build.conclusion }}
           UNIT_TESTS_OUTCOME: ${{ steps.unit_tests.conclusion }}
           SECRET_SCAN_OUTCOME: ${{ steps.secret_scan.conclusion }}
@@ -88,23 +89,15 @@ jobs:
           $jobStatus = if ($allPassed) { 'PASS' } else { 'FAIL' }
           $jobConclusion = if ($allPassed) { 'success' } else { 'failure' }
 
-          $manifest = [ordered]@{
-            schema_version   = 'pl20-ci-evidence-v1'
+          $qualityData = [ordered]@{
             repository       = $env:REPO
             workflow_name    = $env:WORKFLOW
             workflow_run_id  = [int64]$env:RUN_ID
             workflow_attempt = [int]$env:RUN_ATTEMPT
-            event            = $env:EVENT_NAME
             head_sha         = $env:HEAD_SHA
-            started_at       = [DateTime]::UtcNow.ToString("o")
-            completed_at     = [DateTime]::UtcNow.ToString("o")
-            conclusion       = $jobConclusion
+            job_status       = $jobStatus
+            job_conclusion   = $jobConclusion
             dimensions       = [ordered]@{
-              release_gate      = [ordered]@{
-                status     = $jobStatus
-                step_name  = 'quality+e2e aggregate'
-                conclusion = $jobConclusion
-              }
               build             = [ordered]@{
                 status     = $buildStatus
                 step_name  = 'Build'
@@ -133,14 +126,14 @@ jobs:
             }
           }
 
-          $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
+          $qualityData | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality.json" -Encoding UTF8
 
-      - name: Upload PL20 Quality Gate Evidence
+      - name: Upload PL20 Quality Step Evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
-          path: pl20-evidence/
+          name: pl20-evidence-quality-steps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/quality.json
           retention-days: 30
 
   e2e:
@@ -220,4 +213,126 @@ jobs:
         with:
           name: pl20-evidence-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/e2e.json
+          retention-days: 30
+
+  aggregate:
+    needs: [quality, e2e]
+    if: always()
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download Quality Step Evidence
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: pl20-evidence-quality-steps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/quality
+
+      - name: Download E2E Evidence
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: pl20-evidence-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/e2e
+
+      - name: Generate Final Aggregate Quality Gate Evidence
+        shell: pwsh
+        env:
+          QUALITY_JOB_RESULT: ${{ needs.quality.result }}
+          E2E_JOB_RESULT: ${{ needs.e2e.result }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          New-Item -ItemType Directory -Force -Path pl20-evidence | Out-Null
+
+          $qResult = $env:QUALITY_JOB_RESULT
+          $eResult = $env:E2E_JOB_RESULT
+
+          $qualityFile = "pl20-evidence/quality/quality.json"
+          $e2eFile = "pl20-evidence/e2e/e2e.json"
+
+          $qualityData = $null
+          if (Test-Path $qualityFile) {
+            $qualityData = Get-Content $qualityFile -Raw | ConvertFrom-Json
+          }
+
+          $e2eData = $null
+          if (Test-Path $e2eFile) {
+            $e2eData = Get-Content $e2eFile -Raw | ConvertFrom-Json
+          }
+
+          # Release gate status determination:
+          # release_gate PASS only if:
+          # needs.quality.result == success AND needs.e2e.result == success
+          # If e2e fails: release_gate = FAIL
+          # If e2e skipped/not measured: release_gate = NOT_MEASURED or FAIL, never PASS
+          $releaseGateStatus = 'FAIL'
+          $releaseGateConclusion = 'failure'
+
+          if ($qResult -eq 'success' -and $eResult -eq 'success') {
+            $releaseGateStatus = 'PASS'
+            $releaseGateConclusion = 'success'
+          } elseif ($eResult -eq 'skipped' -or $qResult -eq 'skipped') {
+            $releaseGateStatus = 'NOT_MEASURED'
+            $releaseGateConclusion = 'skipped'
+          } else {
+            $releaseGateStatus = 'FAIL'
+            $releaseGateConclusion = 'failure'
+          }
+
+          $buildDim = if ($qualityData -and $qualityData.dimensions.build) { $qualityData.dimensions.build } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Build'; conclusion = $qResult } }
+          $unitDim = if ($qualityData -and $qualityData.dimensions.unit_tests) { $qualityData.dimensions.unit_tests } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Unit tests'; conclusion = $qResult } }
+          $secretDim = if ($qualityData -and $qualityData.dimensions.secret_scan) { $qualityData.dimensions.secret_scan } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Secret scan'; conclusion = $qResult } }
+          $coreDim = if ($qualityData -and $qualityData.dimensions.core_regression) { $qualityData.dimensions.core_regression } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Core regression contracts'; conclusion = $qResult } }
+          $baselineDim = if ($qualityData -and $qualityData.dimensions.security_baseline) { $qualityData.dimensions.security_baseline } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Security baseline report'; conclusion = $qResult } }
+          $e2eDim = [ordered]@{
+            status     = if ($e2eData -and $e2eData.status) { $e2eData.status } elseif ($eResult -eq 'success') { 'PASS' } elseif ($eResult -eq 'skipped') { 'NOT_MEASURED' } else { 'FAIL' }
+            step_name  = 'Playwright E2E'
+            conclusion = $eResult
+          }
+
+          $manifest = [ordered]@{
+            schema_version   = 'pl20-ci-evidence-v1'
+            repository       = $env:REPO
+            workflow_name    = $env:WORKFLOW
+            workflow_run_id  = [int64]$env:RUN_ID
+            workflow_attempt = [int]$env:RUN_ATTEMPT
+            workflow_job     = 'aggregate'
+            event            = $env:EVENT_NAME
+            head_sha         = $env:HEAD_SHA
+            started_at       = [DateTime]::UtcNow.ToString("o")
+            completed_at     = [DateTime]::UtcNow.ToString("o")
+            conclusion       = $releaseGateConclusion
+            aggregate        = $true
+            job_results      = [ordered]@{
+              quality = $qResult
+              e2e     = $eResult
+            }
+            dimensions       = [ordered]@{
+              release_gate      = [ordered]@{
+                status     = $releaseGateStatus
+                step_name  = 'quality+e2e aggregate'
+                conclusion = $releaseGateConclusion
+              }
+              build             = $buildDim
+              unit_tests        = $unitDim
+              secret_scan       = $secretDim
+              core_regression   = $coreDim
+              security_baseline = $baselineDim
+              e2e               = $e2eDim
+            }
+          }
+
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
+
+      - name: Upload Final PL20 Quality Gate Evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pl20-evidence/quality-gate.json
           retention-days: 30

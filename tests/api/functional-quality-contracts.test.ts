@@ -2,7 +2,7 @@
 import jwt from 'jsonwebtoken';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { verifyQualityGateImport, verifyE2eImport, verifyProductionSmokeImport, verifyReviewedSecurityManifestInput } from '../../src/server/ci/trusted-ci-importer.js';
+import { verifyQualityGateImport, verifyE2eImport, verifyProductionSmokeImport, verifyReviewedSecurityManifestInput, verifySecurityReviewCandidate } from '../../src/server/ci/trusted-ci-importer.js';
 
 const testSecret = 'qa-release-e-test-secret';
 let app: Awaited<ReturnType<typeof import('../../server').startServer>>;
@@ -2583,6 +2583,8 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
           origin,
           source_classification: classification,
           open_count: isSec ? 0 : undefined,
+          reviewer_class: isSec ? 'chatgpt_web' : undefined,
+          reviewed_at: isSec ? measuredAt : undefined,
           metadata: {
             source: isSec ? 'security_audit' : 'github_actions_ci',
             source_type: isDb ? 'migration_history' : (isSec ? 'security_audit' : 'ci_pipeline'),
@@ -2594,7 +2596,9 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
             validated_commit_sha: commitSha,
             evidence_reference: `run:3542280042${idx}`,
             workflow_identity: workflowIdentity,
-            open_count: isSec ? 0 : undefined
+            open_count: isSec ? 0 : undefined,
+            reviewer_class: isSec ? 'chatgpt_web' : undefined,
+            reviewed_at: isSec ? measuredAt : undefined
           },
           evidence: {
             validated_commit_sha: commitSha,
@@ -2603,7 +2607,9 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
             evidence_reference: `run:3542280042${idx}`,
             workflow_identity: workflowIdentity,
             measured_at: measuredAt,
-            open_count: isSec ? 0 : undefined
+            open_count: isSec ? 0 : undefined,
+            reviewer_class: isSec ? 'chatgpt_web' : undefined,
+            reviewed_at: isSec ? measuredAt : undefined
           }
         };
       });
@@ -2661,6 +2667,462 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.status).toBe(200);
       expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(true);
       // Operating costs and capacity are not scale-ready, so finalScaleReady MUST remain false!
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+  });
+
+  describe('POST-LAUNCH 20 (PL20-03B Final Hotfix): Release Gate Aggregation and Reviewed Security Authority', () => {
+    const validCommit = '58255e9ac6ff1b54cc0530523d5f6d23207c22a4';
+    const adminToken = authToken('admin');
+
+    const baseAggregateManifest = {
+      schema_version: 'pl20-ci-evidence-v1',
+      repository: 'risejoaquin/stable-ecomerce',
+      workflow_name: 'Selfcare Quality Gate',
+      workflow_job: 'aggregate',
+      aggregate: true,
+      workflow_run_id: 1001,
+      workflow_attempt: 1,
+      event: 'push',
+      head_sha: validCommit,
+      completed_at: new Date().toISOString(),
+      dimensions: {
+        build: { status: 'PASS' },
+        unit_tests: { status: 'PASS' },
+        secret_scan: { status: 'PASS' },
+        core_regression: { status: 'PASS' },
+        security_baseline: { status: 'PASS' },
+        e2e: { status: 'PASS' }
+      }
+    };
+
+    it('1. quality PASS + e2e FAIL => release_gate FAIL', () => {
+      const manifest = {
+        ...baseAggregateManifest,
+        dimensions: {
+          ...baseAggregateManifest.dimensions,
+          e2e: { status: 'FAIL' }
+        }
+      };
+      const run: any = {
+        id: 1001,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'failure',
+        job_conclusions: {
+          quality: 'success',
+          e2e: 'failure'
+        }
+      };
+      const result = verifyQualityGateImport({
+        manifest: manifest as any,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.release_gate.status).toBe('FAIL');
+      expect(result.records!.e2e.status).toBe('FAIL');
+    });
+
+    it('2. quality PASS + e2e skipped => release_gate not PASS (NOT_MEASURED)', () => {
+      const manifest = {
+        ...baseAggregateManifest,
+        dimensions: {
+          ...baseAggregateManifest.dimensions,
+          e2e: { status: 'NOT_MEASURED' }
+        }
+      };
+      const run: any = {
+        id: 1001,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success',
+        job_conclusions: {
+          quality: 'success',
+          e2e: 'skipped'
+        }
+      };
+      const result = verifyQualityGateImport({
+        manifest: manifest as any,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.release_gate.status).toBe('NOT_MEASURED');
+      expect(result.records!.release_gate.status).not.toBe('PASS');
+      expect(result.records!.e2e.status).toBe('NOT_MEASURED');
+    });
+
+    it('3. quality PASS + e2e PASS => release_gate PASS', () => {
+      const run: any = {
+        id: 1001,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success',
+        job_conclusions: {
+          quality: 'success',
+          e2e: 'success'
+        }
+      };
+      const result = verifyQualityGateImport({
+        manifest: baseAggregateManifest as any,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.release_gate.status).toBe('PASS');
+      expect(result.records!.e2e.status).toBe('PASS');
+      expect(result.records!.build.status).toBe('PASS');
+    });
+
+    it('4. final aggregate manifest generated after both jobs', () => {
+      const run: any = {
+        id: 1001,
+        attempt: 1,
+        workflow_name: 'Selfcare Quality Gate',
+        repository: 'risejoaquin/stable-ecomerce',
+        head_sha: validCommit,
+        event: 'push',
+        conclusion: 'success',
+        job_conclusions: {
+          quality: 'success',
+          e2e: 'success',
+          aggregate: 'success'
+        }
+      };
+      const result = verifyQualityGateImport({
+        manifest: baseAggregateManifest as any,
+        gitHubRun: run,
+        evaluatedCommitSha: validCommit,
+        artifactName: 'pl20-evidence-quality-gate-1001-1'
+      });
+      expect(result.success).toBe(true);
+      expect(result.records!.release_gate).toBeDefined();
+      expect(result.records!.release_gate.manifest_path).toBe('pl20-evidence/quality-gate.json');
+      expect(result.records!.release_gate.artifact_name).toBe('pl20-evidence-quality-gate-1001-1');
+      expect(result.records!.e2e).toBeDefined();
+      expect(result.records!.build).toBeDefined();
+      expect(result.records!.unit_tests).toBeDefined();
+    });
+
+    it('5. stale reviewed-security SHA rejected', () => {
+      const manifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: '77fef0eb2923751bd1f515187604343276948dba', // Stale SHA
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest,
+        evaluatedCommitSha: validCommit, // newer commit
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Stale reviewed-security SHA rejected');
+    });
+
+    it('6. draft security candidate cannot satisfy security block', async () => {
+      const candidateManifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        candidate: true,
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        prepared_at: new Date().toISOString(),
+        status: 'PREPARED_FOR_REVIEW',
+        reviewer_class: null,
+        critical_open_count: 0,
+        high_open_count: 1,
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ]
+      };
+
+      // Import verification must reject candidate draft from satisfying reviewed security
+      const verifyResult = verifyReviewedSecurityManifestInput({
+        manifest: candidateManifest,
+        evaluatedCommitSha: validCommit
+      });
+      expect(verifyResult.success).toBe(false);
+      expect(verifyResult.error).toContain('Draft security candidate cannot satisfy security blockers');
+
+      // Candidate helper prepares candidate record as NOT_MEASURED / CANDIDATE_EVIDENCE
+      const candidatePrep = verifySecurityReviewCandidate({
+        manifest: candidateManifest,
+        evaluatedCommitSha: validCommit
+      });
+      expect(candidatePrep.success).toBe(true);
+      expect(candidatePrep.record.status).toBe('NOT_MEASURED');
+      expect(candidatePrep.record.source_classification).toBe('CANDIDATE_EVIDENCE');
+
+      // In summary endpoint, draft candidate row must NEVER satisfy security blockers
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'candidate-draft-1',
+          assessment_key: 'technical_security_blockers',
+          area: 'security',
+          status: 'PREPARED_FOR_REVIEW',
+          score: null,
+          source_classification: 'CANDIDATE_EVIDENCE',
+          origin: 'security_review_candidate',
+          candidate: true,
+          open_count: 0,
+          metadata: {
+            source: 'security_audit',
+            source_type: 'security_candidate',
+            calculation_version: 'pl20-reviewed-security-v1',
+            measured_state: 'MEASURED',
+            measured_at: new Date().toISOString(),
+            candidate: true,
+            status: 'PREPARED_FOR_REVIEW',
+            source_classification: 'CANDIDATE_EVIDENCE',
+            origin: 'security_review_candidate',
+            validated_commit_sha: validCommit
+          },
+          evidence: {
+            candidate: true,
+            status: 'PREPARED_FOR_REVIEW',
+            validated_commit_sha: validCommit,
+            source: 'security_audit',
+            calculation_version: 'pl20-reviewed-security-v1',
+            measured_state: 'MEASURED',
+            measured_at: new Date().toISOString()
+          }
+        }
+      ];
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalDimensions.security_blockers.status).toBe('NOT_MEASURED');
+      expect(res.body.summary.evaluationRules.technicalDimensions.security_blockers.classification).toBe('MANUAL_EVIDENCE');
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('7. Antigravity-created candidate cannot impersonate chatgpt_web review', () => {
+      const spoofedManifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest: spoofedManifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'antigravity'
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Antigravity/agent caller cannot self-issue or impersonate reviewer_class 'chatgpt_web'");
+    });
+
+    it('8. missing reviewer cannot PASS', () => {
+      const missingReviewerManifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: null,
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest: missingReviewerManifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Missing reviewer cannot PASS');
+    });
+
+    it('9. current authorized reviewed manifest can PASS', () => {
+      const authorizedManifest: any = {
+        schema_version: 'pl20-reviewed-security-v1',
+        repository: 'risejoaquin/stable-ecomerce',
+        validated_commit_sha: validCommit,
+        reviewed_at: new Date().toISOString(),
+        reviewer_class: 'chatgpt_web',
+        scope: { included: ['secret_scan', 'security_baseline', 'core_regression', 'known_issues', 'dependency_vulnerabilities', 'pl20_trust_boundary'] },
+        sources: [
+          { source_type: 'secret_scan', reference: 'ref', status: 'PASS' },
+          { source_type: 'security_baseline', reference: 'ref', status: 'PASS' },
+          { source_type: 'core_regression', reference: 'ref', status: 'PASS' },
+          { source_type: 'known_issues', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'dependency_vulnerabilities', reference: 'ref', status: 'REVIEWED' },
+          { source_type: 'pl20_trust_boundary', reference: 'ref', status: 'REVIEWED' }
+        ],
+        critical_open_count: 0,
+        high_open_count: 0,
+        status: 'PASS'
+      };
+      const result = verifyReviewedSecurityManifestInput({
+        manifest: authorizedManifest,
+        evaluatedCommitSha: validCommit,
+        callerClass: 'chatgpt_web'
+      });
+      expect(result.success).toBe(true);
+      expect(result.record.status).toBe('PASS');
+      expect(result.record.origin).toBe('reviewed_security');
+      expect(result.record.source_classification).toBe('REVIEWED_SECURITY_EVIDENCE');
+      expect(result.record.reviewer_class).toBe('chatgpt_web');
+    });
+
+    it('10. PL20-02 trust boundary remains intact', async () => {
+      // Direct insertion claiming VERIFIED_CI_EVIDENCE or REVIEWED_SECURITY_EVIDENCE with untrusted origin is downgraded
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'claim-untrusted-boundary',
+          assessment_key: 'technical_release_gate',
+          area: 'release_gate',
+          status: 'pass',
+          score: null,
+          source_classification: 'VERIFIED_CI_EVIDENCE',
+          origin: 'untrusted_body',
+          metadata: {
+            source: 'github_actions_ci',
+            source_type: 'ci_pipeline',
+            calculation_version: 'pl20-ci-evidence-v1',
+            measured_state: 'MEASURED',
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'untrusted_body',
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:123',
+            workflow_identity: 'Selfcare Quality Gate'
+          },
+          evidence: {
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'untrusted_body',
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:123',
+            workflow_identity: 'Selfcare Quality Gate'
+          }
+        }
+      ];
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalDimensions.release_gate.classification).toBe('MANUAL_EVIDENCE');
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('11. finalScaleReady remains false', async () => {
+      // Even if all 8 technical assessments are present and passed with trusted classifications,
+      // commercial capacity and operating costs prevent finalScaleReady from becoming true
+      const keys = [
+        'technical_release_gate',
+        'technical_production_smoke',
+        'technical_build',
+        'technical_unit_tests',
+        'technical_e2e',
+        'technical_secret_scan',
+        'technical_database_reproducibility',
+        'technical_security_blockers'
+      ];
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = keys.map((k, idx) => {
+        const isDb = k === 'technical_database_reproducibility';
+        const isSec = k === 'technical_security_blockers';
+        const isE2e = k === 'technical_e2e';
+        const classification = isDb ? 'PERSISTED_EVIDENCE' : (isSec ? 'REVIEWED_SECURITY_EVIDENCE' : 'VERIFIED_CI_EVIDENCE');
+        const origin = isDb ? 'persisted_database_evidence' : (isSec ? 'reviewed_security' : 'persisted_trusted_import');
+        const workflowIdentity = isE2e ? 'Selfcare Quality Gate / e2e' : (k === 'technical_production_smoke' ? 'Selfcare Production Smoke' : 'Selfcare Quality Gate');
+        return {
+          id: `trusted-pass-${idx}`,
+          assessment_key: k,
+          status: 'pass',
+          score: null,
+          origin,
+          source_classification: classification,
+          open_count: isSec ? 0 : undefined,
+          reviewer_class: isSec ? 'chatgpt_web' : undefined,
+          reviewed_at: isSec ? measuredAt : undefined,
+          metadata: {
+            source: isSec ? 'security_audit' : 'github_actions_ci',
+            source_type: isDb ? 'migration_history' : (isSec ? 'security_audit' : 'ci_pipeline'),
+            source_classification: classification,
+            origin,
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            calculation_version: 'pl20-ci-evidence-v1',
+            workflow_identity: workflowIdentity,
+            evidence_reference: `ref-${idx}`,
+            open_count: isSec ? 0 : undefined,
+            reviewer_class: isSec ? 'chatgpt_web' : undefined,
+            reviewed_at: isSec ? measuredAt : undefined
+          },
+          evidence: {
+            source_classification: classification,
+            origin,
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            workflow_identity: workflowIdentity,
+            evidence_reference: `ref-${idx}`,
+            open_count: isSec ? 0 : undefined,
+            reviewer_class: isSec ? 'chatgpt_web' : undefined,
+            reviewed_at: isSec ? measuredAt : undefined
+          }
+        };
+      });
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(true);
       expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });

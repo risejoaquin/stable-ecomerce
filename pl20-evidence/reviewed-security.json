@@ -2,8 +2,11 @@
   "schema_version": "pl20-reviewed-security-v1",
   "repository": "risejoaquin/stable-ecomerce",
   "validated_commit_sha": "77fef0eb2923751bd1f515187604343276948dba",
-  "reviewed_at": "2026-09-19T12:47:00Z",
-  "reviewer_class": "chatgpt_web",
+  "prepared_at": "2026-09-19T13:10:00Z",
+  "reviewed_at": null,
+  "reviewer_class": null,
+  "candidate": true,
+  "status": "PREPARED_FOR_REVIEW",
   "scope": {
     "included": [
       "secret_scan",
@@ -73,7 +76,6 @@
     "Production-only multer vulnerability is mitigated by requireAdmin authorization and input validation on upload routes."
   ],
   "caveats": [
-    "High vulnerability reviewed and accepted with documented mitigation; no unresolved critical blockers exist."
-  ],
-  "status": "PASS"
+    "Candidate security assessment prepared by Codex/Antigravity; pending authoritative review by ChatGPT Web."
+  ]
 }
