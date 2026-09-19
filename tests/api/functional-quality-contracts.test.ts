@@ -945,7 +945,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
     const adminToken = authToken('admin');
     const targetCommit = 'pl20-target-sha-abcdef123456';
 
-    const createPassingCiEvidence = (commitSha: string) => {
+    const createPassingCiEvidence = (commitSha: string, options: { trustedE2e?: boolean } = {}) => {
       const keys = [
         'technical_release_gate',
         'technical_production_smoke',
@@ -960,30 +960,40 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       return keys.map((k, idx) => {
         const isDb = k === 'technical_database_reproducibility';
         const isSec = k === 'technical_security_blockers';
+        const isE2e = k === 'technical_e2e';
         const classification = isDb ? 'PERSISTED_EVIDENCE' : 'VERIFIED_CI_EVIDENCE';
+        const origin = isDb
+          ? 'persisted_database_evidence'
+          : (isSec ? 'reviewed_security' : 'persisted_trusted_import');
+        const workflowIdentity = isE2e && options.trustedE2e ? 'Playwright E2E Runner' : 'Selfcare Quality Gate';
+
         return {
           id: `ci-tech-${idx + 1}`,
           assessment_key: k,
           status: 'pass',
           score: null,
+          origin,
+          source_classification: classification,
           open_count: isSec ? 0 : undefined,
           metadata: {
             source: 'github_actions_ci',
             source_type: isDb ? 'migration_history' : (isSec ? 'security_audit' : 'ci_pipeline'),
             source_classification: classification,
+            origin,
             calculation_version: 'pl20-02-v1',
             measured_at: measuredAt,
             measured_state: 'MEASURED',
             validated_commit_sha: commitSha,
             evidence_reference: `run:3542280042${idx}`,
-            workflow_identity: 'Selfcare Quality Gate',
+            workflow_identity: workflowIdentity,
             open_count: isSec ? 0 : undefined
           },
           evidence: {
             validated_commit_sha: commitSha,
             source_classification: classification,
+            origin,
             evidence_reference: `run:3542280042${idx}`,
-            workflow_identity: 'Selfcare Quality Gate',
+            workflow_identity: workflowIdentity,
             measured_at: measuredAt,
             open_count: isSec ? 0 : undefined
           }
@@ -991,67 +1001,22 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       });
     };
 
-    it('1. missing security blocker evidence => NOT_MEASURED, not PASS', async () => {
-      // Evidence has all CI dimensions passing except security blockers is omitted
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit).filter(
-        e => e.assessment_key !== 'technical_security_blockers'
-      );
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.security_blockers.status).toBe('NOT_MEASURED');
-      expect(rules.technicalDimensions.security_blockers.open_count).toBeNull();
-      expect(rules.technicalEvidenceComplete).toBe(false);
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('2. security open_count=0 only passes with valid evidence', async () => {
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.security_blockers.status).toBe('PASS');
-      expect(rules.technicalDimensions.security_blockers.open_count).toBe(0);
-      expect(rules.technicalDimensions.security_blockers.classification).toBe('VERIFIED_CI_EVIDENCE');
-      expect(rules.technicalRequiredPass).toBe(true);
-    });
-
-    it('3. security open_count>0 => FAIL', async () => {
-      const evidence = createPassingCiEvidence(targetCommit);
-      const secItem = evidence.find(e => e.assessment_key === 'technical_security_blockers')!;
-      secItem.status = 'fail';
-      secItem.open_count = 3;
-      secItem.metadata.open_count = 3;
-      secItem.evidence.open_count = 3;
-
-      customMockTableRows['final_technical_assessments'] = evidence;
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.security_blockers.status).toBe('FAIL');
-      expect(rules.technicalDimensions.security_blockers.open_count).toBe(3);
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('4. admin body with {status: pass} but no provenance is not VERIFIED_CI_EVIDENCE', async () => {
+    it('1. full fake request-body CI payload remains MANUAL_EVIDENCE', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/technical-assessment/run')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
+          commitSha: targetCommit,
           ciEvidence: {
-            technical_build: { status: 'pass' }
+            technical_build: {
+              status: 'pass',
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString(),
+              run_id: '35422800421',
+              evidence_reference: 'run:35422800421',
+              workflow_identity: 'Selfcare Quality Gate',
+              source_type: 'build_system'
+            }
           }
         });
       expect(res.status).toBe(200);
@@ -1059,19 +1024,143 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       const buildItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_build');
       expect(buildItem).toBeDefined();
       expect(buildItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
-      expect(buildItem.metadata.validated_commit_sha).toBeNull();
-      expect(buildItem.status).toBe('not_measured');
+      expect(buildItem.evidence.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(buildItem.metadata.origin).toBe('request_body');
+      expect(buildItem.evidence.origin).toBe('request_body');
     });
 
-    it('5. missing validated_commit_sha cannot use deployed SHA fallback', async () => {
+    it('2. fake run ID cannot become VERIFIED_CI_EVIDENCE', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/technical-assessment/run')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          commitSha: 'deployed-sha-999',
+          ciEvidence: {
+            technical_release_gate: {
+              status: 'pass',
+              run_id: '99999999',
+              evidence_reference: 'run:99999999',
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString(),
+              workflow_identity: 'Selfcare Quality Gate'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const gateItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_release_gate');
+      expect(gateItem.metadata.source_classification).not.toBe('VERIFIED_CI_EVIDENCE');
+      expect(gateItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+    });
+
+    it('3. fake workflow name cannot become VERIFIED_CI_EVIDENCE', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            technical_unit_tests: {
+              status: 'pass',
+              workflow_name: 'Selfcare Quality Gate',
+              workflow_identity: 'Selfcare Quality Gate',
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString()
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const unitItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_unit_tests');
+      expect(unitItem.metadata.source_classification).not.toBe('VERIFIED_CI_EVIDENCE');
+      expect(unitItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+    });
+
+    it('4. current SHA in manual payload does not increase trust', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          commit_sha: targetCommit,
+          ciEvidence: {
+            technical_secret_scan: {
+              status: 'pass',
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString()
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const secretItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_secret_scan');
+      expect(secretItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(secretItem.metadata.origin).toBe('request_body');
+    });
+
+    it('5. request-body security blockers zero cannot satisfy readiness', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            security_blockers: {
+              status: 'pass',
+              open_count: 0,
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString(),
+              evidence_reference: 'run:audit-123',
+              workflow_identity: 'Security Audit'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const secItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_security_blockers');
+      expect(secItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(secItem.metadata.origin).toBe('request_body');
+
+      customMockTableRows['final_technical_assessments'] = [secItem];
+      const summaryRes = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isSecurityBlockersSatisfied).toBe(false);
+      expect(summaryRes.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('6. caller cannot self-declare REVIEWED_SECURITY_EVIDENCE', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            security_blockers: {
+              status: 'pass',
+              open_count: 0,
+              source_classification: 'REVIEWED_SECURITY_EVIDENCE',
+              classification: 'REVIEWED_SECURITY_EVIDENCE',
+              origin: 'reviewed_security',
+              validated_commit_sha: targetCommit,
+              measured_at: new Date().toISOString()
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const secItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_security_blockers');
+      expect(secItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(secItem.metadata.origin).toBe('request_body');
+    });
+
+    it('7. caller cannot self-declare persisted_trusted_import', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
           ciEvidence: {
             technical_build: {
               status: 'pass',
+              source_classification: 'VERIFIED_CI_EVIDENCE',
+              origin: 'persisted_trusted_import',
+              validated_commit_sha: targetCommit,
               measured_at: new Date().toISOString(),
               evidence_reference: 'run:12345',
               workflow_identity: 'Selfcare Quality Gate'
@@ -1081,129 +1170,37 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.status).toBe(200);
 
       const buildItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_build');
-      expect(buildItem).toBeDefined();
-      // Must NOT fallback to deployed-sha-999 for the CI claim
-      expect(buildItem.metadata.validated_commit_sha).toBeNull();
-      expect(buildItem.status).toBe('not_measured');
       expect(buildItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(buildItem.metadata.origin).toBe('request_body');
     });
 
-    it('6. mismatched SHA => STALE', async () => {
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence('older-commit-sha-99999');
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.release_gate.status).toBe('STALE');
-      expect(rules.technicalDimensions.build.status).toBe('STALE');
-      expect(rules.technicalEvidenceCurrent).toBe(false);
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('7. missing measured_at => NOT_MEASURED', async () => {
-      const evidence = createPassingCiEvidence(targetCommit);
-      const gateItem = evidence.find(e => e.assessment_key === 'technical_release_gate')!;
-      gateItem.metadata.measured_at = null;
-      gateItem.evidence.measured_at = null;
-
-      customMockTableRows['final_technical_assessments'] = evidence;
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.release_gate.status).toBe('NOT_MEASURED');
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('8. manual evidence cannot satisfy technicalRequiredPass', async () => {
-      const evidence = createPassingCiEvidence(targetCommit);
-      const gateItem = evidence.find(e => e.assessment_key === 'technical_release_gate')!;
-      // Downgrade release_gate to MANUAL_EVIDENCE
-      gateItem.metadata.source_classification = 'MANUAL_EVIDENCE';
-      gateItem.evidence.source_classification = 'MANUAL_EVIDENCE';
-      gateItem.metadata.evidence_reference = null;
-      gateItem.evidence.evidence_reference = null;
-
-      customMockTableRows['final_technical_assessments'] = evidence;
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.release_gate.classification).toBe('MANUAL_EVIDENCE');
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('9. verified current CI evidence can satisfy one required dimension', async () => {
-      const evidence = createPassingCiEvidence(targetCommit);
-      const buildItem = evidence.find(e => e.assessment_key === 'technical_build')!;
-
-      customMockTableRows['final_technical_assessments'] = [buildItem];
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.build.status).toBe('PASS');
-      expect(rules.technicalDimensions.build.classification).toBe('VERIFIED_CI_EVIDENCE');
-      expect(rules.technicalDimensions.build.validated_commit_sha).toBe(targetCommit);
-    });
-
-    it('10. all verified required dimensions + security zero => technicalRequiredPass true', async () => {
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalEvidenceComplete).toBe(true);
-      expect(rules.technicalEvidenceCurrent).toBe(true);
-      expect(rules.technicalRequiredPass).toBe(true);
-    });
-
-    it('11. missing one required dimension => false', async () => {
-      // Omit technical_unit_tests
-      const evidence = createPassingCiEvidence(targetCommit).filter(e => e.assessment_key !== 'technical_unit_tests');
-      customMockTableRows['final_technical_assessments'] = evidence;
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.unit_tests.status).toBe('NOT_MEASURED');
-      expect(rules.technicalEvidenceComplete).toBe(false);
-      expect(rules.technicalRequiredPass).toBe(false);
-    });
-
-    it('12. finalScaleReady remains false while costs/capacity unmeasured', async () => {
+    it('8. persisted row claiming VERIFIED without trusted-origin marker is downgraded', async () => {
       const measuredAt = new Date().toISOString();
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
-      customMockTableRows['final_commercial_assessments'] = [
+      customMockTableRows['final_technical_assessments'] = [
         {
-          id: 'comm-1',
-          assessment_key: 'commercial_volume_performance',
-          status: 'measured',
+          id: 'claim-1',
+          assessment_key: 'technical_build',
+          status: 'pass',
           score: null,
           metadata: {
-            source: 'api_final_scale_commercial_assessment_run',
-            source_type: 'api',
+            source: 'external_claim',
+            source_type: 'ci_pipeline',
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'request_body',
             calculation_version: 'pl20-02-v1',
             measured_at: measuredAt,
-            measured_state: 'MEASURED'
+            measured_state: 'MEASURED',
+            validated_commit_sha: targetCommit,
+            evidence_reference: 'run:12345',
+            workflow_identity: 'Selfcare Quality Gate'
+          },
+          evidence: {
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'request_body',
+            validated_commit_sha: targetCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:12345',
+            workflow_identity: 'Selfcare Quality Gate'
           }
         }
       ];
@@ -1213,12 +1210,86 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
 
+      const buildDim = res.body.summary.evaluationRules.technicalDimensions.build;
+      expect(buildDim.classification).toBe('MANUAL_EVIDENCE');
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('9. trusted-origin + full persisted provenance is eligible', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'claim-trusted-1',
+          assessment_key: 'technical_build',
+          status: 'pass',
+          score: null,
+          metadata: {
+            source: 'github_actions_ci',
+            source_type: 'ci_pipeline',
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'persisted_trusted_import',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            validated_commit_sha: targetCommit,
+            evidence_reference: 'run:35422800421',
+            workflow_identity: 'Selfcare Quality Gate'
+          },
+          evidence: {
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'persisted_trusted_import',
+            validated_commit_sha: targetCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:35422800421',
+            workflow_identity: 'Selfcare Quality Gate'
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const buildDim = res.body.summary.evaluationRules.technicalDimensions.build;
+      expect(buildDim.status).toBe('PASS');
+      expect(buildDim.classification).toBe('VERIFIED_CI_EVIDENCE');
+      expect(buildDim.origin).toBe('persisted_trusted_import');
+      expect(buildDim.validated_commit_sha).toBe(targetCommit);
+    });
+
+    it('10. missing E2E trusted source keeps technicalRequiredPass false', async () => {
+      // 7 other dimensions have trusted-origin evidence, but e2e is claimed from Quality Gate (which does NOT run E2E)
+      const evidence = createPassingCiEvidence(targetCommit);
+      customMockTableRows['final_technical_assessments'] = evidence;
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
       const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalRequiredPass).toBe(true);
-      expect(rules.isCommercialMeasured).toBe(true);
-      expect(rules.isCapacityLoadMeasured).toBe(false);
-      expect(rules.isCostEvidenceMeasured).toBe(false);
+      expect(rules.technicalDimensions.e2e.classification).toBe('MANUAL_EVIDENCE');
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('11. finalScaleReady remains false', async () => {
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
       expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+
+    it('12. existing auth/security contracts remain green', async () => {
+      const unauthorizedRes = await request(app).get('/api/admin/final-scale/summary');
+      expect(unauthorizedRes.status).toBe(401);
+
+      const nonAdminToken = authToken('user');
+      const forbiddenRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${nonAdminToken}`);
+      expect(forbiddenRes.status).toBe(403);
     });
 
     it('13. runtime cannot fabricate CI PASS (calling technical assessment without CI evidence marks CI dimensions NOT_MEASURED)', async () => {

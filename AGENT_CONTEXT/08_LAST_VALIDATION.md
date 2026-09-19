@@ -1,9 +1,9 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-18T22:11:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-02 Hotfix: Trusted Technical Evidence Ingestion)
+**Timestamp:** 2026-09-18T22:25:50-07:00
+**Phase:** POST-LAUNCH 20 (PL20-02 Final Hotfix: Trust Boundary: Never Trust Request-Body CI Assertions)
 **Branch:** `main`
-**Base Commit:** `dbea84b94098e31e04e930f209f480f87cfb0b6a`
+**Base Commit:** `e3d8b560e67df4cb5f7da82fe8c595747a1ad747`
 
 ## 1. Validation Suite Status
 
@@ -23,12 +23,9 @@
 
 ## 2. Key Verified Behaviors
 
-- Missing security blocker evidence evaluates strictly to `status: 'NOT_MEASURED'`, `open_count: null`, preventing false PASS.
-- `open_count === 0` only passes with `VERIFIED_CI_EVIDENCE`, `PERSISTED_EVIDENCE`, or `REVIEWED_SECURITY_EVIDENCE`.
-- `open_count > 0` evaluates to `FAIL`.
-- Admin body with `{ status: 'pass' }` but no provenance is classified as `MANUAL_EVIDENCE` and cannot satisfy `technicalRequiredPass`.
-- Missing `validated_commit_sha` cannot use deployed SHA fallback; evaluates to `status: 'not_measured'`.
-- Mismatched commit SHA resolves to `STALE`.
-- Missing `measured_at` resolves to `NOT_MEASURED`.
-- `evidence_reference` and `workflow_identity` safely ingested and exposed.
-- In production, `technicalRequiredPass` and `finalScaleReady` evaluate strictly to `false` until trusted CI evidence is ingested and capacity/costs are measured.
+- Request body payloads are strictly classified as `MANUAL_EVIDENCE` or `NOT_MEASURED` with `origin: 'request_body'`.
+- Fake `run_id`, fake `workflow_identity`, or real current SHA in request body cannot elevate to `VERIFIED_CI_EVIDENCE`.
+- In `summary`, rows claiming `VERIFIED_CI_EVIDENCE` without `origin === 'persisted_trusted_import'` are downgraded to `MANUAL_EVIDENCE`.
+- `security_blockers.open_count = 0` via request body receives `origin: 'request_body'` and cannot satisfy readiness.
+- Claims for `technical_e2e` using `Selfcare Quality Gate` are downgraded to `MANUAL_EVIDENCE`.
+- In production, `technicalEvidenceComplete`, `technicalEvidenceCurrent`, `technicalRequiredPass`, and `finalScaleReady` evaluate strictly to `false`.

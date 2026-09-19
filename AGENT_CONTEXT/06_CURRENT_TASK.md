@@ -1,18 +1,19 @@
 # CURRENT TASK
 
-TASK ID: PL20-02-HOTFIX-TRUSTED-TECHNICAL-EVIDENCE
+TASK ID: PL20-02-FINAL-HOTFIX-TRUST-BOUNDARY
 PHASE: POST-LAUNCH 20
-STATUS: READY_FOR_CHATGPT_WEB_VALIDATION (PL20-01 PASS; PL20-02 HOTFIX PASS; POST-LAUNCH 20 ACTIVE; DO NOT START PL20-03; DO NOT START PL21; DO NOT CLOSE POST-LAUNCH 20)
+STATUS: READY_FOR_CHATGPT_WEB_VALIDATION (PL20-01 PASS; PL20-02 FINAL HOTFIX PASS; POST-LAUNCH 20 ACTIVE; DO NOT START PL20-03; DO NOT START PL21; DO NOT CLOSE POST-LAUNCH 20)
 
 ## Objective
 
-Fix two critical evidence-integrity gaps in POST-LAUNCH 20:
-1. **Security Blockers Evidence Fix:** Missing security-blocker evidence now strictly evaluates to `status = 'NOT_MEASURED'`, `open_count = null`, `classification = 'NOT_MEASURED'`. Removed default fallback to `PASS` / `open_count = 0`. Zero open blockers (`open_count === 0`) evaluates to `PASS` only when backed by valid verified/persisted evidence. If `open_count > 0`, evaluates to `FAIL`.
-2. **Trusted Technical Evidence Ingestion & Classification:** Distinguish `VERIFIED_CI_EVIDENCE`, `PERSISTED_EVIDENCE`, `RUNTIME_OBSERVED`, `MANUAL_EVIDENCE`, and `NOT_MEASURED`. Arbitrary admin requests without complete provenance (`evidence_reference`, `workflow_identity`, `validated_commit_sha`, `measured_at`) are classified as `MANUAL_EVIDENCE` and strictly cannot satisfy `technicalRequiredPass`.
-3. **Removal of Deployed SHA Fallback for CI Claims:** Removed all `dim.validated_commit_sha || currentCommitSha` fallbacks. Missing `validated_commit_sha` produces `status = 'not_measured'`, `validated_commit_sha = null`, `classification = 'MANUAL_EVIDENCE'`. Mismatched SHA resolves to `STALE`. Missing `measured_at` resolves to `NOT_MEASURED`.
-4. **Safe Evidence Reference Support:** Ingestion records `evidence_reference` (e.g. `run:35422800421`), `workflow_identity`, and `open_count` without storing or logging secrets.
-5. **Deterministic Production Readiness:** In production, `technicalRequiredPass` and `finalScaleReady` evaluate strictly to `false` until trusted CI evidence is ingested and capacity/costs are measured.
-6. **Task 9 Verification Tests:** Added 19 comprehensive contract tests covering all 12 hotfix requirements, capacity RSS/DB separation, commercial metadata with no PII, low volume caveats, partial provider cost failure, and legacy row isolation.
+Close the trust boundary vulnerability where request-body assertions could claim `VERIFIED_CI_EVIDENCE`:
+1. **Request Body Never Verified CI:** Any evidence submitted in `req.body.ciEvidence`, `req.body.ci_evidence`, or `req.body.dimensions` is classified strictly as `MANUAL_EVIDENCE` or `NOT_MEASURED` with server-enforced `origin: 'request_body'`. It can never become `VERIFIED_CI_EVIDENCE`.
+2. **Provenance Origin Taxonomy:** Strictly distinguish `origin = 'request_body'`, `'persisted_trusted_import'`, `'runtime'`, `'reviewed_security'`, and `'persisted_database_evidence'`. Caller cannot self-declare server-trusted origins.
+3. **Summary Defense-in-Depth:** In `GET /api/admin/final-scale/summary`, rows claiming `VERIFIED_CI_EVIDENCE` without `origin === 'persisted_trusted_import'` are downgraded to `MANUAL_EVIDENCE`.
+4. **Security Blockers Origin Rule:** `security_blockers.open_count = 0` from request body receives `origin: 'request_body'` and cannot satisfy readiness.
+5. **E2E Trust Gap:** `Selfcare Quality Gate` does not run Playwright E2E. E2E claiming Quality Gate is downgraded to `MANUAL_EVIDENCE`.
+6. **Current Expected Production State:** `technicalEvidenceComplete = false`, `technicalEvidenceCurrent = false`, `technicalRequiredPass = false`, `finalScaleReady = false`.
+7. **Task 8 Regression Tests:** 19 comprehensive contract tests covering all trust boundary rules, E2E workflow distinction, security blocker gates, and non-admin 401/403 authorization.
 
 ## Files modified
 
@@ -22,7 +23,7 @@ Fix two critical evidence-integrity gaps in POST-LAUNCH 20:
 - `AGENT_CONTEXT/07_HANDOFF.md`
 - `AGENT_CONTEXT/08_LAST_VALIDATION.md`
 - `AGENT_CONTEXT/13_CHANGELOG.md`
-- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-02-hotfix-trusted-technical-evidence.md`
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-02-final-trust-boundary-hotfix.md`
 
 ## Verification Summary
 

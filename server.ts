@@ -7541,6 +7541,7 @@ app.post(
           status: 'NOT_MEASURED',
           validated_commit_sha: null,
           classification: 'NOT_MEASURED',
+          origin: null,
           evidence_reference: null,
           workflow_identity: null
         };
@@ -7555,10 +7556,16 @@ app.post(
       let classification = ev?.source_classification || meta?.source_classification || item?.source_classification || 'MANUAL_EVIDENCE';
       const evidenceRef = ev?.evidence_reference || meta?.evidence_reference || item?.evidence_reference || null;
       const workflowIdentity = ev?.workflow_identity || meta?.workflow_identity || ev?.source || meta?.source || item?.workflow_identity || null;
+      const origin = ev?.origin || meta?.origin || item?.origin || null;
 
-      // Task 2: Validate that claims labeled VERIFIED_CI_EVIDENCE actually possess the complete provenance
+      // Task 4: Defense in depth - summary must not trust classification string alone.
+      // A row claiming classification=VERIFIED_CI_EVIDENCE must also carry trusted-origin metadata.
+      // origin must be explicitly 'persisted_trusted_import'.
+      // If trusted-origin marker is absent, or origin is 'request_body': downgrade to MANUAL_EVIDENCE.
       if (classification === 'VERIFIED_CI_EVIDENCE') {
+        const isTrustedOrigin = origin === 'persisted_trusted_import';
         const hasFullCiProvenance = Boolean(
+          isTrustedOrigin &&
           validatedSha &&
           String(validatedSha).trim().length > 0 &&
           measuredAt &&
@@ -7571,6 +7578,22 @@ app.post(
         if (!hasFullCiProvenance) {
           classification = 'MANUAL_EVIDENCE';
         }
+      }
+
+      // For database reproducibility: allowed classifications are ['VERIFIED_CI_EVIDENCE', 'PERSISTED_EVIDENCE']
+      // If classification === 'PERSISTED_EVIDENCE', origin must be 'persisted_trusted_import' or 'persisted_database_evidence'.
+      if (classification === 'PERSISTED_EVIDENCE') {
+        const isTrustedDbOrigin = origin === 'persisted_trusted_import' || origin === 'persisted_database_evidence';
+        if (!isTrustedDbOrigin) {
+          classification = 'MANUAL_EVIDENCE';
+        }
+      }
+
+      // Task 6: E2E Trust Gap
+      // Selfcare Quality Gate does NOT run Playwright E2E.
+      // Therefore, technical.e2e.status cannot currently become VERIFIED_CI_EVIDENCE from that workflow.
+      if (conf.id === 'e2e' && workflowIdentity && /quality\s*gate/i.test(String(workflowIdentity))) {
+        classification = 'MANUAL_EVIDENCE';
       }
 
       let resolvedStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED';
@@ -7593,24 +7616,27 @@ app.post(
         status: resolvedStatus,
         validated_commit_sha: validatedSha,
         classification,
+        origin,
         evidence_reference: evidenceRef,
         workflow_identity: workflowIdentity,
         measured_at: measuredAt
       };
     }
 
-    // Task 1: Security blockers dimension: technical.security_blockers.open_count
+    // Task 1 & 5: Security blockers dimension: technical.security_blockers.open_count
     const secBlockerItem = activeTechnical.find(t => ['technical_security_blockers', 'security_blockers'].includes(t.assessment_key));
     let securityBlockersOpenCount: number | null = null;
     let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' = 'NOT_MEASURED';
     let securityBlockersClassification: string = 'NOT_MEASURED';
     let secEvidenceRef: string | null = null;
     let secValidatedSha: string | null = null;
+    let secOrigin: string | null = null;
 
     if (secBlockerItem) {
       const ev = typeof secBlockerItem?.evidence === 'string' ? JSON.parse(secBlockerItem.evidence) : (secBlockerItem?.evidence || {});
       const meta = typeof secBlockerItem?.metadata === 'string' ? JSON.parse(secBlockerItem.metadata) : (secBlockerItem?.metadata || {});
       let rawClassification = ev?.source_classification || meta?.source_classification || secBlockerItem.source_classification || 'MANUAL_EVIDENCE';
+      secOrigin = ev?.origin || meta?.origin || secBlockerItem.origin || null;
       const rawStatus = String(secBlockerItem.status || 'not_measured').toUpperCase();
       const rawOpenCount = ev?.open_count ?? meta?.open_count ?? secBlockerItem.open_count ?? null;
       secValidatedSha = ev?.validated_commit_sha || meta?.validated_commit_sha || secBlockerItem.validated_commit_sha || null;
@@ -7618,8 +7644,12 @@ app.post(
       secEvidenceRef = ev?.evidence_reference || meta?.evidence_reference || secBlockerItem.evidence_reference || null;
       const secWorkflow = ev?.workflow_identity || meta?.workflow_identity || ev?.source || meta?.source || null;
 
+      // Task 5: Security blockers same rule.
+      // A caller must not be able to self-label REVIEWED_SECURITY_EVIDENCE or VERIFIED_CI_EVIDENCE.
+      // Origin must be server-trusted.
       if (rawClassification === 'VERIFIED_CI_EVIDENCE') {
         const hasFullProof = Boolean(
+          secOrigin === 'persisted_trusted_import' &&
           secValidatedSha &&
           String(secValidatedSha).trim().length > 0 &&
           secMeasuredAt &&
@@ -7632,6 +7662,16 @@ app.post(
         if (!hasFullProof) {
           rawClassification = 'MANUAL_EVIDENCE';
         }
+      } else if (rawClassification === 'REVIEWED_SECURITY_EVIDENCE') {
+        if (secOrigin !== 'reviewed_security') {
+          rawClassification = 'MANUAL_EVIDENCE';
+        }
+      } else if (rawClassification === 'PERSISTED_EVIDENCE') {
+        if (secOrigin !== 'persisted_trusted_import' && secOrigin !== 'persisted_database_evidence') {
+          rawClassification = 'MANUAL_EVIDENCE';
+        }
+      } else {
+        rawClassification = 'MANUAL_EVIDENCE';
       }
 
       if (rawOpenCount !== null && rawOpenCount !== undefined && !Number.isNaN(Number(rawOpenCount))) {
@@ -7661,12 +7701,14 @@ app.post(
       securityBlockersOpenCount = null;
       securityBlockersStatus = 'NOT_MEASURED';
       securityBlockersClassification = 'NOT_MEASURED';
+      secOrigin = null;
     }
 
     technicalDimensions['security_blockers'] = {
       status: securityBlockersStatus,
       open_count: securityBlockersOpenCount,
       classification: securityBlockersClassification,
+      origin: secOrigin,
       validated_commit_sha: secValidatedSha,
       evidence_reference: secEvidenceRef
     };
@@ -7681,15 +7723,21 @@ app.post(
     const isCiDimSatisfied = (conf: any) => {
       const dim = technicalDimensions[conf.id];
       if (!dim || dim.status !== 'PASS') return false;
-      return conf.allowedClassifications.includes(dim.classification);
+      if (!conf.allowedClassifications.includes(dim.classification)) return false;
+      const allowedOrigins = conf.id === 'database_reproducibility'
+        ? ['persisted_trusted_import', 'persisted_database_evidence']
+        : ['persisted_trusted_import'];
+      return allowedOrigins.includes(dim.origin);
     };
 
     const isSecurityBlockersSatisfied = () => {
       const sec = technicalDimensions.security_blockers;
       if (!sec || sec.status !== 'PASS') return false;
       if (sec.open_count !== 0) return false;
-      const allowed = ['VERIFIED_CI_EVIDENCE', 'PERSISTED_EVIDENCE', 'REVIEWED_SECURITY_EVIDENCE'];
-      return allowed.includes(sec.classification);
+      const allowedClassifications = ['VERIFIED_CI_EVIDENCE', 'PERSISTED_EVIDENCE', 'REVIEWED_SECURITY_EVIDENCE'];
+      if (!allowedClassifications.includes(sec.classification)) return false;
+      const trustedOrigins = ['persisted_trusted_import', 'reviewed_security', 'persisted_database_evidence'];
+      return trustedOrigins.includes(sec.origin);
     };
 
     const technicalRequiredPass = Boolean(
@@ -7768,6 +7816,7 @@ app.post(
           technicalEvidenceComplete,
           technicalEvidenceCurrent,
           technicalRequiredPass,
+          isSecurityBlockersSatisfied: isSecurityBlockersSatisfied(),
           technicalDimensions,
           currentCommitSha,
           hasCriticalTechnicalFailure,
@@ -7808,10 +7857,18 @@ app.post(
     const getCiDim = (key: string) => (ciEvidence && typeof ciEvidence === 'object') ? ciEvidence[key] : null;
 
     const classifyCiDimension = (dim: any) => {
+      // TASK 1, 2, 3: REQUEST BODY IS NEVER VERIFIED CI!
+      // Any evidence coming directly from req.body (ciEvidence, dimensions) must be classified as
+      // MANUAL_EVIDENCE (if status is pass/fail) or NOT_MEASURED.
+      // It MUST NEVER become VERIFIED_CI_EVIDENCE regardless of whether the payload includes
+      // workflow_name, run_id, evidence_reference, validated_commit_sha, measured_at, source_type.
+      const origin = 'request_body';
+
       if (!dim || typeof dim !== 'object') {
         return {
           status: 'not_measured',
           classification: 'NOT_MEASURED',
+          origin,
           validatedCommitSha: null,
           measuredAt: null,
           sourceType: 'ci_pipeline',
@@ -7831,6 +7888,7 @@ app.post(
         return {
           status: 'not_measured',
           classification: 'NOT_MEASURED',
+          origin,
           validatedCommitSha: validatedSha ? String(validatedSha).trim() : null,
           measuredAt: measuredAtVal ? String(measuredAtVal).trim() : null,
           sourceType: sourceTypeVal,
@@ -7845,6 +7903,7 @@ app.post(
         return {
           status: 'not_measured',
           classification: 'MANUAL_EVIDENCE',
+          origin,
           validatedCommitSha: null,
           measuredAt: measuredAtVal ? String(measuredAtVal).trim() : null,
           sourceType: sourceTypeVal,
@@ -7858,6 +7917,7 @@ app.post(
         return {
           status: 'not_measured',
           classification: 'MANUAL_EVIDENCE',
+          origin,
           validatedCommitSha: String(validatedSha).trim(),
           measuredAt: null,
           sourceType: sourceTypeVal,
@@ -7866,36 +7926,17 @@ app.post(
         };
       }
 
-      // Task 2: To become VERIFIED_CI_EVIDENCE, must include:
-      // status, validated_commit_sha, measured_at, source_type, evidence_reference, workflow identity / validation source
-      const hasFullProvenance = Boolean(
-        evidenceRefVal && String(evidenceRefVal).trim().length > 0 &&
-        workflowIdentityVal && String(workflowIdentityVal).trim().length > 0
-      );
-
       const status = ['pass', 'fail'].includes(rawStatus) ? (rawStatus as 'pass' | 'fail') : 'not_measured';
 
-      if (hasFullProvenance) {
-        return {
-          status,
-          classification: 'VERIFIED_CI_EVIDENCE',
-          validatedCommitSha: String(validatedSha).trim(),
-          measuredAt: String(measuredAtVal).trim(),
-          sourceType: sourceTypeVal,
-          evidenceReference: String(evidenceRefVal).trim(),
-          workflowIdentity: String(workflowIdentityVal).trim()
-        };
-      }
-
-      // If provenance is incomplete (missing evidence_reference or workflow identity):
-      // Task 2: classification = MANUAL_EVIDENCE or NOT_MEASURED
+      // Always MANUAL_EVIDENCE from request body (or NOT_MEASURED if status is not_measured)
       return {
         status,
-        classification: 'MANUAL_EVIDENCE',
+        classification: status === 'not_measured' ? 'NOT_MEASURED' : 'MANUAL_EVIDENCE',
+        origin,
         validatedCommitSha: String(validatedSha).trim(),
         measuredAt: String(measuredAtVal).trim(),
         sourceType: sourceTypeVal,
-        evidenceReference: evidenceRefVal,
+        evidenceReference: evidenceRefVal ? String(evidenceRefVal).trim() : null,
         workflowIdentity: workflowIdentityVal ? String(workflowIdentityVal).trim() : null
       };
     };
@@ -7912,6 +7953,7 @@ app.post(
           : 'Database or primary store resolution failure.',
         recommendation: 'Maintain continuous endpoint diagnostics and database health probes.',
         source_classification: 'RUNTIME_OBSERVED',
+        origin: 'runtime',
         source_type: 'system_probes',
         validated_commit_sha: currentCommitSha
       },
@@ -7926,6 +7968,7 @@ app.post(
           : 'Security middleware or credentials missing in active runtime.',
         recommendation: 'Rotate secrets on schedule and maintain audit log monitoring.',
         source_classification: 'RUNTIME_OBSERVED',
+        origin: 'runtime',
         source_type: 'runtime_telemetry',
         validated_commit_sha: currentCommitSha
       },
@@ -7938,6 +7981,7 @@ app.post(
         finding: 'High-concurrency load testing (100-500+ CCU) has not been performed in production. Synthetic smoke tests validate functional correctness only.',
         recommendation: 'Execute distributed load test prior to aggressive paid marketing spend.',
         source_classification: 'RUNTIME_OBSERVED',
+        origin: 'runtime',
         source_type: 'system_probes',
         validated_commit_sha: currentCommitSha
       },
@@ -7951,10 +7995,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Automated release gate verified for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Automated release gate claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Automated release gate evidence not ingested or not measured for this deployment. Runtime cannot fabricate CI verification.',
           recommendation: 'Enforce green quality gate on every pull request prior to deployment.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'ci_pipeline',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -7972,10 +8017,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Production smoke verified against deployed endpoint for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Production smoke claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Production smoke evidence not ingested or not measured. Runtime cannot fabricate production smoke proof.',
           recommendation: 'Execute automated post-deployment smoke verification upon every deployment.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'smoke_suite',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -7993,10 +8039,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Client and server production build artifacts verified for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Production build claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Build verification evidence not ingested. Runtime cannot fabricate build pass.',
           recommendation: 'Ensure clean build execution in CI prior to deployment.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'build_system',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -8014,10 +8061,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Automated unit and API test suite passed for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Automated unit/API test claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Unit/API test execution evidence not ingested. Runtime cannot fabricate test execution truth.',
           recommendation: 'Run full unit/API test suite on all branches and release candidates.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'test_runner',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -8035,10 +8083,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Playwright browser E2E test suite passed for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Playwright browser E2E test claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'E2E browser test evidence not ingested. Runtime cannot fabricate browser test execution.',
           recommendation: 'Execute full Playwright E2E suite on staging/preview before production promotion.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'e2e_runner',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -8056,10 +8105,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? `Repository secret scan verified clean for commit ${parsed.validatedCommitSha || 'unknown'}.`
+            ? `Repository secret scan claim received via admin request body for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Secret scan evidence not ingested. Runtime cannot fabricate secret scan cleanliness.',
           recommendation: 'Run secret scanner on pre-commit and CI gates.',
           source_classification: parsed.classification,
+          origin: parsed.origin,
           source_type: parsed.sourceType || 'security_scanner',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -8079,6 +8129,7 @@ app.post(
             finding: 'Database schema reproducibility evidence not ingested. Runtime cannot fabricate baseline migration verification.',
             recommendation: 'Maintain strictly incremental schema migrations for all future changes.',
             source_classification: 'NOT_MEASURED',
+            origin: 'request_body',
             source_type: 'migration_history',
             validated_commit_sha: null,
             evidence_reference: null,
@@ -8087,9 +8138,6 @@ app.post(
           };
         }
         const parsed = classifyCiDimension(dim);
-        const classification = parsed.classification === 'VERIFIED_CI_EVIDENCE'
-          ? 'PERSISTED_EVIDENCE'
-          : parsed.classification;
 
         return {
           assessment_key: 'technical_database_reproducibility',
@@ -8097,10 +8145,11 @@ app.post(
           status: parsed.status,
           score: null,
           finding: parsed.status === 'pass'
-            ? 'Supabase remote schema baseline synchronized and reproducible via version-controlled migration.'
+            ? 'Supabase remote schema baseline claim received via admin request body.'
             : 'Database schema reproducibility evidence not ingested. Runtime cannot fabricate baseline migration verification.',
           recommendation: 'Maintain strictly incremental schema migrations for all future changes.',
-          source_classification: classification,
+          source_classification: parsed.classification,
+          origin: 'request_body',
           source_type: parsed.sourceType || 'migration_history',
           validated_commit_sha: parsed.validatedCommitSha,
           evidence_reference: parsed.evidenceReference,
@@ -8120,6 +8169,7 @@ app.post(
             finding: 'Security blockers evidence not ingested or not measured for this deployment.',
             recommendation: 'Ingest verified security scanner / audit results for deployed commit.',
             source_classification: 'NOT_MEASURED',
+            origin: 'request_body',
             source_type: 'security_audit',
             validated_commit_sha: null,
             open_count: null,
@@ -8139,6 +8189,7 @@ app.post(
             finding: 'Security blockers evidence missing explicit open_count.',
             recommendation: 'Provide explicit open_count in security verification evidence.',
             source_classification: 'NOT_MEASURED',
+            origin: 'request_body',
             source_type: 'security_audit',
             validated_commit_sha: null,
             open_count: null,
@@ -8162,10 +8213,11 @@ app.post(
           status,
           score: null,
           finding: openCount === 0
-            ? 'Zero critical P0/P1 security blockers open.'
+            ? 'Zero critical P0/P1 security blockers open (request body manual claim).'
             : `${openCount} critical security blockers unresolved.`,
           recommendation: 'Remediate critical security findings before scaling production traffic.',
           source_classification: parsed.classification,
+          origin: 'request_body',
           source_type: parsed.sourceType || 'security_audit',
           validated_commit_sha: parsed.validatedCommitSha,
           open_count: openCount,
@@ -8183,6 +8235,7 @@ app.post(
       const workflowIdentity = (row as any).workflow_identity || null;
       const openCount = (row as any).open_count !== undefined ? (row as any).open_count : null;
       const rowMeasuredAt = (row as any).measured_at || measuredAt;
+      const rowOrigin = (row as any).origin || 'request_body';
 
       return {
         store_id: storeId,
@@ -8194,11 +8247,14 @@ app.post(
         recommendation: row.recommendation,
         executed_by: req.auth?.userId || null,
         executed_at: measuredAt,
+        origin: rowOrigin,
+        source_classification: row.source_classification || 'RUNTIME_OBSERVED',
         evidence: {
           runKey,
           source: workflowIdentity || row.source_classification || 'system_probes',
           source_classification: row.source_classification || 'RUNTIME_OBSERVED',
           source_type: row.source_type || 'system_probes',
+          origin: rowOrigin,
           calculation_version: 'pl20-02-v1',
           calculationVersion: 'pl20-02-v1',
           measured_at: rowMeasuredAt,
@@ -8212,9 +8268,10 @@ app.post(
           timestamp: measuredAt
         },
         metadata: {
-          source: 'api_final_scale_technical_assessment_run',
+          source: workflowIdentity || (rowOrigin === 'runtime' ? 'system_probes' : 'api_final_scale_technical_assessment_run'),
           source_type: 'api',
           source_classification: row.source_classification || 'RUNTIME_OBSERVED',
+          origin: rowOrigin,
           calculation_version: 'pl20-02-v1',
           measured_at: rowMeasuredAt,
           measured_state: rowMeasuredState,
