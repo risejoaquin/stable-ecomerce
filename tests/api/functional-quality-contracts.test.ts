@@ -953,93 +953,142 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
         'technical_unit_tests',
         'technical_e2e',
         'technical_secret_scan',
-        'technical_database_reproducibility'
+        'technical_database_reproducibility',
+        'technical_security_blockers'
       ];
       const measuredAt = new Date().toISOString();
-      return keys.map((k, idx) => ({
-        id: `ci-tech-${idx + 1}`,
-        assessment_key: k,
-        status: 'pass',
-        score: null,
-        metadata: {
-          source: 'github_actions_ci',
-          source_type: 'ci_pipeline',
-          source_classification: 'CI_EVIDENCE',
-          calculation_version: 'pl20-02-v1',
-          measured_at: measuredAt,
-          measured_state: 'MEASURED',
-          validated_commit_sha: commitSha
-        },
-        evidence: {
-          validated_commit_sha: commitSha,
-          source_classification: 'CI_EVIDENCE'
-        }
-      }));
-    };
-
-    it('1. runtime cannot fabricate CI PASS (calling technical assessment without CI evidence marks CI dimensions NOT_MEASURED)', async () => {
-      const res = await request(app)
-        .post('/api/admin/final-scale/technical-assessment/run')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({});
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe('ok');
-
-      const ciKeys = [
-        'technical_release_gate',
-        'technical_production_smoke',
-        'technical_build',
-        'technical_unit_tests',
-        'technical_e2e',
-        'technical_secret_scan',
-        'technical_database_reproducibility'
-      ];
-
-      for (const ciKey of ciKeys) {
-        const item = res.body.assessments.find((a: any) => a.assessment_key === ciKey);
-        expect(item).toBeDefined();
-        expect(item.status).toBe('not_measured');
-        const expectedClassification = ciKey === 'technical_database_reproducibility' ? 'PERSISTED_EVIDENCE' : 'CI_EVIDENCE';
-        expect(item.metadata.source_classification).toBe(expectedClassification);
-        expect(item.metadata.validated_commit_sha).toBeNull();
-      }
-
-      // Runtime dimensions are classified as RUNTIME_OBSERVED
-      const dbItem = res.body.assessments.find((a: any) => a.assessment_key === 'runtime_database_connectivity');
-      expect(dbItem).toBeDefined();
-      expect(dbItem.metadata.source_classification).toBe('RUNTIME_OBSERVED');
-    });
-
-    it('2. missing CI evidence => technicalRequiredPass false', async () => {
-      // Setup mock where CI dimensions are missing from technical assessments
-      customMockTableRows['final_technical_assessments'] = [
-        {
-          id: 'rt-1',
-          assessment_key: 'runtime_database_connectivity',
+      return keys.map((k, idx) => {
+        const isDb = k === 'technical_database_reproducibility';
+        const isSec = k === 'technical_security_blockers';
+        const classification = isDb ? 'PERSISTED_EVIDENCE' : 'VERIFIED_CI_EVIDENCE';
+        return {
+          id: `ci-tech-${idx + 1}`,
+          assessment_key: k,
           status: 'pass',
           score: null,
+          open_count: isSec ? 0 : undefined,
           metadata: {
-            source: 'api_final_scale_technical_assessment_run',
-            source_type: 'api',
-            source_classification: 'RUNTIME_OBSERVED',
+            source: 'github_actions_ci',
+            source_type: isDb ? 'migration_history' : (isSec ? 'security_audit' : 'ci_pipeline'),
+            source_classification: classification,
             calculation_version: 'pl20-02-v1',
-            measured_at: new Date().toISOString(),
-            measured_state: 'MEASURED'
+            measured_at: measuredAt,
+            measured_state: 'MEASURED',
+            validated_commit_sha: commitSha,
+            evidence_reference: `run:3542280042${idx}`,
+            workflow_identity: 'Selfcare Quality Gate',
+            open_count: isSec ? 0 : undefined
+          },
+          evidence: {
+            validated_commit_sha: commitSha,
+            source_classification: classification,
+            evidence_reference: `run:3542280042${idx}`,
+            workflow_identity: 'Selfcare Quality Gate',
+            measured_at: measuredAt,
+            open_count: isSec ? 0 : undefined
           }
-        }
-      ];
+        };
+      });
+    };
+
+    it('1. missing security blocker evidence => NOT_MEASURED, not PASS', async () => {
+      // Evidence has all CI dimensions passing except security blockers is omitted
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit).filter(
+        e => e.assessment_key !== 'technical_security_blockers'
+      );
 
       const res = await request(app)
         .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
-      expect(res.body.summary.evaluationRules.technicalEvidenceComplete).toBe(false);
-      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
-      expect(res.body.summary.finalScaleReady).toBe(false);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.security_blockers.status).toBe('NOT_MEASURED');
+      expect(rules.technicalDimensions.security_blockers.open_count).toBeNull();
+      expect(rules.technicalEvidenceComplete).toBe(false);
+      expect(rules.technicalRequiredPass).toBe(false);
     });
 
-    it('3. stale commit evidence => technicalRequiredPass false', async () => {
-      // Evidence validated for an older commit
+    it('2. security open_count=0 only passes with valid evidence', async () => {
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.security_blockers.status).toBe('PASS');
+      expect(rules.technicalDimensions.security_blockers.open_count).toBe(0);
+      expect(rules.technicalDimensions.security_blockers.classification).toBe('VERIFIED_CI_EVIDENCE');
+      expect(rules.technicalRequiredPass).toBe(true);
+    });
+
+    it('3. security open_count>0 => FAIL', async () => {
+      const evidence = createPassingCiEvidence(targetCommit);
+      const secItem = evidence.find(e => e.assessment_key === 'technical_security_blockers')!;
+      secItem.status = 'fail';
+      secItem.open_count = 3;
+      secItem.metadata.open_count = 3;
+      secItem.evidence.open_count = 3;
+
+      customMockTableRows['final_technical_assessments'] = evidence;
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.security_blockers.status).toBe('FAIL');
+      expect(rules.technicalDimensions.security_blockers.open_count).toBe(3);
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('4. admin body with {status: pass} but no provenance is not VERIFIED_CI_EVIDENCE', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            technical_build: { status: 'pass' }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const buildItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_build');
+      expect(buildItem).toBeDefined();
+      expect(buildItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(buildItem.metadata.validated_commit_sha).toBeNull();
+      expect(buildItem.status).toBe('not_measured');
+    });
+
+    it('5. missing validated_commit_sha cannot use deployed SHA fallback', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          commitSha: 'deployed-sha-999',
+          ciEvidence: {
+            technical_build: {
+              status: 'pass',
+              measured_at: new Date().toISOString(),
+              evidence_reference: 'run:12345',
+              workflow_identity: 'Selfcare Quality Gate'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+
+      const buildItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_build');
+      expect(buildItem).toBeDefined();
+      // Must NOT fallback to deployed-sha-999 for the CI claim
+      expect(buildItem.metadata.validated_commit_sha).toBeNull();
+      expect(buildItem.status).toBe('not_measured');
+      expect(buildItem.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+    });
+
+    it('6. mismatched SHA => STALE', async () => {
       customMockTableRows['final_technical_assessments'] = createPassingCiEvidence('older-commit-sha-99999');
 
       const res = await request(app)
@@ -1054,10 +1103,11 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(rules.technicalRequiredPass).toBe(false);
     });
 
-    it('4. failed release gate => technicalRequiredPass false', async () => {
+    it('7. missing measured_at => NOT_MEASURED', async () => {
       const evidence = createPassingCiEvidence(targetCommit);
       const gateItem = evidence.find(e => e.assessment_key === 'technical_release_gate')!;
-      gateItem.status = 'fail';
+      gateItem.metadata.measured_at = null;
+      gateItem.evidence.measured_at = null;
 
       customMockTableRows['final_technical_assessments'] = evidence;
 
@@ -1067,13 +1117,19 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.status).toBe(200);
 
       const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.release_gate.status).toBe('FAIL');
+      expect(rules.technicalDimensions.release_gate.status).toBe('NOT_MEASURED');
       expect(rules.technicalRequiredPass).toBe(false);
     });
 
-    it('5. missing production smoke => technicalRequiredPass false', async () => {
-      // All CI items present except production smoke
-      const evidence = createPassingCiEvidence(targetCommit).filter(e => e.assessment_key !== 'technical_production_smoke');
+    it('8. manual evidence cannot satisfy technicalRequiredPass', async () => {
+      const evidence = createPassingCiEvidence(targetCommit);
+      const gateItem = evidence.find(e => e.assessment_key === 'technical_release_gate')!;
+      // Downgrade release_gate to MANUAL_EVIDENCE
+      gateItem.metadata.source_classification = 'MANUAL_EVIDENCE';
+      gateItem.evidence.source_classification = 'MANUAL_EVIDENCE';
+      gateItem.metadata.evidence_reference = null;
+      gateItem.evidence.evidence_reference = null;
+
       customMockTableRows['final_technical_assessments'] = evidence;
 
       const res = await request(app)
@@ -1082,12 +1138,28 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.status).toBe(200);
 
       const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalDimensions.production_smoke.status).toBe('NOT_MEASURED');
-      expect(rules.technicalEvidenceComplete).toBe(false);
+      expect(rules.technicalDimensions.release_gate.classification).toBe('MANUAL_EVIDENCE');
       expect(rules.technicalRequiredPass).toBe(false);
     });
 
-    it('6. required technical evidence all current and pass => technicalRequiredPass true', async () => {
+    it('9. verified current CI evidence can satisfy one required dimension', async () => {
+      const evidence = createPassingCiEvidence(targetCommit);
+      const buildItem = evidence.find(e => e.assessment_key === 'technical_build')!;
+
+      customMockTableRows['final_technical_assessments'] = [buildItem];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.build.status).toBe('PASS');
+      expect(rules.technicalDimensions.build.classification).toBe('VERIFIED_CI_EVIDENCE');
+      expect(rules.technicalDimensions.build.validated_commit_sha).toBe(targetCommit);
+    });
+
+    it('10. all verified required dimensions + security zero => technicalRequiredPass true', async () => {
       customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
 
       const res = await request(app)
@@ -1101,7 +1173,91 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(rules.technicalRequiredPass).toBe(true);
     });
 
-    it('7. runtime RSS does not satisfy capacity load evidence', async () => {
+    it('11. missing one required dimension => false', async () => {
+      // Omit technical_unit_tests
+      const evidence = createPassingCiEvidence(targetCommit).filter(e => e.assessment_key !== 'technical_unit_tests');
+      customMockTableRows['final_technical_assessments'] = evidence;
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalDimensions.unit_tests.status).toBe('NOT_MEASURED');
+      expect(rules.technicalEvidenceComplete).toBe(false);
+      expect(rules.technicalRequiredPass).toBe(false);
+    });
+
+    it('12. finalScaleReady remains false while costs/capacity unmeasured', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
+      customMockTableRows['final_commercial_assessments'] = [
+        {
+          id: 'comm-1',
+          assessment_key: 'commercial_volume_performance',
+          status: 'measured',
+          score: null,
+          metadata: {
+            source: 'api_final_scale_commercial_assessment_run',
+            source_type: 'api',
+            calculation_version: 'pl20-02-v1',
+            measured_at: measuredAt,
+            measured_state: 'MEASURED'
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+
+      const rules = res.body.summary.evaluationRules;
+      expect(rules.technicalRequiredPass).toBe(true);
+      expect(rules.isCommercialMeasured).toBe(true);
+      expect(rules.isCapacityLoadMeasured).toBe(false);
+      expect(rules.isCostEvidenceMeasured).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+
+    it('13. runtime cannot fabricate CI PASS (calling technical assessment without CI evidence marks CI dimensions NOT_MEASURED)', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+
+      const ciKeys = [
+        'technical_release_gate',
+        'technical_production_smoke',
+        'technical_build',
+        'technical_unit_tests',
+        'technical_e2e',
+        'technical_secret_scan',
+        'technical_database_reproducibility',
+        'technical_security_blockers'
+      ];
+
+      for (const ciKey of ciKeys) {
+        const item = res.body.assessments.find((a: any) => a.assessment_key === ciKey);
+        expect(item).toBeDefined();
+        expect(item.status).toBe('not_measured');
+        expect(item.metadata.validated_commit_sha).toBeNull();
+      }
+
+      const secItem = res.body.assessments.find((a: any) => a.assessment_key === 'technical_security_blockers');
+      expect(secItem.metadata.open_count).toBeNull();
+      expect(secItem.metadata.measured_state).toBe('NOT_MEASURED');
+
+      // Runtime dimensions are classified as RUNTIME_OBSERVED
+      const dbItem = res.body.assessments.find((a: any) => a.assessment_key === 'runtime_database_connectivity');
+      expect(dbItem).toBeDefined();
+      expect(dbItem.metadata.source_classification).toBe('RUNTIME_OBSERVED');
+    });
+
+    it('14. runtime RSS does not satisfy capacity load evidence', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/capacity/run')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -1114,7 +1270,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(rssItem.metadata.is_scale_capacity).toBe(false);
     });
 
-    it('8. DB connectivity does not satisfy load capacity', async () => {
+    it('15. DB connectivity does not satisfy load capacity', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/capacity/run')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -1126,7 +1282,6 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(dbItem.metadata.semantic_dimension).toBe('database_runtime_health');
       expect(dbItem.metadata.is_scale_capacity).toBe(false);
 
-      // Verify that in summary, runtime DB health does not satisfy load capacity
       customMockTableRows['scale_capacity_assessments'] = [dbItem];
       const summaryRes = await request(app)
         .get('/api/admin/final-scale/summary')
@@ -1135,7 +1290,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(summaryRes.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
     });
 
-    it('9. commercial metrics retain exact provenance and no PII', async () => {
+    it('16. commercial metrics retain exact provenance and no PII', async () => {
       customMockOrders = [
         { id: 'o-pii-1', store_id: 'qa-store-id', customer_email: 'secret@buyer.com', paid_at: '2026-09-17T00:00:00Z', total: 100, refunded_amount: 0, status: 'pagado' }
       ];
@@ -1161,12 +1316,11 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       });
       expect(Array.isArray(perf.evidence.caveats)).toBe(true);
 
-      // PII leak audit
       const serialized = JSON.stringify(res.body);
       expect(serialized).not.toContain('secret@buyer.com');
     });
 
-    it('10. commercial low volume remains measured + warning track record', async () => {
+    it('17. commercial low volume remains measured + warning track record', async () => {
       customMockOrders = [
         { id: 'o-low-1', store_id: 'qa-store-id', paid_at: '2026-09-17T00:00:00Z', total: 50, refunded_amount: 0, status: 'pagado' }
       ];
@@ -1183,7 +1337,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(perf.evidence.caveats[0]).toContain('Low commercial volume');
     });
 
-    it('11. partial provider costs remain insufficient', async () => {
+    it('18. partial provider costs remain insufficient', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/operating-costs/run')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -1199,7 +1353,7 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(summaryRes.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(false);
     });
 
-    it('12. legacy static rows remain excluded', async () => {
+    it('19. legacy static rows remain excluded', async () => {
       const measuredAt = new Date().toISOString();
       customMockTableRows['strategic_risk_matrix'] = [
         {
@@ -1231,137 +1385,6 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.body.summary.risks).toBe(1);
       expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(1);
       expect(res.body.summary.evaluationRules.hasCriticalRisk).toBe(false);
-    });
-
-    it('13. finalScaleReady remains false while capacity is not measured', async () => {
-      const measuredAt = new Date().toISOString();
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
-      customMockTableRows['final_commercial_assessments'] = [
-        {
-          id: 'comm-1',
-          assessment_key: 'commercial_volume_performance',
-          status: 'measured',
-          score: null,
-          metadata: {
-            source: 'api_final_scale_commercial_assessment_run',
-            source_type: 'api',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'MEASURED'
-          }
-        }
-      ];
-      customMockTableRows['operating_cost_summaries'] = [
-        {
-          id: 'cost-1',
-          cost_key: 'monthly_operating_cost_baseline',
-          metadata: {
-            source: 'api_final_scale_operating_costs_run',
-            source_type: 'api',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'MEASURED'
-          }
-        }
-      ];
-      // Capacity is ordinary runtime health, NOT scale capacity
-      customMockTableRows['scale_capacity_assessments'] = [
-        {
-          id: 'cap-1',
-          capacity_key: 'railway_runtime_capacity',
-          status: 'pass',
-          score: null,
-          metadata: {
-            source: 'api_final_scale_capacity_run',
-            source_type: 'api',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'MEASURED',
-            semantic_dimension: 'runtime_health',
-            is_scale_capacity: false
-          }
-        }
-      ];
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalRequiredPass).toBe(true);
-      expect(rules.isCommercialMeasured).toBe(true);
-      expect(rules.isCostEvidenceMeasured).toBe(true);
-      expect(rules.isCapacityLoadMeasured).toBe(false);
-      expect(res.body.summary.finalScaleReady).toBe(false);
-    });
-
-    it('14. finalScaleReady remains false while costs are not measured', async () => {
-      const measuredAt = new Date().toISOString();
-      customMockTableRows['final_technical_assessments'] = createPassingCiEvidence(targetCommit);
-      customMockTableRows['final_commercial_assessments'] = [
-        {
-          id: 'comm-1',
-          assessment_key: 'commercial_volume_performance',
-          status: 'measured',
-          score: null,
-          metadata: {
-            source: 'api_final_scale_commercial_assessment_run',
-            source_type: 'api',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'MEASURED'
-          }
-        }
-      ];
-      // Capacity has verified load test evidence
-      customMockTableRows['scale_capacity_assessments'] = [
-        {
-          id: 'cap-scale-1',
-          capacity_key: 'synthetic_vs_load_testing',
-          status: 'measured',
-          score: null,
-          metadata: {
-            source: 'load_test_runner',
-            source_type: 'automated_runner',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'MEASURED',
-            semantic_dimension: 'capacity.load_test',
-            is_scale_capacity: true,
-            load_test_evidence: {
-              concurrent_users: 50,
-              p95_latency_ms: 320
-            }
-          }
-        }
-      ];
-      // Costs are NOT_MEASURED
-      customMockTableRows['operating_cost_summaries'] = [
-        {
-          id: 'cost-unmeasured-1',
-          cost_key: 'monthly_operating_cost_baseline',
-          metadata: {
-            source: 'api_final_scale_operating_costs_run',
-            source_type: 'api',
-            calculation_version: 'pl20-02-v1',
-            measured_at: measuredAt,
-            measured_state: 'NOT_MEASURED'
-          }
-        }
-      ];
-
-      const res = await request(app)
-        .get(`/api/admin/final-scale/summary?commit_sha=${targetCommit}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(res.status).toBe(200);
-
-      const rules = res.body.summary.evaluationRules;
-      expect(rules.technicalRequiredPass).toBe(true);
-      expect(rules.isCommercialMeasured).toBe(true);
-      expect(rules.isCapacityLoadMeasured).toBe(true);
-      expect(rules.isCostEvidenceMeasured).toBe(false);
-      expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });
 });

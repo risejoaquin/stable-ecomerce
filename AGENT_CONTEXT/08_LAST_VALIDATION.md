@@ -1,16 +1,16 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-18T21:55:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-02 Measurement Snapshot & Technical Evidence Integrity)
+**Timestamp:** 2026-09-18T22:11:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-02 Hotfix: Trusted Technical Evidence Ingestion)
 **Branch:** `main`
-**Base Commit:** `1e104f0ac868388a2fa76cb05019100cfbc9f3bd`
+**Base Commit:** `dbea84b94098e31e04e930f209f480f87cfb0b6a`
 
 ## 1. Validation Suite Status
 
 | Gate | Command | Result | Pass/Fail |
 |---|---|---|---|
 | TypeScript | `npm run lint` | 0 errors | PASS |
-| Unit & API Tests | `npm test` | 97 tests passed across 4 files (80 in functional-quality-contracts) | PASS (97/97) |
+| Unit & API Tests | `npm test` | 102 tests passed across 4 files (85 in functional-quality-contracts) | PASS (102/102) |
 | Production Build | `npm run build` | Vite client + esbuild server bundle | PASS |
 | E2E Tests | `npm run test:e2e` | 20 tests passed across 3 spec files | PASS (20/20) |
 | Secret Scan | `.\scripts\qa\security\scan-local-secrets.ps1` | 0 secrets detected | PASS |
@@ -23,11 +23,12 @@
 
 ## 2. Key Verified Behaviors
 
-- Runtime Node process cannot fabricate CI/test PASS (calling technical assessment without CI payload leaves CI dimensions `NOT_MEASURED`).
-- Stale commit evidence (validated SHA != current commit SHA) resolves to `STALE` and fails `technicalRequiredPass`.
-- 8 required technical dimensions evaluated: `release_gate`, `production_smoke`, `build`, `unit_tests`, `e2e`, `secret_scan`, `database_reproducibility`, `security_blockers`.
-- Single-container RSS memory and DB ping are separated into `runtime_health` and do NOT satisfy scale capacity (`is_scale_capacity: false`).
-- Commercial snapshot metadata is explicit (`all_time`, 86400s freshness threshold, raw metrics, caveats) with zero PII exposure.
-- Low volume commercial activity is `MEASURED` with `score: null` and warning track record.
-- Partial provider costs remain `PARTIAL` and do not satisfy `isCostEvidenceMeasured`.
-- `finalScaleReady === false` derived deterministically from unmeasured capacity and unmeasured costs.
+- Missing security blocker evidence evaluates strictly to `status: 'NOT_MEASURED'`, `open_count: null`, preventing false PASS.
+- `open_count === 0` only passes with `VERIFIED_CI_EVIDENCE`, `PERSISTED_EVIDENCE`, or `REVIEWED_SECURITY_EVIDENCE`.
+- `open_count > 0` evaluates to `FAIL`.
+- Admin body with `{ status: 'pass' }` but no provenance is classified as `MANUAL_EVIDENCE` and cannot satisfy `technicalRequiredPass`.
+- Missing `validated_commit_sha` cannot use deployed SHA fallback; evaluates to `status: 'not_measured'`.
+- Mismatched commit SHA resolves to `STALE`.
+- Missing `measured_at` resolves to `NOT_MEASURED`.
+- `evidence_reference` and `workflow_identity` safely ingested and exposed.
+- In production, `technicalRequiredPass` and `finalScaleReady` evaluate strictly to `false` until trusted CI evidence is ingested and capacity/costs are measured.

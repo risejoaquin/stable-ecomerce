@@ -7523,13 +7523,13 @@ app.post(
                              null;
 
     const requiredDimensionConfigs = [
-      { id: 'release_gate', aliases: ['technical_release_gate', 'automated_release_gate_quality'] },
-      { id: 'production_smoke', aliases: ['technical_production_smoke', 'production_smoke'] },
-      { id: 'build', aliases: ['technical_build', 'build'] },
-      { id: 'unit_tests', aliases: ['technical_unit_tests', 'unit_tests'] },
-      { id: 'e2e', aliases: ['technical_e2e', 'e2e'] },
-      { id: 'secret_scan', aliases: ['technical_secret_scan', 'secret_scan'] },
-      { id: 'database_reproducibility', aliases: ['technical_database_reproducibility', 'database_schema_reproducibility'] }
+      { id: 'release_gate', aliases: ['technical_release_gate', 'automated_release_gate_quality'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'production_smoke', aliases: ['technical_production_smoke', 'production_smoke'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'build', aliases: ['technical_build', 'build'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'unit_tests', aliases: ['technical_unit_tests', 'unit_tests'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'e2e', aliases: ['technical_e2e', 'e2e'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'secret_scan', aliases: ['technical_secret_scan', 'secret_scan'], allowedClassifications: ['VERIFIED_CI_EVIDENCE'] },
+      { id: 'database_reproducibility', aliases: ['technical_database_reproducibility', 'database_schema_reproducibility'], allowedClassifications: ['VERIFIED_CI_EVIDENCE', 'PERSISTED_EVIDENCE'] }
     ];
 
     const technicalDimensions: Record<string, any> = {};
@@ -7537,24 +7537,49 @@ app.post(
     for (const conf of requiredDimensionConfigs) {
       const item = activeTechnical.find(t => conf.aliases.includes(t.assessment_key));
       if (!item) {
-        technicalDimensions[conf.id] = { status: 'NOT_MEASURED', validated_commit_sha: null, classification: 'CI_EVIDENCE' };
+        technicalDimensions[conf.id] = {
+          status: 'NOT_MEASURED',
+          validated_commit_sha: null,
+          classification: 'NOT_MEASURED',
+          evidence_reference: null,
+          workflow_identity: null
+        };
         continue;
       }
 
       const meta = typeof item?.metadata === 'string' ? JSON.parse(item.metadata) : (item?.metadata || {});
       const ev = typeof item?.evidence === 'string' ? JSON.parse(item.evidence) : (item?.evidence || {});
       const itemStatus = String(item.status || ev?.status || 'not_measured').toUpperCase();
-      const validatedSha = ev?.validated_commit_sha || meta?.validated_commit_sha || null;
-      const classification = ev?.source_classification || meta?.source_classification || 'CI_EVIDENCE';
+      const validatedSha = ev?.validated_commit_sha || meta?.validated_commit_sha || item?.validated_commit_sha || null;
+      const measuredAt = ev?.measured_at || meta?.measured_at || item?.measured_at || item?.executed_at || null;
+      let classification = ev?.source_classification || meta?.source_classification || item?.source_classification || 'MANUAL_EVIDENCE';
+      const evidenceRef = ev?.evidence_reference || meta?.evidence_reference || item?.evidence_reference || null;
+      const workflowIdentity = ev?.workflow_identity || meta?.workflow_identity || ev?.source || meta?.source || item?.workflow_identity || null;
+
+      // Task 2: Validate that claims labeled VERIFIED_CI_EVIDENCE actually possess the complete provenance
+      if (classification === 'VERIFIED_CI_EVIDENCE') {
+        const hasFullCiProvenance = Boolean(
+          validatedSha &&
+          String(validatedSha).trim().length > 0 &&
+          measuredAt &&
+          String(measuredAt).trim().length > 0 &&
+          evidenceRef &&
+          String(evidenceRef).trim().length > 0 &&
+          workflowIdentity &&
+          String(workflowIdentity).trim().length > 0
+        );
+        if (!hasFullCiProvenance) {
+          classification = 'MANUAL_EVIDENCE';
+        }
+      }
 
       let resolvedStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED';
 
       if (itemStatus === 'NOT_MEASURED' || !validatedSha) {
         resolvedStatus = 'NOT_MEASURED';
-      } else if (currentCommitSha && validatedSha !== currentCommitSha) {
-        resolvedStatus = 'STALE';
-      } else if (!currentCommitSha) {
-        // If current commit cannot be resolved safely at runtime: mark it STALE / NOT_MEASURED
+      } else if (!measuredAt) {
+        resolvedStatus = 'NOT_MEASURED';
+      } else if (!currentCommitSha || validatedSha !== currentCommitSha) {
         resolvedStatus = 'STALE';
       } else if (itemStatus === 'PASS') {
         resolvedStatus = 'PASS';
@@ -7567,43 +7592,111 @@ app.post(
       technicalDimensions[conf.id] = {
         status: resolvedStatus,
         validated_commit_sha: validatedSha,
-        classification
+        classification,
+        evidence_reference: evidenceRef,
+        workflow_identity: workflowIdentity,
+        measured_at: measuredAt
       };
     }
 
-    // Security blockers dimension: technical.security_blockers.open_count
+    // Task 1: Security blockers dimension: technical.security_blockers.open_count
     const secBlockerItem = activeTechnical.find(t => ['technical_security_blockers', 'security_blockers'].includes(t.assessment_key));
-    let securityBlockersOpenCount = 0;
-    let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' = 'PASS';
+    let securityBlockersOpenCount: number | null = null;
+    let securityBlockersStatus: 'PASS' | 'FAIL' | 'STALE' | 'NOT_MEASURED' = 'NOT_MEASURED';
+    let securityBlockersClassification: string = 'NOT_MEASURED';
+    let secEvidenceRef: string | null = null;
+    let secValidatedSha: string | null = null;
 
     if (secBlockerItem) {
       const ev = typeof secBlockerItem?.evidence === 'string' ? JSON.parse(secBlockerItem.evidence) : (secBlockerItem?.evidence || {});
       const meta = typeof secBlockerItem?.metadata === 'string' ? JSON.parse(secBlockerItem.metadata) : (secBlockerItem?.metadata || {});
-      securityBlockersOpenCount = Number(ev?.open_count ?? meta?.open_count ?? 0);
-      const rawStatus = String(secBlockerItem.status || 'pass').toUpperCase();
-      securityBlockersStatus = securityBlockersOpenCount === 0 && rawStatus === 'PASS' ? 'PASS' : 'FAIL';
+      let rawClassification = ev?.source_classification || meta?.source_classification || secBlockerItem.source_classification || 'MANUAL_EVIDENCE';
+      const rawStatus = String(secBlockerItem.status || 'not_measured').toUpperCase();
+      const rawOpenCount = ev?.open_count ?? meta?.open_count ?? secBlockerItem.open_count ?? null;
+      secValidatedSha = ev?.validated_commit_sha || meta?.validated_commit_sha || secBlockerItem.validated_commit_sha || null;
+      const secMeasuredAt = ev?.measured_at || meta?.measured_at || secBlockerItem.measured_at || secBlockerItem.executed_at || null;
+      secEvidenceRef = ev?.evidence_reference || meta?.evidence_reference || secBlockerItem.evidence_reference || null;
+      const secWorkflow = ev?.workflow_identity || meta?.workflow_identity || ev?.source || meta?.source || null;
+
+      if (rawClassification === 'VERIFIED_CI_EVIDENCE') {
+        const hasFullProof = Boolean(
+          secValidatedSha &&
+          String(secValidatedSha).trim().length > 0 &&
+          secMeasuredAt &&
+          String(secMeasuredAt).trim().length > 0 &&
+          secEvidenceRef &&
+          String(secEvidenceRef).trim().length > 0 &&
+          secWorkflow &&
+          String(secWorkflow).trim().length > 0
+        );
+        if (!hasFullProof) {
+          rawClassification = 'MANUAL_EVIDENCE';
+        }
+      }
+
+      if (rawOpenCount !== null && rawOpenCount !== undefined && !Number.isNaN(Number(rawOpenCount))) {
+        securityBlockersOpenCount = Number(rawOpenCount);
+      } else {
+        securityBlockersOpenCount = null;
+      }
+
+      if (rawStatus === 'NOT_MEASURED' || securityBlockersOpenCount === null) {
+        securityBlockersStatus = 'NOT_MEASURED';
+      } else if (!secMeasuredAt) {
+        securityBlockersStatus = 'NOT_MEASURED';
+      } else if (secValidatedSha && currentCommitSha && secValidatedSha !== currentCommitSha) {
+        securityBlockersStatus = 'STALE';
+      } else if (securityBlockersOpenCount === 0 && (rawStatus === 'PASS' || rawStatus === 'MEASURED')) {
+        securityBlockersStatus = 'PASS';
+      } else if (securityBlockersOpenCount > 0) {
+        securityBlockersStatus = 'FAIL';
+      } else {
+        securityBlockersStatus = 'FAIL';
+      }
+
+      securityBlockersClassification = rawClassification;
     } else {
-      const openCritical = activeRisks.filter(r => r.severity === 'critical' && r.status === 'open').length +
-                           activeDebt.filter(d => d.severity === 'critical' && d.status === 'open').length;
-      securityBlockersOpenCount = openCritical;
-      securityBlockersStatus = openCritical === 0 ? 'PASS' : 'FAIL';
+      // Task 1: No security blocker evidence supplied:
+      // status = NOT_MEASURED, measured_state = NOT_MEASURED, open_count = null
+      securityBlockersOpenCount = null;
+      securityBlockersStatus = 'NOT_MEASURED';
+      securityBlockersClassification = 'NOT_MEASURED';
     }
 
     technicalDimensions['security_blockers'] = {
       status: securityBlockersStatus,
-      open_count: securityBlockersOpenCount
+      open_count: securityBlockersOpenCount,
+      classification: securityBlockersClassification,
+      validated_commit_sha: secValidatedSha,
+      evidence_reference: secEvidenceRef
     };
 
     const technicalEvidenceComplete = requiredDimensionConfigs.every(c => technicalDimensions[c.id].status !== 'NOT_MEASURED') &&
                                       technicalDimensions.security_blockers.status !== 'NOT_MEASURED';
 
-    const technicalEvidenceCurrent = requiredDimensionConfigs.every(c => technicalDimensions[c.id].status !== 'STALE' && technicalDimensions[c.id].status !== 'NOT_MEASURED');
+    const technicalEvidenceCurrent = requiredDimensionConfigs.every(c => technicalDimensions[c.id].status !== 'STALE' && technicalDimensions[c.id].status !== 'NOT_MEASURED') &&
+                                     technicalDimensions.security_blockers.status !== 'STALE' &&
+                                     technicalDimensions.security_blockers.status !== 'NOT_MEASURED';
+
+    const isCiDimSatisfied = (conf: any) => {
+      const dim = technicalDimensions[conf.id];
+      if (!dim || dim.status !== 'PASS') return false;
+      return conf.allowedClassifications.includes(dim.classification);
+    };
+
+    const isSecurityBlockersSatisfied = () => {
+      const sec = technicalDimensions.security_blockers;
+      if (!sec || sec.status !== 'PASS') return false;
+      if (sec.open_count !== 0) return false;
+      const allowed = ['VERIFIED_CI_EVIDENCE', 'PERSISTED_EVIDENCE', 'REVIEWED_SECURITY_EVIDENCE'];
+      return allowed.includes(sec.classification);
+    };
 
     const technicalRequiredPass = Boolean(
       technicalEvidenceComplete &&
       technicalEvidenceCurrent &&
-      requiredDimensionConfigs.every(c => technicalDimensions[c.id].status === 'PASS') &&
-      securityBlockersOpenCount === 0
+      requiredDimensionConfigs.every(c => isCiDimSatisfied(c)) &&
+      isSecurityBlockersSatisfied()
     );
 
     const hasTechnicalEvidence = activeTechnical.length > 0;
@@ -7714,6 +7807,99 @@ app.post(
     const ciEvidence = req.body?.ciEvidence || req.body?.ci_evidence || req.body?.dimensions || null;
     const getCiDim = (key: string) => (ciEvidence && typeof ciEvidence === 'object') ? ciEvidence[key] : null;
 
+    const classifyCiDimension = (dim: any) => {
+      if (!dim || typeof dim !== 'object') {
+        return {
+          status: 'not_measured',
+          classification: 'NOT_MEASURED',
+          validatedCommitSha: null,
+          measuredAt: null,
+          sourceType: 'ci_pipeline',
+          evidenceReference: null,
+          workflowIdentity: null
+        };
+      }
+
+      const rawStatus = String(dim.status || 'not_measured').toLowerCase().trim();
+      const validatedSha = (dim.validated_commit_sha || dim.validatedCommitSha || dim.commit_sha || dim.commitSha || null);
+      const measuredAtVal = (dim.measured_at || dim.measuredAt || null);
+      const sourceTypeVal = String(dim.source_type || dim.sourceType || 'ci_pipeline').trim();
+      const evidenceRefVal = (dim.evidence_reference || dim.evidenceReference || dim.run_id || dim.runId ? String(dim.evidence_reference || dim.evidenceReference || `run:${dim.run_id || dim.runId}`).trim() : null);
+      const workflowIdentityVal = (dim.workflow_identity || dim.workflowIdentity || dim.workflow_name || dim.workflowName || dim.workflow || dim.source || null);
+
+      if (!rawStatus || rawStatus === 'not_measured') {
+        return {
+          status: 'not_measured',
+          classification: 'NOT_MEASURED',
+          validatedCommitSha: validatedSha ? String(validatedSha).trim() : null,
+          measuredAt: measuredAtVal ? String(measuredAtVal).trim() : null,
+          sourceType: sourceTypeVal,
+          evidenceReference: evidenceRefVal,
+          workflowIdentity: workflowIdentityVal ? String(workflowIdentityVal).trim() : null
+        };
+      }
+
+      // Task 3: NO SHA fallback for CI claims!
+      // If validated_commit_sha is absent: status = NOT_MEASURED (Task 3 & Task 9 test 5)
+      if (!validatedSha || String(validatedSha).trim().length === 0) {
+        return {
+          status: 'not_measured',
+          classification: 'MANUAL_EVIDENCE',
+          validatedCommitSha: null,
+          measuredAt: measuredAtVal ? String(measuredAtVal).trim() : null,
+          sourceType: sourceTypeVal,
+          evidenceReference: evidenceRefVal,
+          workflowIdentity: workflowIdentityVal ? String(workflowIdentityVal).trim() : null
+        };
+      }
+
+      // Task 6 & Task 9 test 7: require measured_at. If missing: NOT_MEASURED.
+      if (!measuredAtVal || String(measuredAtVal).trim().length === 0) {
+        return {
+          status: 'not_measured',
+          classification: 'MANUAL_EVIDENCE',
+          validatedCommitSha: String(validatedSha).trim(),
+          measuredAt: null,
+          sourceType: sourceTypeVal,
+          evidenceReference: evidenceRefVal,
+          workflowIdentity: workflowIdentityVal ? String(workflowIdentityVal).trim() : null
+        };
+      }
+
+      // Task 2: To become VERIFIED_CI_EVIDENCE, must include:
+      // status, validated_commit_sha, measured_at, source_type, evidence_reference, workflow identity / validation source
+      const hasFullProvenance = Boolean(
+        evidenceRefVal && String(evidenceRefVal).trim().length > 0 &&
+        workflowIdentityVal && String(workflowIdentityVal).trim().length > 0
+      );
+
+      const status = ['pass', 'fail'].includes(rawStatus) ? (rawStatus as 'pass' | 'fail') : 'not_measured';
+
+      if (hasFullProvenance) {
+        return {
+          status,
+          classification: 'VERIFIED_CI_EVIDENCE',
+          validatedCommitSha: String(validatedSha).trim(),
+          measuredAt: String(measuredAtVal).trim(),
+          sourceType: sourceTypeVal,
+          evidenceReference: String(evidenceRefVal).trim(),
+          workflowIdentity: String(workflowIdentityVal).trim()
+        };
+      }
+
+      // If provenance is incomplete (missing evidence_reference or workflow identity):
+      // Task 2: classification = MANUAL_EVIDENCE or NOT_MEASURED
+      return {
+        status,
+        classification: 'MANUAL_EVIDENCE',
+        validatedCommitSha: String(validatedSha).trim(),
+        measuredAt: String(measuredAtVal).trim(),
+        sourceType: sourceTypeVal,
+        evidenceReference: evidenceRefVal,
+        workflowIdentity: workflowIdentityVal ? String(workflowIdentityVal).trim() : null
+      };
+    };
+
     const rows = [
       // 1. RUNTIME_OBSERVED: Database Connectivity
       {
@@ -7758,141 +7944,218 @@ app.post(
       // 4. CI_EVIDENCE: Automated Release Gate
       (() => {
         const dim = getCiDim('release_gate') || getCiDim('technical_release_gate');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_release_gate',
           area: 'quality',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Automated release gate verified for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Automated release gate verified for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Automated release gate evidence not ingested or not measured for this deployment. Runtime cannot fabricate CI verification.',
           recommendation: 'Enforce green quality gate on every pull request prior to deployment.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'ci_pipeline',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'ci_pipeline',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 5. CI_EVIDENCE: Production Smoke
       (() => {
         const dim = getCiDim('production_smoke') || getCiDim('technical_production_smoke');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_production_smoke',
           area: 'production',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Production smoke verified against deployed endpoint for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Production smoke verified against deployed endpoint for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Production smoke evidence not ingested or not measured. Runtime cannot fabricate production smoke proof.',
           recommendation: 'Execute automated post-deployment smoke verification upon every deployment.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'smoke_suite',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'smoke_suite',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 6. CI_EVIDENCE: Build Status
       (() => {
         const dim = getCiDim('build') || getCiDim('technical_build');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_build',
           area: 'build',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Client and server production build artifacts verified for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Client and server production build artifacts verified for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Build verification evidence not ingested. Runtime cannot fabricate build pass.',
           recommendation: 'Ensure clean build execution in CI prior to deployment.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'build_system',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'build_system',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 7. CI_EVIDENCE: Unit / API Tests
       (() => {
         const dim = getCiDim('unit_tests') || getCiDim('technical_unit_tests');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_unit_tests',
           area: 'quality',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Automated unit and API test suite passed for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Automated unit and API test suite passed for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Unit/API test execution evidence not ingested. Runtime cannot fabricate test execution truth.',
           recommendation: 'Run full unit/API test suite on all branches and release candidates.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'test_runner',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'test_runner',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 8. CI_EVIDENCE: E2E Playwright Tests
       (() => {
         const dim = getCiDim('e2e') || getCiDim('technical_e2e');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_e2e',
           area: 'quality',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Playwright browser E2E test suite passed for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Playwright browser E2E test suite passed for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'E2E browser test evidence not ingested. Runtime cannot fabricate browser test execution.',
           recommendation: 'Execute full Playwright E2E suite on staging/preview before production promotion.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'e2e_runner',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'e2e_runner',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 9. CI_EVIDENCE: Secret Scan
       (() => {
         const dim = getCiDim('secret_scan') || getCiDim('technical_secret_scan');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        const parsed = classifyCiDimension(dim);
         return {
           assessment_key: 'technical_secret_scan',
           area: 'security',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
-            ? `Repository secret scan verified clean for commit ${validatedSha || 'unknown'}.`
+          finding: parsed.status === 'pass'
+            ? `Repository secret scan verified clean for commit ${parsed.validatedCommitSha || 'unknown'}.`
             : 'Secret scan evidence not ingested. Runtime cannot fabricate secret scan cleanliness.',
           recommendation: 'Run secret scanner on pre-commit and CI gates.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'security_scanner',
-          validated_commit_sha: validatedSha
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'security_scanner',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
       // 10. PERSISTED_EVIDENCE: Database Schema Reproducibility
       (() => {
         const dim = getCiDim('database_reproducibility') || getCiDim('technical_database_reproducibility');
-        const status = dim?.status ? String(dim.status).toLowerCase() : 'not_measured';
-        const validatedSha = dim ? (dim.validated_commit_sha || dim.commit_sha || currentCommitSha) : null;
+        if (!dim) {
+          return {
+            assessment_key: 'technical_database_reproducibility',
+            area: 'database',
+            status: 'not_measured',
+            score: null,
+            finding: 'Database schema reproducibility evidence not ingested. Runtime cannot fabricate baseline migration verification.',
+            recommendation: 'Maintain strictly incremental schema migrations for all future changes.',
+            source_classification: 'NOT_MEASURED',
+            source_type: 'migration_history',
+            validated_commit_sha: null,
+            evidence_reference: null,
+            workflow_identity: null,
+            measured_at: null
+          };
+        }
+        const parsed = classifyCiDimension(dim);
+        const classification = parsed.classification === 'VERIFIED_CI_EVIDENCE'
+          ? 'PERSISTED_EVIDENCE'
+          : parsed.classification;
+
         return {
           assessment_key: 'technical_database_reproducibility',
           area: 'database',
-          status,
+          status: parsed.status,
           score: null,
-          finding: status === 'pass'
+          finding: parsed.status === 'pass'
             ? 'Supabase remote schema baseline synchronized and reproducible via version-controlled migration.'
             : 'Database schema reproducibility evidence not ingested. Runtime cannot fabricate baseline migration verification.',
           recommendation: 'Maintain strictly incremental schema migrations for all future changes.',
-          source_classification: 'PERSISTED_EVIDENCE',
-          source_type: 'migration_history',
-          validated_commit_sha: validatedSha
+          source_classification: classification,
+          source_type: parsed.sourceType || 'migration_history',
+          validated_commit_sha: parsed.validatedCommitSha,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })(),
-      // 11. CI_EVIDENCE: Security Blockers
+      // 11. Security Blockers
       (() => {
         const dim = getCiDim('security_blockers') || getCiDim('technical_security_blockers');
-        const openCount = dim?.open_count !== undefined ? Number(dim.open_count) : 0;
-        const status = openCount === 0 ? 'pass' : 'fail';
+        if (!dim) {
+          return {
+            assessment_key: 'technical_security_blockers',
+            area: 'security',
+            status: 'not_measured',
+            score: null,
+            finding: 'Security blockers evidence not ingested or not measured for this deployment.',
+            recommendation: 'Ingest verified security scanner / audit results for deployed commit.',
+            source_classification: 'NOT_MEASURED',
+            source_type: 'security_audit',
+            validated_commit_sha: null,
+            open_count: null,
+            evidence_reference: null,
+            workflow_identity: null,
+            measured_at: null
+          };
+        }
+
+        const rawOpen = dim.open_count !== undefined && dim.open_count !== null ? Number(dim.open_count) : null;
+        if (rawOpen === null || Number.isNaN(rawOpen)) {
+          return {
+            assessment_key: 'technical_security_blockers',
+            area: 'security',
+            status: 'not_measured',
+            score: null,
+            finding: 'Security blockers evidence missing explicit open_count.',
+            recommendation: 'Provide explicit open_count in security verification evidence.',
+            source_classification: 'NOT_MEASURED',
+            source_type: 'security_audit',
+            validated_commit_sha: null,
+            open_count: null,
+            evidence_reference: null,
+            workflow_identity: null,
+            measured_at: null
+          };
+        }
+
+        const openCount = rawOpen;
+        const parsed = classifyCiDimension({
+          status: openCount === 0 ? 'pass' : 'fail',
+          ...dim
+        });
+
+        const status = parsed.status === 'not_measured' ? 'not_measured' : (openCount === 0 ? 'pass' : 'fail');
+
         return {
           assessment_key: 'technical_security_blockers',
           area: 'security',
@@ -7902,10 +8165,13 @@ app.post(
             ? 'Zero critical P0/P1 security blockers open.'
             : `${openCount} critical security blockers unresolved.`,
           recommendation: 'Remediate critical security findings before scaling production traffic.',
-          source_classification: 'CI_EVIDENCE',
-          source_type: 'security_audit',
-          validated_commit_sha: currentCommitSha,
-          open_count: openCount
+          source_classification: parsed.classification,
+          source_type: parsed.sourceType || 'security_audit',
+          validated_commit_sha: parsed.validatedCommitSha,
+          open_count: openCount,
+          evidence_reference: parsed.evidenceReference,
+          workflow_identity: parsed.workflowIdentity,
+          measured_at: parsed.measuredAt
         };
       })()
     ].map((row) => {
@@ -7913,6 +8179,10 @@ app.post(
       const isMeasured = ['pass', 'fail', 'warning'].includes(rowStatus);
       const rowMeasuredState = isMeasured ? 'MEASURED' : 'NOT_MEASURED';
       const validatedCommitSha = (row as any).validated_commit_sha || null;
+      const evidenceReference = (row as any).evidence_reference || null;
+      const workflowIdentity = (row as any).workflow_identity || null;
+      const openCount = (row as any).open_count !== undefined ? (row as any).open_count : null;
+      const rowMeasuredAt = (row as any).measured_at || measuredAt;
 
       return {
         store_id: storeId,
@@ -7926,15 +8196,17 @@ app.post(
         executed_at: measuredAt,
         evidence: {
           runKey,
-          source: row.source_classification || 'system_probes',
+          source: workflowIdentity || row.source_classification || 'system_probes',
           source_classification: row.source_classification || 'RUNTIME_OBSERVED',
           source_type: row.source_type || 'system_probes',
           calculation_version: 'pl20-02-v1',
           calculationVersion: 'pl20-02-v1',
-          measured_at: measuredAt,
+          measured_at: rowMeasuredAt,
           measured_state: rowMeasuredState,
           validated_commit_sha: validatedCommitSha,
-          open_count: (row as any).open_count,
+          evidence_reference: evidenceReference,
+          workflow_identity: workflowIdentity,
+          open_count: openCount,
           isDbConnected,
           isSecurityActive,
           timestamp: measuredAt
@@ -7944,10 +8216,12 @@ app.post(
           source_type: 'api',
           source_classification: row.source_classification || 'RUNTIME_OBSERVED',
           calculation_version: 'pl20-02-v1',
-          measured_at: measuredAt,
+          measured_at: rowMeasuredAt,
           measured_state: rowMeasuredState,
           validated_commit_sha: validatedCommitSha,
-          open_count: (row as any).open_count
+          evidence_reference: evidenceReference,
+          workflow_identity: workflowIdentity,
+          open_count: openCount
         },
         updated_at: measuredAt
       };
