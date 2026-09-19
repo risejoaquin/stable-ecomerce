@@ -673,9 +673,11 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(cost.metadata.has_explicit_estimates).toBe(false);
     });
 
-    it('10. operating costs sets measured_state: MEASURED when all four provider estimates are supplied', async () => {
+    it('10. operating costs sets measured_state: PARTIAL for arbitrary numbers without provenance, and MEASURED when full provider provenance is supplied', async () => {
       const adminToken = authToken('admin');
-      const res = await request(app)
+
+      // Numeric values alone without provider provenance remain PARTIAL (Task 8)
+      const resPartial = await request(app)
         .post('/api/admin/final-scale/operating-costs/run')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
@@ -685,13 +687,62 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
           stripeEstimate: 15,
           emailEstimate: 5
         });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe('ok');
+      expect(resPartial.status).toBe(200);
+      expect(resPartial.body.status).toBe('ok');
 
-      const cost = res.body.costs[0];
-      expect(cost.total_estimate).toBe(90);
-      expect(cost.metadata.measured_state).toBe('MEASURED');
-      expect(cost.metadata.has_explicit_estimates).toBe(true);
+      const costPartial = resPartial.body.costs[0];
+      expect(costPartial.total_estimate).toBe(90);
+      expect(costPartial.metadata.measured_state).toBe('PARTIAL');
+      expect(costPartial.metadata.has_explicit_estimates).toBe(true);
+
+      // Full provider evidence with verified provenance achieves MEASURED
+      const resMeasured = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: {
+              amount: 45,
+              allocation_model: 'resource_based',
+              source_type: 'resource_telemetry',
+              evidence_reference: 'metrics:railway-store-resource-sep2026',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30'
+            },
+            supabase: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'qa-admin',
+              evidence_reference: 'attestation:supabase_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier plan active']
+            },
+            stripe: {
+              amount: 15.5,
+              source_type: 'provider_export',
+              evidence_reference: 'export:stripe-sep2026.csv',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30'
+            },
+            resend: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'qa-admin',
+              evidence_reference: 'attestation:resend_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier plan active']
+            }
+          }
+        });
+      expect(resMeasured.status).toBe(200);
+      const costMeasured = resMeasured.body.costs[0];
+      expect(costMeasured.metadata.measured_state).toBe('MEASURED');
+      expect(costMeasured.metadata.is_cost_evidence_measured).toBe(true);
     });
 
     it('11. isolates legacy seed rows and derives finalScaleReady === false when capacity and costs are unmeasured', async () => {
@@ -1456,6 +1507,353 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(res.body.summary.risks).toBe(1);
       expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(1);
       expect(res.body.summary.evaluationRules.hasCriticalRisk).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // POST-LAUNCH 20: PL20-03A Real Operating Cost Contract & Capacity Infrastructure
+  // --------------------------------------------------------------------------
+  describe('POST-LAUNCH 20 — PL20-03A Real Operating Cost Contract & Capacity Infrastructure', () => {
+    const adminToken = authToken('admin');
+
+    it('1. Railway shared 192 MXN remains PARTIAL', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: {
+              account_total: 192,
+              shared_hosts: 4,
+              allocation_model: 'shared_unallocated'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const railway = res.body.cost.metadata.providers.railway;
+      expect(railway.measured_state).toBe('PARTIAL');
+      expect(railway.allocation_model).toBe('shared_unallocated');
+    });
+
+    it('2. Railway is not silently divided by 4', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: {
+              account_total: 192,
+              shared_hosts: 4,
+              allocation_model: 'shared_unallocated'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const railway = res.body.cost.metadata.providers.railway;
+      expect(railway.amount).not.toBe(48);
+      expect(railway.amount).toBe(192);
+      expect(railway.caveats.some((c: string) => c.includes('Not divided by 4') || c.includes('not automatically divide by 4'))).toBe(true);
+    });
+
+    it('3. Supabase zero with valid free-tier provenance can be MEASURED', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            supabase: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'operator',
+              evidence_reference: 'attestation:supabase_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier plan active']
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const supabase = res.body.cost.metadata.providers.supabase;
+      expect(supabase.amount).toBe(0);
+      expect(supabase.measured_state).toBe('MEASURED');
+    });
+
+    it('4. Resend zero with valid free-tier provenance can be MEASURED', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            resend: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'operator',
+              evidence_reference: 'attestation:resend_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier plan active']
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const resend = res.body.cost.metadata.providers.resend;
+      expect(resend.amount).toBe(0);
+      expect(resend.measured_state).toBe('MEASURED');
+    });
+
+    it('5. zero without provenance is NOT_MEASURED/PARTIAL', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            supabase: {
+              amount: 0,
+              source_type: 'manual_input'
+              // missing free_tier plan, caveats, evidence_reference
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const supabase = res.body.cost.metadata.providers.supabase;
+      expect(supabase.measured_state).not.toBe('MEASURED');
+      expect(supabase.measured_state).toBe('PARTIAL');
+    });
+
+    it('6. Stripe fee structure alone remains PARTIAL', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            stripe: {
+              source_type: 'fee_structure_estimate',
+              caveats: ['known fee structure approx 2.9% with conditional 6 MXN fixed fee']
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const stripe = res.body.cost.metadata.providers.stripe;
+      expect(stripe.measured_state).toBe('PARTIAL');
+    });
+
+    it('7. Stripe actual provider evidence can become MEASURED', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            stripe: {
+              amount: 89.5,
+              currency: 'MXN',
+              source_type: 'provider_export',
+              evidence_reference: 'export:stripe_monthly_fees_sep2026.csv',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const stripe = res.body.cost.metadata.providers.stripe;
+      expect(stripe.measured_state).toBe('MEASURED');
+      expect(stripe.amount).toBe(89.5);
+    });
+
+    it('8. unknown values are not summed as zero', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: { amount: 192, allocation_model: 'shared_unallocated' },
+            supabase: { amount: 0, plan: 'free_tier', source_type: 'provider_billing', provided_by: 'admin', evidence_reference: 'attestation:sb' },
+            stripe: { source_type: 'fee_structure_estimate' }, // unknown amount
+            resend: { amount: 0, plan: 'free_tier', source_type: 'provider_billing', provided_by: 'admin', evidence_reference: 'attestation:rs' }
+          }
+        });
+      expect(res.status).toBe(200);
+      const meta = res.body.cost.metadata;
+      expect(meta.unknown_amount_providers).toContain('stripe');
+      expect(meta.total_is_partial).toBe(true);
+      expect(meta.cost_total_state).toBe('PARTIAL');
+    });
+
+    it('9. PARTIAL provider makes cost total PARTIAL', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: { amount: 192, allocation_model: 'shared_unallocated' }, // PARTIAL
+            supabase: { amount: 0, plan: 'free_tier', source_type: 'provider_billing', provided_by: 'admin', evidence_reference: 'attestation:sb' }, // MEASURED
+            stripe: { amount: 50, source_type: 'provider_export', evidence_reference: 'export:stripe', period_start: '2026-09-01', period_end: '2026-09-30' }, // MEASURED
+            resend: { amount: 0, plan: 'free_tier', source_type: 'provider_billing', provided_by: 'admin', evidence_reference: 'attestation:rs' } // MEASURED
+          }
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.cost.metadata.cost_total_state).toBe('PARTIAL');
+      expect(res.body.cost.metadata.measured_state).toBe('PARTIAL');
+      expect(res.body.cost.metadata.is_cost_evidence_measured).toBe(false);
+    });
+
+    it('10. all 4 valid provider records produce MEASURED', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/operating-costs/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          period: '2026-09',
+          providers: {
+            railway: {
+              amount: 55.0,
+              allocation_model: 'resource_based',
+              source_type: 'resource_telemetry',
+              evidence_reference: 'metrics:railway_host_isolated',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30'
+            },
+            supabase: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'admin',
+              evidence_reference: 'attestation:supabase_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier active']
+            },
+            stripe: {
+              amount: 42.15,
+              source_type: 'provider_export',
+              evidence_reference: 'export:stripe_actual_sep2026.csv',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30'
+            },
+            resend: {
+              amount: 0,
+              plan: 'free_tier',
+              source_type: 'provider_billing',
+              provided_by: 'admin',
+              evidence_reference: 'attestation:resend_free_tier',
+              period_start: '2026-09-01',
+              period_end: '2026-09-30',
+              caveats: ['free tier active']
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.cost.metadata.cost_total_state).toBe('MEASURED');
+      expect(res.body.cost.metadata.measured_state).toBe('MEASURED');
+      expect(res.body.cost.metadata.is_cost_evidence_measured).toBe(true);
+    });
+
+    it('11. isCostEvidenceMeasured requires all four', async () => {
+      // 3 measured, 1 partial -> false
+      const partialCostRow = {
+        id: 'cost-partial-row',
+        cost_key: 'monthly_operating_cost_baseline',
+        total_estimate: 97.15,
+        metadata: {
+          calculation_version: 'pl20-03-v1',
+          measured_at: new Date().toISOString(),
+          measured_state: 'PARTIAL',
+          source: 'api_final_scale_operating_costs_run',
+          providers: {
+            railway: { measured_state: 'PARTIAL' },
+            supabase: { measured_state: 'MEASURED' },
+            stripe: { measured_state: 'MEASURED' },
+            resend: { measured_state: 'MEASURED' }
+          }
+        }
+      };
+      customMockTableRows['operating_cost_summaries'] = [partialCostRow];
+
+      const resPartial = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resPartial.status).toBe(200);
+      expect(resPartial.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(false);
+
+      // All 4 measured -> true
+      const measuredCostRow = {
+        id: 'cost-measured-row',
+        cost_key: 'monthly_operating_cost_baseline',
+        total_estimate: 97.15,
+        metadata: {
+          calculation_version: 'pl20-03-v1',
+          measured_at: new Date().toISOString(),
+          measured_state: 'MEASURED',
+          source: 'api_final_scale_operating_costs_run',
+          providers: {
+            railway: { measured_state: 'MEASURED' },
+            supabase: { measured_state: 'MEASURED' },
+            stripe: { measured_state: 'MEASURED' },
+            resend: { measured_state: 'MEASURED' }
+          }
+        }
+      };
+      customMockTableRows['operating_cost_summaries'] = [measuredCostRow];
+
+      const resMeasured = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resMeasured.status).toBe(200);
+      expect(resMeasured.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(true);
+    });
+
+    it('12. capacity remains false without actual load evidence', async () => {
+      const capRes = await request(app)
+        .post('/api/admin/final-scale/capacity/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+      expect(capRes.status).toBe(200);
+
+      customMockTableRows['scale_capacity_assessments'] = capRes.body.capacity;
+      const summaryRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
+      expect(summaryRes.body.summary.evaluationRules.CAPACITY_BASELINE_MEASURED).toBe(false);
+      expect(summaryRes.body.summary.evaluationRules.CAPACITY_SCALE_MEASURED).toBe(false);
+    });
+
+    it('13. PL20-02 request-body trust boundary does not regress', async () => {
+      const res = await request(app)
+        .post('/api/admin/final-scale/technical-assessment/run')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ciEvidence: {
+            technical_release_gate: {
+              status: 'pass',
+              run_id: '35423993132',
+              workflow_identity: 'Selfcare Quality Gate',
+              evidence_reference: 'run:35423993132'
+            }
+          }
+        });
+      expect(res.status).toBe(200);
+      const gate = res.body.assessments.find((a: any) => a.assessment_key === 'technical_release_gate');
+      expect(gate.metadata.source_classification).toBe('MANUAL_EVIDENCE');
+      expect(gate.metadata.origin).toBe('request_body');
+    });
+
+    it('14. finalScaleReady remains false under current operational facts', async () => {
+      const res = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.finalScaleReady).toBe(false);
     });
   });
 });

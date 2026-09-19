@@ -13,8 +13,9 @@ QA / RELEASE E (CLOSED / ROADMAP PASS)
              ↓
 POST-LAUNCH 20 (ACTIVE)
       │
-      ├─ PL20-01 — Evidence-Driven Final Scale Assessment
-      └─ PL20-02 — Final Strategic Roadmap & Investor Alignment
+      ├─ PL20-01 — Evidence-Driven Final Scale Assessment [PASS]
+      ├─ PL20-02 — Final Strategic Roadmap & Technical Evidence Integrity [PASS / CLOSED]
+      └─ PL20-03 — Real Cost Snapshot & Capacity Infrastructure [AUTHORIZED / ACTIVE]
              ↓
 POST-LAUNCH 21 (PENDING)
 ```
@@ -53,9 +54,23 @@ POST-LAUNCH 21 (PENDING)
 
 ## Scope POST-LAUNCH 20 [ACTIVE]
 
-### PL20-01
+### PL20-01 [PASS]
 - Transition from static seeded assessments to evidence-driven scale evaluation
 - Eliminate hardcoded scores (100/95/95, 95/92/94, 85/90/92)
 - Real data calculations from orders, revenue, database, runtime health
 - Non-destructive smoke verification
 - Final scale readiness evaluation based on real criteria
+
+### PL20-02 [PASS / CLOSED]
+- Measurement snapshot and technical evidence integrity
+- Explicit trust boundary: request-body assertions are never verified CI evidence
+- Server-enforced provenance origin taxonomy
+- Missing security blockers prevent false PASS
+- Summary defense-in-depth downgrades unverified claims
+
+### PL20-03 [AUTHORIZED / ACTIVE]
+- Durable operating cost evidence contract across Railway, Supabase, Stripe, and Resend
+- Enforcement of operator-provided facts (Railway 192 MXN unallocated across 4 hosts, Supabase 0 MXN free tier, Stripe ~2.9% fee schedule, Resend 0 MXN free tier)
+- Zero cost requires affirmative free-tier provenance
+- Operating cost total requires all 4 providers to be MEASURED
+- Capacity measurement infrastructure (k6 SAFE_READ baseline) prepared with locked production guards
