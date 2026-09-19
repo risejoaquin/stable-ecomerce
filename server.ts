@@ -570,6 +570,25 @@ const upload = multer({
   }
 });
 
+export function getMonthPeriodBounds(periodStr: string): { periodStart: string; periodEnd: string } {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(periodStr || '').trim());
+  if (!match) {
+    return { periodStart: `${periodStr}-01`, periodEnd: `${periodStr}-01` };
+  }
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+    return { periodStart: `${periodStr}-01`, periodEnd: `${periodStr}-01` };
+  }
+  // Date.UTC(year, month, 0) gives the last day of the calendar month (inclusive)
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const padMonth = String(month).padStart(2, '0');
+  const padLastDay = String(lastDay).padStart(2, '0');
+  return {
+    periodStart: `${year}-${padMonth}-01`,
+    periodEnd: `${year}-${padMonth}-${padLastDay}`
+  };
+}
 
 export async function startServer(options: { listen?: boolean } = {}) {
   const { listen = true } = options;
@@ -8644,6 +8663,7 @@ app.post(
     const incomingProviders = req.body?.providers || {};
     const actorId = req.auth?.userId || null;
     const measuredAt = new Date().toISOString();
+    const { periodStart: defaultPeriodStart, periodEnd: defaultPeriodEnd } = getMonthPeriodBounds(period);
 
     const hasExplicitProviders = Boolean(req.body?.providers && typeof req.body.providers === 'object' && Object.keys(req.body.providers).length > 0);
     const hasNumericEstimates = rawEstimates.some(e => e.val !== undefined && e.val !== null && e.val !== '');
@@ -8667,7 +8687,7 @@ app.post(
         metadata: {
           source: 'api_final_scale_operating_costs_run',
           source_type: 'api',
-          calculation_version: 'pl20-03-v1',
+          calculation_version: 'pl20-03a-v1',
           measured_at: measuredAt,
           measured_state: 'NOT_MEASURED',
           cost_total_state: 'NOT_MEASURED',
@@ -8677,16 +8697,24 @@ app.post(
           actual_or_estimated: 'estimated',
           provided_by: actorId,
           period,
+          period_start: defaultPeriodStart,
+          period_end: defaultPeriodEnd,
+          period_boundary_convention: 'inclusive_calendar_month',
           currency,
+          measured_provider_total: 0,
+          partial_provider_amounts: {},
+          partial_known_amounts: {},
+          shared_account_costs: {},
+          shared_unallocated_amounts: {},
           unallocated_providers: [],
           unknown_amount_providers: [],
           caveats: ['No provider cost evidence or estimates provided.'],
           providers: {
-            railway: { provider: 'railway', amount: null, measured_state: 'NOT_MEASURED' },
-            supabase: { provider: 'supabase', amount: null, measured_state: 'NOT_MEASURED' },
-            stripe: { provider: 'stripe', amount: null, measured_state: 'NOT_MEASURED' },
-            resend: { provider: 'resend', amount: null, measured_state: 'NOT_MEASURED' },
-            email: { provider: 'resend', amount: null, measured_state: 'NOT_MEASURED' }
+            railway: { provider: 'railway', amount: null, period_start: defaultPeriodStart, period_end: defaultPeriodEnd, measured_state: 'NOT_MEASURED' },
+            supabase: { provider: 'supabase', amount: null, period_start: defaultPeriodStart, period_end: defaultPeriodEnd, measured_state: 'NOT_MEASURED' },
+            stripe: { provider: 'stripe', amount: null, period_start: defaultPeriodStart, period_end: defaultPeriodEnd, measured_state: 'NOT_MEASURED' },
+            resend: { provider: 'resend', amount: null, period_start: defaultPeriodStart, period_end: defaultPeriodEnd, measured_state: 'NOT_MEASURED' },
+            email: { provider: 'resend', amount: null, period_start: defaultPeriodStart, period_end: defaultPeriodEnd, measured_state: 'NOT_MEASURED' }
           }
         },
         updated_at: measuredAt
@@ -8698,10 +8726,10 @@ app.post(
     }
 
     // -------------------------------------------------------------------------
-    // Provider Cost Contract Evaluation (Tasks 2, 3, 4, 6, 7, 8)
+    // Provider Cost Contract Evaluation (Tasks 1, 2, 3, 4, 5, 6, 7)
     // -------------------------------------------------------------------------
 
-    // 1. RAILWAY (Tasks 3 & 6)
+    // 1. RAILWAY (Tasks 1, 4, 5, 6)
     const rawRailway = incomingProviders.railway || incomingProviders.Railway || {};
     const railwayCaveats: string[] = [];
     if (rawRailway?.caveats) {
@@ -8711,11 +8739,13 @@ app.post(
 
     const railwayAllocationModel = rawRailway?.allocation_model || rawRailway?.allocationModel || 'shared_unallocated';
     const railwayAccountTotal = rawRailway?.account_total ?? rawRailway?.accountTotal ?? (
-      rawEstimates[0].val !== undefined ? validateFinalScaleCostNumber(rawEstimates[0].val, 'railwayEstimate') : 192
+      typeof rawRailway?.amount === 'number' && railwayAllocationModel === 'shared_unallocated'
+        ? rawRailway.amount
+        : (rawEstimates[0].val !== undefined ? validateFinalScaleCostNumber(rawEstimates[0].val, 'railwayEstimate') : 192)
     );
     const railwaySharedHosts = rawRailway?.shared_hosts ?? rawRailway?.sharedHosts ?? 4;
-    const railwayPeriodStart = rawRailway?.period_start || rawRailway?.periodStart || `${period}-01`;
-    const railwayPeriodEnd = rawRailway?.period_end || rawRailway?.periodEnd || `${period}-30`;
+    const railwayPeriodStart = rawRailway?.period_start || rawRailway?.periodStart || defaultPeriodStart;
+    const railwayPeriodEnd = rawRailway?.period_end || rawRailway?.periodEnd || defaultPeriodEnd;
     const railwaySourceType = rawRailway?.source_type || rawRailway?.sourceType || 'operator_attestation';
     const railwayProvidedBy = rawRailway?.provided_by || rawRailway?.providedBy || actorId;
     const railwayEvidenceRef = rawRailway?.evidence_reference || rawRailway?.evidenceReference || 'operator:railway_shared_hosts_attestation';
@@ -8724,24 +8754,26 @@ app.post(
     let railwayMeasuredState: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED' = 'PARTIAL';
 
     if (railwayAllocationModel === 'shared_unallocated') {
-      // Rule: total current infrastructure cost = 192 MXN/month shared across 4 hosts.
-      // Classification: PARTIAL. Do NOT automatically divide by 4. Do NOT record 48 MXN as actual cost.
+      // Task 1 & 4: Preserve account_total = 192, shared_hosts = 4, allocation_model = shared_unallocated, measured_state = PARTIAL.
+      // But ecommerce attributable amount = null unless an approved allocation method exists.
+      // Do NOT use 192 as ecommerce amount. Do NOT divide by 4 automatically.
+      // Store 192 only as shared/account infrastructure evidence.
       railwayMeasuredState = 'PARTIAL';
-      railwayAmount = typeof rawRailway?.amount === 'number' ? rawRailway.amount : railwayAccountTotal;
-      railwayCaveats.push('Total account infrastructure cost of 192 MXN/month is shared across 4 hosts; ecommerce-specific allocation is shared_unallocated (PARTIAL). Do not automatically divide by 4 or record 48 MXN as actual cost.');
+      railwayAmount = null;
+      railwayCaveats.push(`Total account infrastructure cost of ${railwayAccountTotal} MXN/month is shared across ${railwaySharedHosts} hosts; ecommerce-specific allocation is shared_unallocated (PARTIAL). Attributable amount is null. Do not automatically divide by 4 or record 48 MXN as actual cost.`);
     } else if (railwayAllocationModel === 'resource_based') {
       if (typeof rawRailway?.amount === 'number' && rawRailway?.evidence_reference && railwaySourceType !== 'manual_estimate') {
         railwayAmount = validateFinalScaleCostNumber(rawRailway.amount, 'railway.amount');
         railwayMeasuredState = 'MEASURED';
       } else {
         railwayMeasuredState = 'PARTIAL';
-        railwayAmount = typeof rawRailway?.amount === 'number' ? rawRailway.amount : railwayAccountTotal;
+        railwayAmount = null;
         railwayCaveats.push('resource_based allocation requires explicit amount, verified evidence_reference, and non-manual source_type.');
       }
     } else {
       railwayMeasuredState = 'PARTIAL';
-      railwayAmount = typeof rawRailway?.amount === 'number' ? rawRailway.amount : railwayAccountTotal;
-      railwayCaveats.push(`Railway allocation method '${railwayAllocationModel}' is unapproved heuristic and remains PARTIAL.`);
+      railwayAmount = null;
+      railwayCaveats.push(`Railway allocation method '${railwayAllocationModel}' is unapproved heuristic and remains PARTIAL; attributable amount is null.`);
     }
 
     const railwayRecord = {
@@ -8762,7 +8794,7 @@ app.post(
       caveats: railwayCaveats
     };
 
-    // 2. SUPABASE (Tasks 3 & 4)
+    // 2. SUPABASE (Tasks 2, 6, 8)
     const rawSupabase = incomingProviders.supabase || incomingProviders.Supabase || {};
     const supabaseCaveats: string[] = [];
     if (rawSupabase?.caveats) {
@@ -8779,8 +8811,8 @@ app.post(
       supabaseAmount = 0; // Default operator fact: free tier
     }
 
-    const supabasePeriodStart = rawSupabase?.period_start || rawSupabase?.periodStart || `${period}-01`;
-    const supabasePeriodEnd = rawSupabase?.period_end || rawSupabase?.periodEnd || `${period}-30`;
+    const supabasePeriodStart = rawSupabase?.period_start || rawSupabase?.periodStart || defaultPeriodStart;
+    const supabasePeriodEnd = rawSupabase?.period_end || rawSupabase?.periodEnd || defaultPeriodEnd;
     const supabaseSourceType = rawSupabase?.source_type || rawSupabase?.sourceType || (
       rawEstimates[1].val !== undefined && !incomingProviders.supabase ? 'manual_input' : 'operator_attestation'
     );
@@ -8838,7 +8870,7 @@ app.post(
       caveats: supabaseCaveats
     };
 
-    // 3. STRIPE (Tasks 3 & 7)
+    // 3. STRIPE (Tasks 2, 6, 7)
     const rawStripe = incomingProviders.stripe || incomingProviders.Stripe || {};
     const stripeCaveats: string[] = [];
     if (rawStripe?.caveats) {
@@ -8855,8 +8887,8 @@ app.post(
       stripeAmount = null; // Actual fee total for target period is not currently known
     }
 
-    const stripePeriodStart = rawStripe?.period_start || rawStripe?.periodStart || `${period}-01`;
-    const stripePeriodEnd = rawStripe?.period_end || rawStripe?.periodEnd || `${period}-30`;
+    const stripePeriodStart = rawStripe?.period_start || rawStripe?.periodStart || defaultPeriodStart;
+    const stripePeriodEnd = rawStripe?.period_end || rawStripe?.periodEnd || defaultPeriodEnd;
     const stripeSourceType = rawStripe?.source_type || rawStripe?.sourceType || 'fee_structure_estimate';
     const stripeProvidedBy = rawStripe?.provided_by || rawStripe?.providedBy || actorId;
     const stripeEvidenceRef = rawStripe?.evidence_reference || rawStripe?.evidenceReference || null;
@@ -8907,7 +8939,7 @@ app.post(
       calculation_details: stripeCalcDetails
     };
 
-    // 4. RESEND (Tasks 3 & 4)
+    // 4. RESEND (Tasks 2, 6, 7)
     const rawResend = incomingProviders.resend || incomingProviders.Resend || incomingProviders.email || incomingProviders.Email || {};
     const resendCaveats: string[] = [];
     if (rawResend?.caveats) {
@@ -8924,8 +8956,8 @@ app.post(
       resendAmount = 0; // Default operator fact: free tier
     }
 
-    const resendPeriodStart = rawResend?.period_start || rawResend?.periodStart || `${period}-01`;
-    const resendPeriodEnd = rawResend?.period_end || rawResend?.periodEnd || `${period}-30`;
+    const resendPeriodStart = rawResend?.period_start || rawResend?.periodStart || defaultPeriodStart;
+    const resendPeriodEnd = rawResend?.period_end || rawResend?.periodEnd || defaultPeriodEnd;
     const resendSourceType = rawResend?.source_type || rawResend?.sourceType || (
       rawEstimates[3].val !== undefined && !incomingProviders.resend && !incomingProviders.email ? 'manual_input' : 'operator_attestation'
     );
@@ -8952,7 +8984,7 @@ app.post(
       if (hasZeroProvenance) {
         resendMeasuredState = 'MEASURED';
         if (!resendCaveats.some(c => /free\s*tier/i.test(c))) {
-          resendCaveats.push('Free tier plan active with 0 MXN baseline cost (up to 3,000 emails/month).');
+          resendCaveats.push('Free tier plan active with 0 MXN baseline cost.');
         }
       } else {
         resendMeasuredState = 'PARTIAL';
@@ -8983,7 +9015,7 @@ app.post(
     };
 
     // -------------------------------------------------------------------------
-    // Total State Derivation (Task 5)
+    // Total State Derivation (Tasks 1, 2, 3, 5)
     // -------------------------------------------------------------------------
     const providerRecords = [railwayRecord, supabaseRecord, stripeRecord, resendRecord];
     const allFourMeasured = providerRecords.every(p => p.measured_state === 'MEASURED');
@@ -8998,36 +9030,67 @@ app.post(
       totalMeasuredState = 'PARTIAL';
     }
 
-    const unallocatedProviders = providerRecords.filter((p: any) => p.allocation_model === 'shared_unallocated').map(p => p.provider);
-    const unknownAmountProviders = providerRecords.filter(p => p.amount === null || p.amount === undefined).map(p => p.provider);
-    const hasUnallocatedOrUnknown = unallocatedProviders.length > 0 || unknownAmountProviders.length > 0;
+    // Explicit concepts (Tasks 2 & 5):
+    // 1. unallocated_providers
+    const unallocatedProviders = providerRecords
+      .filter((p: any) => p.allocation_model === 'shared_unallocated')
+      .map(p => p.provider);
 
-    const knownAmounts = providerRecords.filter(p => typeof p.amount === 'number').map(p => p.amount as number);
-    const totalEstimateNumber = knownAmounts.reduce((sum, v) => sum + v, 0);
+    // 2. unknown_amount_providers
+    const unknownAmountProviders = providerRecords
+      .filter(p => p.amount === null || p.amount === undefined)
+      .map(p => p.provider);
+
+    // 3. measured_provider_total: Only fully MEASURED + attributable provider amounts may contribute
+    const measuredProviders = providerRecords.filter(p => p.measured_state === 'MEASURED' && typeof p.amount === 'number');
+    const measuredProviderTotalNumber = measuredProviders.reduce((sum, p) => sum + (p.amount as number), 0);
+    const measuredProviderTotal = Number(measuredProviderTotalNumber.toFixed(2));
+
+    // 4. partial_provider_amounts / partial_known_amounts: Known numeric amounts for providers in PARTIAL state
+    const partialProviderAmounts: Record<string, number> = {};
+    providerRecords.forEach(p => {
+      if (p.measured_state === 'PARTIAL' && typeof p.amount === 'number') {
+        partialProviderAmounts[p.provider] = p.amount;
+      }
+    });
+
+    // 5. shared_account_costs / shared_unallocated_amounts: Shared infrastructure evidence
+    const sharedAccountCosts: Record<string, number> = {};
+    if (railwayAllocationModel === 'shared_unallocated' && typeof railwayAccountTotal === 'number') {
+      sharedAccountCosts.railway = railwayAccountTotal;
+    }
+
+    // 6. total_estimate: If all four providers are MEASURED, sum(all four attributable amounts).
+    // Otherwise, total_estimate must NOT imply a complete ecommerce monthly total (null preferred).
+    const totalEstimateValue: number | null = allFourMeasured ? measuredProviderTotal : null;
 
     const allCaveats: string[] = [];
     providerRecords.forEach(p => {
       if (p.caveats && Array.isArray(p.caveats)) allCaveats.push(...p.caveats);
     });
-    if (hasUnallocatedOrUnknown) {
-      allCaveats.push(`Cost total is PARTIAL: unallocated providers [${unallocatedProviders.join(', ')}], unknown amount providers [${unknownAmountProviders.join(', ')}]. Unknown values are not summed as zero.`);
+    if (unallocatedProviders.length > 0 || unknownAmountProviders.length > 0 || totalMeasuredState === 'PARTIAL') {
+      allCaveats.push(
+        `Cost aggregation is PARTIAL: unallocated providers [${unallocatedProviders.join(', ')}], unknown amount providers [${unknownAmountProviders.join(', ')}]. ` +
+        `Shared account infrastructure costs are separated in shared_account_costs and do not enter ecommerce-attributable total. ` +
+        `total_estimate is null to avoid presenting incomplete or unallocated infrastructure amounts as ecommerce total.`
+      );
     }
 
     const payload = {
       store_id: storeId,
       cost_key: costKey,
       period,
-      railway_estimate: railwayRecord.amount ?? 0,
-      supabase_estimate: supabaseRecord.amount ?? 0,
-      stripe_variable_cost_estimate: stripeRecord.amount ?? 0,
-      email_cost_estimate: resendRecord.amount ?? 0,
-      total_estimate: totalEstimateNumber,
+      railway_estimate: railwayRecord.amount,
+      supabase_estimate: supabaseRecord.amount,
+      stripe_variable_cost_estimate: stripeRecord.amount,
+      email_cost_estimate: resendRecord.amount,
+      total_estimate: totalEstimateValue,
       currency,
       notes: req.body?.notes || (
         totalMeasuredState === 'MEASURED'
           ? 'Full verified operating cost baseline across all four providers (MEASURED).'
           : totalMeasuredState === 'PARTIAL'
-            ? 'Partial operating costs (PARTIAL - preliminary review only, does not satisfy final scale ready).'
+            ? 'Partial operating costs (PARTIAL - preliminary review only, does not satisfy final scale ready; total_estimate is null to separate shared/unknown infrastructure from ecommerce total).'
             : 'PL20 unestimated operating cost baseline (NOT_MEASURED).'
       ),
       generated_by: actorId,
@@ -9035,15 +9098,23 @@ app.post(
       metadata: {
         source: 'api_final_scale_operating_costs_run',
         source_type: 'provider_evidence_aggregation',
-        calculation_version: 'pl20-03-v1',
+        calculation_version: 'pl20-03a-v1',
         measured_at: measuredAt,
         measured_state: totalMeasuredState,
         cost_total_state: totalMeasuredState,
         is_cost_evidence_measured: totalMeasuredState === 'MEASURED',
-        has_explicit_estimates: providerRecords.some(p => p.amount !== null && p.amount !== 0) || totalEstimateNumber > 0,
+        has_explicit_estimates: providerRecords.some(p => p.amount !== null && p.amount !== 0) || measuredProviderTotal > 0 || Object.keys(partialProviderAmounts).length > 0,
         total_is_partial: totalMeasuredState === 'PARTIAL',
         period,
+        period_start: defaultPeriodStart,
+        period_end: defaultPeriodEnd,
+        period_boundary_convention: 'inclusive_calendar_month',
         currency,
+        measured_provider_total: measuredProviderTotal,
+        partial_provider_amounts: partialProviderAmounts,
+        partial_known_amounts: partialProviderAmounts,
+        shared_account_costs: sharedAccountCosts,
+        shared_unallocated_amounts: sharedAccountCosts,
         unallocated_providers: unallocatedProviders,
         unknown_amount_providers: unknownAmountProviders,
         caveats: allCaveats,
@@ -9059,7 +9130,7 @@ app.post(
     };
 
     const data = await runFinalScaleUpsert('operating_cost_summaries', [payload], 'store_id,period,cost_key');
-    await writeAuditLog({ actorUserId: actorId, action: 'final_scale_operating_costs_run', entityType: 'operating_cost_summaries', entityId: data[0]?.id, metadata: { period, costKey, totalEstimate: totalEstimateNumber, measured_state: totalMeasuredState } });
+    await writeAuditLog({ actorUserId: actorId, action: 'final_scale_operating_costs_run', entityType: 'operating_cost_summaries', entityId: data[0]?.id, metadata: { period, costKey, totalEstimate: totalEstimateValue, measuredProviderTotal, measured_state: totalMeasuredState } });
     res.json({ status: 'ok', costs: data, cost: data[0] });
   }));
 
