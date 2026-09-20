@@ -1,26 +1,28 @@
 # CURRENT TASK
 
-TASK ID: PL20-03E1-COST-EVIDENCE-INTAKE-VALIDATOR-FINAL-HOTFIX
+TASK ID: PL20-03G-STAGING-PROVISIONING-PREFLIGHT
 PHASE: POST-LAUNCH 20
-STATUS: READY_FOR_CHATGPT_WEB_VALIDATION (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03D PASS / CLOSED; PL20-03 ACTIVE; PL20-03E1 COMPLETE; PL21 NOT STARTED; COST_MEASURED = false; finalScaleReady = false)
+STATUS: PASS / CLOSED (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03D PASS / CLOSED; PL20-03E1 PASS / CLOSED; PL20-03F PASS / CLOSED; PL20-03G PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; COST_MEASURED = false; finalScaleReady = false)
 
 ## Objective
 
-Implement anti-example and anti-placeholder protections in the PL20-03E1 dry-run cost evidence validator to prevent example templates or placeholder tokens from self-validating:
-1. **Remove Default Example Execution (Task 1):** `validateCostEvidenceFile()` and the CLI runner require an explicit file path. Invocation without arguments fails closed (exit code 1) with `{"error": "explicit provider evidence input file is required"}`.
-2. **Mark Example as Non-Evidence (Task 2):** Marked `AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json` with top-level `example_only: true`.
-3. **Fail Closed on Example Input (Task 3):** Added top-level guard in `validateCostEvidence()` failing closed when `example_only: true`: sets `cost_total_state: "NOT_MEASURED"`, `isCostEvidenceMeasured: false`, all providers to `"NOT_MEASURED"`, and blocking reason `"example/template input cannot be accepted as provider evidence"`.
-4. **Placeholder Safety Guard (Task 4):** Added `isPlaceholderValue()` rejecting `<...>`, `example`, `placeholder`, `sample-only`, and `unknown` across critical evidence and provenance fields (`evidence_reference`, `measured_at`, `provided_by`, `source_type`, `usage_metric`, `allocation_formula`).
-5. **Validator Rules Preserved (Task 5):** Maintained common accounting period matching, Railway allocation models, Stripe actual fee exports, Supabase/Resend zero-cost free-tier provenance, and all-four-MEASURED derivation.
-6. **Automated Unit Tests (Task 6):** Updated `tests/pl20/cost-evidence-validator.test.ts` to 19 tests verifying CLI failure on missing file, `example_only` rejection, placeholder rejection, and candidate evidence acceptance (19 passed, 0 failed; all 182 project tests passing).
-7. **Documentation & Non-Persistence (Tasks 7, 8):** Documented core distinctions: `example != evidence`, `dry-run MEASURED != persisted COST_MEASURED`, `COST_MEASURED remains false`, and `finalScaleReady remains false`. Zero database calls, zero mutations to `operating_cost_summaries`, zero external API calls.
+Execute read-only provider verification, runtime semantics analysis, and schema/seed validation for the PL20-03F isolated staging architecture:
+1. **Design Binding Refresh (Task 1):** Main commit confirmed as `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`. Clarified that `finalize_paid_order` is `SECURITY INVOKER` (not `SECURITY DEFINER`) in `supabase/migrations/20260918004527_remote_schema.sql` (lines 6178–6191) with execution restricted to `postgres` and `service_role` (lines 9199–9201).
+2. **Supabase Availability (Task 2):** Organization `lucilfer` has 2 active projects (`stable-ecomerce` and `OASIS-DRINKS-DB`). Free plan limit (2 active projects) is 100% occupied; no free active slots exist; database branching is unavailable on Free tier. Verdict: `SUPABASE_STAGING_REQUIRES_PLAN_CHANGE`.
+3. **Railway Availability (Task 3):** Workspace `SolidBitsMx` has pay-as-you-go billing ($3.69 current bill, not over limit) and supports dedicated isolated projects via `railway init` with 100% variable isolation. Verdict: `RAILWAY_STAGING_AVAILABLE`.
+4. **Stripe Test Mode (Task 4):** Account `acct_1TLawpEKfBRabUZ0` supports native test mode keys (`sk_test_...`) and test webhooks on route `/api/webhooks/stripe`. Zero keys exposed; zero webhooks created.
+5. **Resend Safe Mock (Task 5):** Application supports `EMAIL_ALLOW_MOCKS=true`. When active, `EmailService` routes sends to internal mock sink; `RESEND_API_KEY` can be completely omitted in staging.
+6. **NODE_ENV / Staging Semantics (Task 6):** `NODE_ENV=production` is strictly required for staging capacity fidelity because `NODE_ENV !== 'production'` invokes Vite dev server middleware in `server.ts:11871`. Staging identity is established via domain/project boundaries, not by forcing `NODE_ENV=staging`.
+7. **Schema Reproducibility (Task 7):** Canonical schema `supabase/migrations/20260918004527_remote_schema.sql` contains full declarative DDL with zero application data, capable of clean replay.
+8. **Seed Static Validation (Task 8):** Seed SQL statically validated against migration DDL. Stores, categories, products INSERT statements valid; no `category_id`; zero PII; zero production data.
+9. **Formal Decision (Task 9):** `STAGING_BLOCKED_BY_PROVIDER_LIMIT` (Supabase Free active project quota is exhausted).
+10. **Documentation (Task 10):** Created `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-03g-staging-provisioning-preflight.md`.
+11. **State Invariants:** `COST_MEASURED = false`, `finalScaleReady = false`, zero infrastructure created.
 
 ## Files Modified / Created
 
-- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json` (modified)
-- `scripts/pl20/validate-cost-evidence.mjs` (modified)
-- `tests/pl20/cost-evidence-validator.test.ts` (modified)
-- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-03e1-cost-evidence-validator.md` (updated)
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-03g-staging-provisioning-preflight.md` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-19-pl20-03f-isolated-staging-architecture-plan.md` (updated commit binding and `finalize_paid_order` definition)
 - `AGENT_CONTEXT/06_CURRENT_TASK.md` (updated)
 - `AGENT_CONTEXT/07_HANDOFF.md` (updated)
 - `AGENT_CONTEXT/08_LAST_VALIDATION.md` (updated)
@@ -31,7 +33,8 @@ Implement anti-example and anti-placeholder protections in the PL20-03E1 dry-run
 - Lint: PASS (`tsc --noEmit`)
 - Tests: 182 passed across 5 test files (`vitest run`)
 - Build: PASS (`vite build && esbuild server.ts`)
-- Release Gate: PASS (`validate-release.ps1`)
-- Git Check: Clean (`git diff --check`)
+- Decision: `STAGING_BLOCKED_BY_PROVIDER_LIMIT`
+- Staging Cost Status: Railway incremental staging cost = `UNKNOWN / PENDING_OPERATOR_VERIFICATION`; Supabase Free account has 2/2 active slots occupied (requires freeing slot or plan change)
+- Status: `PL20-03G PASS / CLOSED` (Documentation Closure)
 - `COST_MEASURED`: Strictly `false`
 - `finalScaleReady`: Strictly `false`

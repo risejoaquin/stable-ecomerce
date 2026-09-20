@@ -1,9 +1,9 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-19T17:35:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03E1 Cost Evidence Intake Validator Final Hotfix)
+**Timestamp:** 2026-09-20T16:30:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03G Documentation Closure)
 **Branch:** `main`
-**Base Commit:** `31dac2ad02c325f25d8b4f3056b72e5a208ab9cc`
+**Base Commit:** `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`
 
 ## 1. Validation & Test Suite Status
 
@@ -11,25 +11,29 @@
 |---|---|---|---|
 | TypeScript Lint | `npm run lint` (`tsc --noEmit`) | 0 errors | PASS |
 | Unit & Contract Tests | `npm test` (`vitest run`) | 182 passed across 5 test files | PASS |
-| PL20-03E1 Validator Tests | `npx vitest run tests/pl20/cost-evidence-validator.test.ts` | 19 passed across 19 tests | PASS |
 | Build Check | `npm run build` | Dist bundles built cleanly | PASS |
-| Release Gate | `.\scripts\qa\validate-release.ps1` | Fast + Release gates validated | PASS |
 | Git Whitespace Check | `git diff --check` | 0 trailing whitespace / EOF errors | PASS |
-| Database Mutation Check | Local inspect | Zero rows inserted into `operating_cost_summaries` | PASS (Enforced) |
-| External API Check | Spies / Network scan | Zero calls to Railway, Supabase, Stripe, Resend | PASS (Enforced) |
+| Supabase Preflight | `npx supabase projects list` | 2/2 free active slots occupied | BLOCKED (`SUPABASE_STAGING_REQUIRES_PLAN_CHANGE`) |
+| Railway Preflight | `railway usage; railway status` | Pay-as-you-go workspace active ($3.69 usage) | PASS (`RAILWAY_STAGING_AVAILABLE`) |
+| Stripe Preflight | `stripe config --list` | Test mode supported on `SolidBit` | PASS (`TEST_MODE_SUPPORTED`) |
+| Resend Preflight | Static code analysis | `EMAIL_ALLOW_MOCKS=true` mock sink | PASS (`CREDENTIALS_OMITTED_IN_MOCK_MODE`) |
+| Runtime Fidelity | Static code analysis | `NODE_ENV=production` required for static serving | PASS (`NODE_ENV=production`) |
+| Schema Baseline | `supabase/migrations/20260918004527_remote_schema.sql` | 9,934 lines declarative DDL, 0 live data | PASS |
+| Seed Static Validation | SQL AST & DDL check | stores, categories, products valid; no `category_id` | PASS |
+| Preflight Decision | Component analysis | Quota exhaustion on Supabase | `STAGING_BLOCKED_BY_PROVIDER_LIMIT` |
+| Documentation Closure | Formal phase sign-off | PL20-03G closed in docs | PASS / CLOSED |
 
 ## 2. Key Assessment Findings
 
-- Cost evidence intake contract established: `AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json` marked with `example_only: true`.
-- Anti-example self-validation protections: CLI requires explicit path (exits 1 if omitted); `example_only: true` fails closed to `NOT_MEASURED`; placeholder values (`<...>`, `placeholder`, `sample-only`) strictly rejected.
-- In-memory dry-run validator established: `scripts/pl20/validate-cost-evidence.mjs`.
-- Common period alignment enforced: identical `period_start` and `period_end` across all four providers.
-- Railway allocation rules enforced: `shared_unallocated` is `PARTIAL` (`amount = null`); `equal_allocation` requires explicit operator approval; `resource_based` requires complete usage mapping.
-- Stripe actual fee export enforced: fee schedule alone returns `PARTIAL` (`amount = null`).
-- Supabase & Resend zero-cost rules enforced: free-tier provenance required for `amount = 0`.
-- Total derivation strictly requires all 4 providers to be `MEASURED` for the same period.
-- `example != evidence`.
-- `dry-run MEASURED != persisted COST_MEASURED`.
+- Staging provisioning preflight completed under strict read-only mode (zero infrastructure created).
+- `finalize_paid_order` verified as `SECURITY INVOKER` in canonical migration (lines 6178–6191) with execute restricted to `postgres` and `service_role`.
+- Supabase Free tier active project limit (2/2) reached by `stable-ecomerce` and `OASIS-DRINKS-DB`.
+- Railway workspace `SolidBitsMx` ready for dedicated isolated project (`railway init`).
+- Stripe test mode confirmed supported on `acct_1TLawpEKfBRabUZ0`.
+- Resend credentials can be completely omitted in staging using `EMAIL_ALLOW_MOCKS=true`.
+- `NODE_ENV=production` strictly required to avoid Vite dev server middleware activation (`server.ts:11871`).
 - `COST_MEASURED = false`.
 - `finalScaleReady` strictly remains `false`.
 - PL20-03 remains ACTIVE; PL21 NOT STARTED.
+- PL20-03G formally CLOSED; documentation closure complete.
+- Railway incremental staging cost = `UNKNOWN / PENDING_OPERATOR_VERIFICATION`; Supabase staging requires freeing an active slot or plan change.

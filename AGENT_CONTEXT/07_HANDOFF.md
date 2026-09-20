@@ -2,40 +2,53 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Phase: POST-LAUNCH 20 — PL20-03E1 Cost Evidence Intake Validator Final Hotfix
-Task ID: PL20-03E1-COST-EVIDENCE-INTAKE-VALIDATOR-FINAL-HOTFIX
+Phase: POST-LAUNCH 20 — PL20-03G Staging Provisioning Preflight (CLOSED)
+Task ID: PL20-03G-STAGING-PROVISIONING-PREFLIGHT
 Working tree status:
-- Target commit: `fix(pl20): prevent example cost evidence promotion`
+- Main commit: `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`
 - Branch: `main`
-- Status: `READY_FOR_CHATGPT_WEB_VALIDATION` (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03D PASS / CLOSED; PL20-03 ACTIVE; PL20-03E1 COMPLETE; PL21 NOT STARTED; COST_MEASURED = false; finalScaleReady = false)
+- Status: `PASS / CLOSED` (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03D PASS / CLOSED; PL20-03E1 PASS / CLOSED; PL20-03F PASS / CLOSED; PL20-03G PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; COST_MEASURED = false; finalScaleReady = false)
 
-## Summary of Executed Implementation
+## Summary of Executed Implementation & Findings
 
-1. **Anti-Example Self-Validation Protections (Hotfix Tasks 1–4):**
-   - Removed default example execution from `scripts/pl20/validate-cost-evidence.mjs`: `validateCostEvidenceFile()` requires an explicit file path and throws if omitted; CLI exits code 1 with `{"error": "explicit provider evidence input file is required"}`.
-   - Marked template `AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json` with `example_only: true`.
-   - Added top-level `example_only` guard in `validateCostEvidence()` failing closed: `cost_total_state: "NOT_MEASURED"`, `isCostEvidenceMeasured: false`, all providers `"NOT_MEASURED"`, blocking reason `"example/template input cannot be accepted as provider evidence"`.
-   - Added `isPlaceholderValue()` guard rejecting `<...>`, `example`, `placeholder`, `sample-only`, and `unknown` across critical evidence and provenance fields.
+1. **Design Binding & Migration Evidence Refresh (Task 1):**
+   - Evaluated main commit bound to `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`.
+   - Verified that `finalize_paid_order` is `SECURITY INVOKER` (not `SECURITY DEFINER`) in `supabase/migrations/20260918004527_remote_schema.sql` (lines 6178–6191) with immutable empty search path and execute granted strictly to `postgres` and `service_role` (lines 9199–9201). Updated PL20-03F architecture plan accordingly.
 
-2. **Dry-Run In-Memory Validator (Tasks 2–9):**
-   - Pure in-memory CLI and exportable library (`validateCostEvidence`).
-   - Strictly read-only: zero database persistence, zero calls to `operating_cost_summaries`, zero external API calls to Railway, Supabase, Stripe, or Resend.
-   - Enforces common accounting period match across all four providers.
-   - Enforces Railway rules: `shared_unallocated` is always `PARTIAL` with `amount = null`; `equal_allocation` is `MEASURED` only with explicit operator approval flag; `resource_based` is `MEASURED` only with full peer host usage.
-   - Enforces Stripe rules: actual fee export required; fee schedule alone yields `PARTIAL` with `amount = null`.
-   - Enforces Supabase and Resend zero-cost rules: `amount = 0` requires explicit same-period free-tier provenance.
-   - Enforces cost total derivation: `cost_total_state = "MEASURED"` and `isCostEvidenceMeasured = true` only when all 4 providers are `MEASURED` and periods match.
-   - Outputs machine-readable report with provider states, amounts, and blocking reasons; no score, no readiness promotion.
+2. **Supabase Staging Availability (Task 2):**
+   - Organization `lucilfer` (`bsreuhmlrgoqlowkrsaf`) has 2 active projects (`stable-ecomerce` and `OASIS-DRINKS-DB`). Free plan limit (2 active projects) is 100% occupied; no free active slots exist; database branching is unavailable on Free tier.
+   - Verdict: `SUPABASE_STAGING_REQUIRES_PLAN_CHANGE`.
 
-3. **Automated Vitest Suite (Task 10 & Hotfix Task 6):**
-   - Implemented 19 automated contract tests in `tests/pl20/cost-evidence-validator.test.ts`.
-   - Tests cover: four empty records, mixed periods, unallocated Railway, equal allocation with/without approval, incomplete resource-based, Stripe fee schedule vs export, Supabase/Resend with/without provenance, 3+1 partial, 4 measured same period, zero API/DB side effects, CLI missing file failure, example template fail-closed rejection, example_only payload rejection, and placeholder string rejection.
-   - 19/19 validator tests passed; all 182 unit/contract tests across the repository passed.
+3. **Railway Staging Availability (Task 3):**
+   - Workspace `SolidBitsMx` operates on pay-as-you-go usage billing ($3.69 current bill, not over limit) and supports dedicated isolated projects via `railway init` with 100% variable isolation.
+   - Verdict: `RAILWAY_STAGING_AVAILABLE`.
 
-4. **Invariants Preserved (Task 11):**
-   - `example != evidence`.
-   - `dry-run MEASURED != persisted COST_MEASURED`.
+4. **Stripe Test Mode (Task 4):**
+   - Account `acct_1TLawpEKfBRabUZ0` supports native test mode keys (`sk_test_...`) and test webhooks on route `/api/webhooks/stripe`. Zero keys exposed; zero webhooks created.
+
+5. **Resend Safe Mock (Task 5):**
+   - Application supports `EMAIL_ALLOW_MOCKS=true`. When active, `EmailService` routes sends to internal mock sink; `RESEND_API_KEY` can be completely omitted in staging.
+
+6. **NODE_ENV / Staging Semantics (Task 6):**
+   - `NODE_ENV=production` is strictly required for staging capacity fidelity because `NODE_ENV !== 'production'` invokes Vite dev server middleware in `server.ts:11871`. Staging identity is established via domain/project boundaries, not by forcing `NODE_ENV=staging`.
+
+7. **Schema & Seed Verification (Tasks 7, 8):**
+   - Canonical migration `supabase/migrations/20260918004527_remote_schema.sql` (9,934 lines) provides complete declarative schema.
+   - Seed SQL statically verified against DDL: stores, categories, products INSERT statements are valid; no `category_id`; zero PII; zero production data.
+
+8. **Formal Decision (Task 9):**
+   - `STAGING_BLOCKED_BY_PROVIDER_LIMIT` (Supabase Free active project quota is exhausted).
+
+9. **Invariants Preserved:**
+   - Zero infrastructure created; zero database mutations.
    - `COST_MEASURED = false`.
    - `finalScaleReady = false`.
    - PL20-03 remains ACTIVE; PL21 NOT STARTED.
-   - Zero production or staging mutations.
+
+10. **Documentation Closure & Staging Cost Status:**
+    - Phase PL20-03G formally CLOSED.
+    - Staging architecture plan (`PL20-03F`) and staging provisioning preflight (`PL20-03G`) documented.
+    - Railway incremental staging cost = `UNKNOWN / PENDING_OPERATOR_VERIFICATION`.
+    - Supabase Free account has 2/2 active project slots occupied; staging requires freeing an active slot or plan change.
+    - Formal blocker recorded: `STAGING_BLOCKED_BY_PROVIDER_LIMIT`.
+    - Handed off to ChatGPT Web for operator decision / roadmap sequencing.
