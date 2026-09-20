@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * PL20-03E1 DRY-RUN COST EVIDENCE VALIDATOR
  *
@@ -559,8 +557,11 @@ export function validateCostEvidenceFile(filePath) {
 }
 
 // Direct invocation CLI handler
-const isDirectCli = import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`;
-if (isDirectCli || process.argv[1]?.endsWith('validate-cost-evidence.mjs')) {
+const isDirectCli = Boolean(
+  process.argv[1] &&
+  path.resolve(process.argv[1]).replace(/\\/g, '/').endsWith('/scripts/pl20/validate-cost-evidence.mjs')
+);
+if (isDirectCli) {
   try {
     const inputArg = process.argv[2];
     const report = validateCostEvidenceFile(inputArg);
