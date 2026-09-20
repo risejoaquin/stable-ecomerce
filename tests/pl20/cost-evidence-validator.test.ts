@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { validateCostEvidence } from '../../scripts/pl20/validate-cost-evidence.mjs';
+import { validateCostEvidence, validateCostEvidenceFile } from '../../scripts/pl20/validate-cost-evidence.mjs';
 
 function createValidBaseRecords(): any {
   return {
@@ -281,5 +281,66 @@ describe('PL20-03E1 Cost Evidence Intake Validator', () => {
     expect(result).toHaveProperty('cost_total_state');
     expect(result).toHaveProperty('isCostEvidenceMeasured');
     expect(result).toHaveProperty('blocking_reasons');
+  });
+
+  // Test 16: CLI/file loader fails closed with no file argument
+  it('16. fails closed when validateCostEvidenceFile is called without an explicit file path', () => {
+    expect(() => (validateCostEvidenceFile as any)()).toThrow('explicit provider evidence input file is required');
+    expect(() => validateCostEvidenceFile('')).toThrow('explicit provider evidence input file is required');
+    expect(() => validateCostEvidenceFile('   ')).toThrow('explicit provider evidence input file is required');
+  });
+
+  // Test 17: Example template cannot set isCostEvidenceMeasured=true
+  it('17. verifies example template pl20-03e-provider-cost-input.example.json fails closed as non-evidence', () => {
+    const result = validateCostEvidenceFile('AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json');
+    expect(result.cost_total_state).toBe('NOT_MEASURED');
+    expect(result.isCostEvidenceMeasured).toBe(false);
+    expect(result.providers.railway.state).toBe('NOT_MEASURED');
+    expect(result.providers.supabase.state).toBe('NOT_MEASURED');
+    expect(result.providers.stripe.state).toBe('NOT_MEASURED');
+    expect(result.providers.resend.state).toBe('NOT_MEASURED');
+    expect(result.blocking_reasons).toContain('example/template input cannot be accepted as provider evidence');
+  });
+
+  // Test 18: example_only flag fails closed even if all other fields are populated
+  it('18. rejects payload with example_only: true even if provider fields are fully populated', () => {
+    const data = createValidBaseRecords();
+    data.example_only = true;
+    const result = validateCostEvidence(data);
+    expect(result.cost_total_state).toBe('NOT_MEASURED');
+    expect(result.isCostEvidenceMeasured).toBe(false);
+    expect(result.blocking_reasons).toContain('example/template input cannot be accepted as provider evidence');
+  });
+
+  // Test 19: Rejects placeholder strings in evidence references and provenance
+  it('19. rejects placeholder values (<...>, example, placeholder, sample-only) in evidence and provenance', () => {
+    // Railway with placeholder evidence_reference
+    const data1 = createValidBaseRecords();
+    data1.providers.railway.evidence_reference = '<railway-invoice-path>';
+    const result1 = validateCostEvidence(data1);
+    expect(result1.providers.railway.state).toBe('PARTIAL');
+    expect(result1.providers.railway.reasons.some((r: string) => r.includes('not a placeholder'))).toBe(true);
+    expect(result1.isCostEvidenceMeasured).toBe(false);
+
+    // Stripe with placeholder source_type
+    const data2 = createValidBaseRecords();
+    data2.providers.stripe.source_type = 'placeholder';
+    const result2 = validateCostEvidence(data2);
+    expect(result2.providers.stripe.state).toBe('PARTIAL');
+    expect(result2.isCostEvidenceMeasured).toBe(false);
+
+    // Supabase with placeholder provided_by
+    const data3 = createValidBaseRecords();
+    data3.providers.supabase.provided_by = '<operator_name>';
+    const result3 = validateCostEvidence(data3);
+    expect(result3.providers.supabase.state).toBe('PARTIAL');
+    expect(result3.isCostEvidenceMeasured).toBe(false);
+
+    // Resend with placeholder measured_at
+    const data4 = createValidBaseRecords();
+    data4.providers.resend.measured_at = '<2026-09-19T12:00:00Z>';
+    const result4 = validateCostEvidence(data4);
+    expect(result4.providers.resend.state).toBe('PARTIAL');
+    expect(result4.isCostEvidenceMeasured).toBe(false);
   });
 });

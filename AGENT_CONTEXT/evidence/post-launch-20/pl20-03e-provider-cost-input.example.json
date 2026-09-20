@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "PL20-03E Operator Cost Evidence Intake Format (Local Dry-Run Contract)",
+  "description": "PL20-03E Operator Cost Evidence Intake Format (Template / Example - Incomplete State)",
+  "example_only": true,
   "period": {
     "period_start": "2026-08-01",
     "period_end": "2026-08-31",
@@ -9,23 +10,24 @@
   "providers": {
     "railway": {
       "provider": "railway",
-      "amount": 48.00,
+      "amount": null,
       "currency": "MXN",
       "period_start": "2026-08-01",
       "period_end": "2026-08-31",
       "actual_or_estimated": "estimated",
-      "source_type": "operator_approved_equal_allocation",
+      "source_type": "operator_attested_shared_account_cost",
       "provided_by": "joaquin_operator",
       "measured_at": "2026-09-19T12:00:00.000Z",
       "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/railway-2026-08-invoice.png",
-      "allocation_model": "equal_allocation",
+      "allocation_model": "shared_unallocated",
       "account_total": 192.00,
       "shared_hosts": 4,
-      "operator_approved_equal_allocation": true,
-      "allocation_formula": "account_total / shared_hosts",
+      "operator_approved_equal_allocation": false,
+      "allocation_formula": null,
       "caveats": [
-        "Equal allocation explicitly approved by operator for PL20 cost accounting.",
-        "Approved accounting convention, not provider-metered ecommerce allocation."
+        "Railway account cost is 192 MXN/month shared across 4 hosts.",
+        "Ecommerce allocation unresolved.",
+        "Do not divide by 4 without explicit operator equal-allocation approval."
       ]
     },
     "supabase": {
@@ -49,19 +51,21 @@
     },
     "stripe": {
       "provider": "stripe",
-      "amount": 142.50,
+      "amount": null,
       "currency": "MXN",
       "period_start": "2026-08-01",
       "period_end": "2026-08-31",
-      "actual_or_estimated": "actual",
-      "source_type": "provider_export",
+      "actual_or_estimated": "estimated",
+      "source_type": "fee_schedule_only",
       "provided_by": "joaquin_operator",
       "measured_at": "2026-09-19T12:00:00.000Z",
-      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/stripe-2026-08-fees-export.csv",
-      "refund_dispute_treatment": "included",
-      "gross_volume": 4900.00,
+      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/stripe-2026-08-fee-schedule-attestation.png",
+      "refund_dispute_treatment": "unknown_from_schedule",
+      "gross_volume": null,
       "caveats": [
-        "Actual Stripe fees total from provider dashboard export; not derived from fee schedule."
+        "Known fact: approximately 2.9% plus conditional 6 MXN in some cases.",
+        "Actual period fee total unknown.",
+        "Do not calculate actual fees from fee schedule."
       ]
     },
     "resend": {

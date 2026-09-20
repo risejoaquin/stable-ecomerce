@@ -8,6 +8,9 @@
  * - NEVER persists to any database or table.
  * - NEVER calls Railway, Supabase, Stripe, or Resend APIs.
  * - NEVER promotes finalScaleReady or creates readiness scores.
+ * - FAILS CLOSED on example/template inputs (example_only: true).
+ * - REJECTS placeholder tokens (<...>, example, placeholder, sample-only).
+ * - REQUIRES explicit input file argument in CLI mode.
  */
 
 import fs from 'node:fs';
@@ -17,8 +20,37 @@ const ALLOWED_PROVIDERS = ['railway', 'supabase', 'stripe', 'resend'];
 const ALLOWED_RAILWAY_MODELS = ['resource_based', 'equal_allocation', 'shared_unallocated'];
 const ALLOWED_STRIPE_SOURCE_TYPES = ['provider_export', 'provider_billing', 'stripe_dashboard_export'];
 
+function isPlaceholderValue(val) {
+  if (val === null || val === undefined) return false;
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (/^<.*>$/.test(trimmed)) return true;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'example' ||
+    lower === 'placeholder' ||
+    lower === 'sample-only' ||
+    lower === 'sample_only' ||
+    lower === 'todo' ||
+    lower === 'unknown'
+  ) {
+    return true;
+  }
+  if (
+    lower.startsWith('placeholder') ||
+    lower.startsWith('<') ||
+    lower.endsWith('>') ||
+    lower.includes('<') ||
+    lower.includes('>')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function isValidDateString(str) {
   if (typeof str !== 'string') return false;
+  if (isPlaceholderValue(str)) return false;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str.trim());
   if (!match) return false;
   const year = Number(match[1]);
@@ -32,6 +64,7 @@ function isValidDateString(str) {
 
 function isValidIsoTimestamp(str) {
   if (typeof str !== 'string' || !str.trim()) return false;
+  if (isPlaceholderValue(str)) return false;
   const time = Date.parse(str);
   return !Number.isNaN(time);
 }
@@ -190,20 +223,23 @@ function validateRailway(rec) {
   }
 
   // Common checks for resource_based and equal_allocation
-  if (typeof rec.account_total !== 'number' || rec.account_total <= 0) {
+  if (typeof rec.account_total !== 'number' || rec.account_total <= 0 || isPlaceholderValue(rec.account_total)) {
     reasons.push('Railway account_total must be a positive number.');
   }
   if (!Number.isInteger(rec.shared_hosts) || rec.shared_hosts < 1) {
     reasons.push('Railway shared_hosts must be an integer >= 1.');
   }
-  if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim()) {
-    reasons.push('Railway evidence_reference must be a non-empty string path or reference.');
+  if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
+    reasons.push('Railway evidence_reference must be a non-empty string path or reference, not a placeholder.');
   }
-  if (!isValidIsoTimestamp(rec.measured_at)) {
-    reasons.push('Railway measured_at must be a valid ISO 8601 timestamp.');
+  if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+    reasons.push('Railway measured_at must be a valid ISO 8601 timestamp, not a placeholder.');
   }
-  if (!rec.currency || typeof rec.currency !== 'string') {
+  if (!rec.currency || typeof rec.currency !== 'string' || isPlaceholderValue(rec.currency)) {
     reasons.push('Railway currency must be specified (e.g. MXN).');
+  }
+  if (!rec.provided_by || typeof rec.provided_by !== 'string' || isPlaceholderValue(rec.provided_by)) {
+    reasons.push('Railway provided_by must be specified, not a placeholder.');
   }
 
   if (model === 'equal_allocation') {
@@ -218,7 +254,7 @@ function validateRailway(rec) {
 
     const recordedAmount = typeof rec.amount === 'number' ? Number(rec.amount.toFixed(2)) : null;
 
-    if (recordedAmount === null || recordedAmount <= 0) {
+    if (recordedAmount === null || recordedAmount <= 0 || isPlaceholderValue(rec.amount)) {
       reasons.push('Railway attributable amount must be a positive number.');
     } else if (expectedAttributable !== null && Math.abs(recordedAmount - expectedAttributable) > 0.05) {
       reasons.push(`Attributable amount (${recordedAmount}) does not match equal allocation formula (account_total / shared_hosts = ${expectedAttributable}).`);
@@ -242,8 +278,8 @@ function validateRailway(rec) {
   }
 
   if (model === 'resource_based') {
-    if (!rec.usage_metric || typeof rec.usage_metric !== 'string' || !rec.usage_metric.trim()) {
-      reasons.push('Resource-based allocation requires usage_metric (e.g. runtime-hours, memory-hours, CPU-hours).');
+    if (!rec.usage_metric || typeof rec.usage_metric !== 'string' || !rec.usage_metric.trim() || isPlaceholderValue(rec.usage_metric)) {
+      reasons.push('Resource-based allocation requires usage_metric (e.g. runtime-hours, memory-hours, CPU-hours), not a placeholder.');
     }
     if (!rec.usage_values || typeof rec.usage_values !== 'object') {
       reasons.push('Resource-based allocation requires usage_values object mapping host services to numbers.');
@@ -256,10 +292,10 @@ function validateRailway(rec) {
         reasons.push(`Resource-based usage_values has ${hostCount} hosts, but shared_hosts is ${rec.shared_hosts}.`);
       }
     }
-    if (!rec.allocation_formula || typeof rec.allocation_formula !== 'string' || !rec.allocation_formula.trim()) {
-      reasons.push('Resource-based allocation requires allocation_formula string.');
+    if (!rec.allocation_formula || typeof rec.allocation_formula !== 'string' || !rec.allocation_formula.trim() || isPlaceholderValue(rec.allocation_formula)) {
+      reasons.push('Resource-based allocation requires allocation_formula string, not a placeholder.');
     }
-    if (typeof rec.amount !== 'number' || rec.amount < 0) {
+    if (typeof rec.amount !== 'number' || rec.amount < 0 || isPlaceholderValue(rec.amount)) {
       reasons.push('Resource-based attributable amount must be a non-negative number.');
     }
 
@@ -302,6 +338,7 @@ function validateStripe(rec) {
     rec.source_type === 'fee_schedule_only' ||
     rec.amount === null ||
     rec.amount === undefined ||
+    isPlaceholderValue(rec.amount) ||
     (Array.isArray(rec.caveats) && rec.caveats.some((c) => typeof c === 'string' && c.includes('2.9%') && (rec.amount === null || rec.amount === undefined))) ||
     (typeof rec.caveats === 'string' && rec.caveats.includes('2.9%') && (rec.amount === null || rec.amount === undefined))
   );
@@ -319,23 +356,26 @@ function validateStripe(rec) {
 
   const reasons = [];
 
-  if (typeof rec.amount !== 'number' || rec.amount < 0) {
-    reasons.push('Stripe actual fee total amount must be a non-negative number.');
+  if (typeof rec.amount !== 'number' || rec.amount < 0 || isPlaceholderValue(rec.amount)) {
+    reasons.push('Stripe actual fee total amount must be a non-negative number, not a placeholder.');
   }
-  if (!rec.currency || typeof rec.currency !== 'string') {
+  if (!rec.currency || typeof rec.currency !== 'string' || isPlaceholderValue(rec.currency)) {
     reasons.push('Stripe currency must be specified (e.g. MXN).');
   }
-  if (!rec.source_type || !ALLOWED_STRIPE_SOURCE_TYPES.includes(rec.source_type)) {
+  if (!rec.source_type || isPlaceholderValue(rec.source_type) || !ALLOWED_STRIPE_SOURCE_TYPES.includes(rec.source_type)) {
     reasons.push(`Stripe source_type must be one of: ${ALLOWED_STRIPE_SOURCE_TYPES.join(', ')}.`);
   }
-  if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim()) {
-    reasons.push('Stripe evidence_reference must be a non-empty string path or export name.');
+  if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
+    reasons.push('Stripe evidence_reference must be a non-empty string path or export name, not a placeholder.');
   }
-  if (!isValidIsoTimestamp(rec.measured_at)) {
-    reasons.push('Stripe measured_at must be a valid ISO 8601 timestamp.');
+  if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+    reasons.push('Stripe measured_at must be a valid ISO 8601 timestamp, not a placeholder.');
   }
-  if (!rec.refund_dispute_treatment || typeof rec.refund_dispute_treatment !== 'string' || !rec.refund_dispute_treatment.trim()) {
-    reasons.push('Stripe requires explicit refund/dispute treatment documentation (e.g. included, excluded, none_observed).');
+  if (!rec.refund_dispute_treatment || typeof rec.refund_dispute_treatment !== 'string' || !rec.refund_dispute_treatment.trim() || isPlaceholderValue(rec.refund_dispute_treatment)) {
+    reasons.push('Stripe requires explicit refund/dispute treatment documentation (e.g. included, excluded, none_observed), not a placeholder.');
+  }
+  if (!rec.provided_by || typeof rec.provided_by !== 'string' || isPlaceholderValue(rec.provided_by)) {
+    reasons.push('Stripe provided_by must be specified, not a placeholder.');
   }
 
   if (reasons.length > 0) {
@@ -374,17 +414,17 @@ function validateZeroCostProvider(providerName, rec) {
     if (tier !== 'free') {
       reasons.push(`${displayName} amount is 0, but plan/tier is '${tier || 'unspecified'}' (expected 'free').`);
     }
-    if (!rec.source_type || typeof rec.source_type !== 'string' || !rec.source_type.trim()) {
-      reasons.push(`${displayName} zero-cost requires explicit source_type provenance.`);
+    if (!rec.source_type || typeof rec.source_type !== 'string' || !rec.source_type.trim() || isPlaceholderValue(rec.source_type)) {
+      reasons.push(`${displayName} zero-cost requires explicit source_type provenance, not a placeholder.`);
     }
-    if (!rec.provided_by || typeof rec.provided_by !== 'string' || !rec.provided_by.trim()) {
-      reasons.push(`${displayName} zero-cost requires provided_by operator provenance.`);
+    if (!rec.provided_by || typeof rec.provided_by !== 'string' || !rec.provided_by.trim() || isPlaceholderValue(rec.provided_by)) {
+      reasons.push(`${displayName} zero-cost requires provided_by operator provenance, not a placeholder.`);
     }
-    if (!isValidIsoTimestamp(rec.measured_at)) {
-      reasons.push(`${displayName} zero-cost requires valid ISO 8601 measured_at timestamp.`);
+    if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+      reasons.push(`${displayName} zero-cost requires valid ISO 8601 measured_at timestamp, not a placeholder.`);
     }
-    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim()) {
-      reasons.push(`${displayName} zero-cost requires explicit evidence_reference (dashboard/plan screenshot or export).`);
+    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
+      reasons.push(`${displayName} zero-cost requires explicit evidence_reference (dashboard/plan screenshot or export), not a placeholder.`);
     }
 
     const hasCaveats = (Array.isArray(rec.caveats) && rec.caveats.length > 0) || (typeof rec.caveats === 'string' && rec.caveats.trim().length > 0);
@@ -413,15 +453,14 @@ function validateZeroCostProvider(providerName, rec) {
   }
 
   if (typeof rec.amount === 'number' && rec.amount > 0) {
-    // Paid plan validation
-    if (!rec.source_type || typeof rec.source_type !== 'string') {
-      reasons.push(`${displayName} paid cost requires source_type.`);
+    if (!rec.source_type || typeof rec.source_type !== 'string' || isPlaceholderValue(rec.source_type)) {
+      reasons.push(`${displayName} paid cost requires source_type, not a placeholder.`);
     }
-    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string') {
-      reasons.push(`${displayName} paid cost requires evidence_reference.`);
+    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || isPlaceholderValue(rec.evidence_reference)) {
+      reasons.push(`${displayName} paid cost requires evidence_reference, not a placeholder.`);
     }
-    if (!isValidIsoTimestamp(rec.measured_at)) {
-      reasons.push(`${displayName} paid cost requires valid measured_at timestamp.`);
+    if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+      reasons.push(`${displayName} paid cost requires valid measured_at timestamp, not a placeholder.`);
     }
 
     if (reasons.length > 0) {
@@ -456,6 +495,34 @@ function validateZeroCostProvider(providerName, rec) {
  * @returns {object} Machine-readable validation report
  */
 export function validateCostEvidence(inputData) {
+  // Fail closed on example / template input
+  if (
+    inputData?.example_only === true ||
+    String(inputData?.example_only).toLowerCase() === 'true' ||
+    inputData?.is_example === true ||
+    String(inputData?.is_example).toLowerCase() === 'true'
+  ) {
+    const { period: topPeriod } = normalizeInput(inputData);
+    return {
+      period: {
+        period_start: topPeriod?.period_start || null,
+        period_end: topPeriod?.period_end || null,
+        period_match: false
+      },
+      providers: {
+        railway: { state: 'NOT_MEASURED', amount: null, currency: 'MXN', reasons: ['example/template input cannot be accepted as provider evidence'] },
+        supabase: { state: 'NOT_MEASURED', amount: null, currency: 'MXN', reasons: ['example/template input cannot be accepted as provider evidence'] },
+        stripe: { state: 'NOT_MEASURED', amount: null, currency: 'MXN', reasons: ['example/template input cannot be accepted as provider evidence'] },
+        resend: { state: 'NOT_MEASURED', amount: null, currency: 'MXN', reasons: ['example/template input cannot be accepted as provider evidence'] }
+      },
+      cost_total_state: 'NOT_MEASURED',
+      isCostEvidenceMeasured: false,
+      blocking_reasons: [
+        'example/template input cannot be accepted as provider evidence'
+      ]
+    };
+  }
+
   const { period: topPeriod, providers } = normalizeInput(inputData);
 
   const periodValidation = validatePeriodAlignment(providers, topPeriod);
@@ -464,13 +531,6 @@ export function validateCostEvidence(inputData) {
   const supabaseResult = validateZeroCostProvider('supabase', providers.supabase);
   const stripeResult = validateStripe(providers.stripe);
   const resendResult = validateZeroCostProvider('resend', providers.resend);
-
-  const providerStates = {
-    railway: railwayResult.state,
-    supabase: supabaseResult.state,
-    stripe: stripeResult.state,
-    resend: resendResult.state
-  };
 
   const allProvidersMeasured = (
     railwayResult.state === 'MEASURED' &&
@@ -542,12 +602,15 @@ export function validateCostEvidence(inputData) {
 }
 
 /**
- * CLI runner function.
+ * File loader and runner function.
  *
- * @param {string} [filePath]
+ * @param {string} [filePath] - Absolute or relative path to provider evidence JSON
  */
 export function validateCostEvidenceFile(filePath) {
-  const targetPath = filePath || path.resolve(process.cwd(), 'AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json');
+  if (!filePath || typeof filePath !== 'string' || !filePath.trim()) {
+    throw new Error('explicit provider evidence input file is required');
+  }
+  const targetPath = path.resolve(process.cwd(), filePath.trim());
   if (!fs.existsSync(targetPath)) {
     throw new Error(`Cost evidence file not found: ${targetPath}`);
   }
@@ -562,13 +625,17 @@ const isDirectCli = Boolean(
   path.resolve(process.argv[1]).replace(/\\/g, '/').endsWith('/scripts/pl20/validate-cost-evidence.mjs')
 );
 if (isDirectCli) {
+  const inputArg = process.argv[2];
+  if (!inputArg || typeof inputArg !== 'string' || !inputArg.trim()) {
+    console.error(JSON.stringify({ error: 'explicit provider evidence input file is required' }, null, 2));
+    process.exit(1);
+  }
   try {
-    const inputArg = process.argv[2];
     const report = validateCostEvidenceFile(inputArg);
     console.log(JSON.stringify(report, null, 2));
     process.exit(0);
   } catch (err) {
-    console.error(JSON.stringify({ error: err.message, stack: err.stack }, null, 2));
+    console.error(JSON.stringify({ error: err.message }, null, 2));
     process.exit(1);
   }
 }

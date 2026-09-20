@@ -63,46 +63,57 @@ The input format supports all four providers:
 
 ---
 
-## 3. Dry-Run Validator Utility (Tasks 2–9)
+## 3. Dry-Run Validator Utility (Tasks 2–9 & Final Hotfix)
 
 **Utility Path:** `scripts/pl20/validate-cost-evidence.mjs`
 
 ### Execution
 ```powershell
-node scripts/pl20/validate-cost-evidence.mjs [path-to-input.json]
+node scripts/pl20/validate-cost-evidence.mjs <path-to-input.json>
 ```
-If no file argument is provided, defaults to `AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json`.
+**Strict Operator Requirement:** Running CLI without an explicit input path fails immediately (exit code 1) with:
+`{"error": "explicit provider evidence input file is required"}`.
+The validator no longer defaults to the example file.
 
-### Validation Rules Enforced
-1. **Common Period Rule (Task 3):**
+### Anti-Example & Placeholder Protections (PL20-03E1 Final Hotfix)
+1. **Example Rejection (`example != evidence`):**
+   - Templates marked with `example_only: true` or `is_example: true` immediately fail closed with:
+     - `cost_total_state: "NOT_MEASURED"`
+     - `isCostEvidenceMeasured: false`
+     - all provider states set to `"NOT_MEASURED"`
+     - blocking reason: `"example/template input cannot be accepted as provider evidence"`
+   - This ensures sample templates cannot accidentally or intentionally self-validate.
+2. **Placeholder Rejection:**
+   - Any placeholder string (`<...>`, `example`, `placeholder`, `sample-only`, `sample_only`, `todo`, `unknown`) in critical provenance fields (`evidence_reference`, `measured_at`, `provided_by`, `source_type`, `usage_metric`, `allocation_formula`) is strictly rejected, returning `PARTIAL` and preventing `MEASURED` promotion.
+3. **Common Period Rule (Task 3):**
    - All four providers must cover the exact same `period_start` and `period_end`.
    - If any provider period differs: `period_match: false`, `cost_total_state: "PARTIAL"`, `isCostEvidenceMeasured: false`.
-2. **Railway Allocation Rules (Task 4):**
+4. **Railway Allocation Rules (Task 4):**
    - `shared_unallocated`: Always `PARTIAL`, attributable `amount = null`.
    - `equal_allocation`: `MEASURED` only when `operator_approved_equal_allocation: true`, `account_total > 0`, `shared_hosts >= 1`, valid attributable `amount`, evidence reference, and timestamp exist. Without explicit operator approval flag, returns `PARTIAL`.
    - `resource_based`: `MEASURED` only when `usage_metric`, complete `usage_values` covering all shared hosts, `allocation_formula`, attributable `amount`, evidence reference, and timestamp exist.
-3. **Stripe Rules (Task 5):**
+5. **Stripe Rules (Task 5):**
    - `MEASURED` only when actual period fee total (`amount >= 0`, not null) is provided from `provider_export` or `provider_billing`, accompanied by `evidence_reference`, `measured_at`, and `refund_dispute_treatment`.
    - Fee schedule alone (`~2.9% + conditional 6 MXN` or `source_type: "fee_schedule_only"`): Returns `PARTIAL`, `amount = null`.
-4. **Supabase Zero-Cost Rule (Task 6):**
+6. **Supabase Zero-Cost Rule (Task 6):**
    - `amount = 0` is valid only with explicit same-period free-tier provenance: `tier = "free"`, `source_type`, `provided_by`, `measured_at`, `evidence_reference`, and `caveats`. Missing provenance returns `PARTIAL`.
-5. **Resend Zero-Cost Rule (Task 7):**
+7. **Resend Zero-Cost Rule (Task 7):**
    - `amount = 0` requires explicit same-period free-tier provenance identical to Supabase. Missing provenance returns `PARTIAL`.
-6. **Total Derivation (Task 8):**
+8. **Total Derivation (Task 8):**
    - `cost_total_state = "MEASURED"` and `isCostEvidenceMeasured = true` occur **ONLY** when:
      `Railway MEASURED AND Supabase MEASURED AND Stripe MEASURED AND Resend MEASURED AND period_match = true`.
    - Any single `PARTIAL` or mismatched provider forces `cost_total_state = "PARTIAL"` and `isCostEvidenceMeasured = false`.
-7. **Machine-Readable Output (Task 9):**
+9. **Machine-Readable Output (Task 9):**
    - Returns structured JSON containing `period`, `providers`, `cost_total_state`, `isCostEvidenceMeasured`, and `blocking_reasons`.
    - No score, no readiness promotion, no database side effects.
 
 ---
 
-## 4. Test Suite Verification (Task 10)
+## 4. Test Suite Verification (Task 10 & Hotfix)
 
 **Test Path:** `tests/pl20/cost-evidence-validator.test.ts`
 
-15 automated unit tests executed via Vitest, verifying all mandatory contract requirements:
+19 automated unit tests executed via Vitest, verifying all mandatory contract requirements:
 1. `four empty records => NOT_MEASURED` (`isCostEvidenceMeasured: false`)
 2. `mixed periods => PARTIAL` (`period_match: false`, `isCostEvidenceMeasured: false`)
 3. `Railway shared_unallocated => PARTIAL` (`amount: null`)
@@ -118,13 +129,19 @@ If no file argument is provided, defaults to `AGENT_CONTEXT/evidence/post-launch
 13. `3 measured + 1 partial => total PARTIAL` (`isCostEvidenceMeasured: false`)
 14. `all four measured same period => total MEASURED` (`isCostEvidenceMeasured: true`)
 15. `no provider/API/database side effects` (verified fetch is never called and input data is not mutated)
+16. `fails closed when validateCostEvidenceFile is called without an explicit file path`
+17. `verifies example template pl20-03e-provider-cost-input.example.json fails closed as non-evidence`
+18. `rejects payload with example_only: true even if provider fields are fully populated`
+19. `rejects placeholder values (<...>, example, placeholder, sample-only) in evidence and provenance`
 
-**Test Result:** 15 passed (15), 0 failed.
+**Test Result:** 19 passed (19), 0 failed.
 
 ---
 
-## 5. Non-Persistence Affirmation (Task 11)
+## 5. Non-Persistence & Distinction Affirmation (Task 11)
 
+- `example != evidence`: Example files are marked `example_only: true` and fail closed.
+- `dry-run MEASURED != persisted COST_MEASURED`: In-memory candidate validation does NOT mutate database state.
 - No calls were made to `POST /api/admin/final-scale/operating-costs/run`.
 - No records were created or modified in `operating_cost_summaries`.
 - Production cost state remains `COST_MEASURED = false`.
