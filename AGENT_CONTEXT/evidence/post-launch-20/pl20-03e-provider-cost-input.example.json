@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "PL20-03E Operator Cost Evidence Intake Format (Local Dry-Run Contract)",
+  "period": {
+    "period_start": "2026-08-01",
+    "period_end": "2026-08-31",
+    "period_convention": "inclusive_calendar_month"
+  },
+  "providers": {
+    "railway": {
+      "provider": "railway",
+      "amount": 48.00,
+      "currency": "MXN",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "actual_or_estimated": "estimated",
+      "source_type": "operator_approved_equal_allocation",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-19T12:00:00.000Z",
+      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/railway-2026-08-invoice.png",
+      "allocation_model": "equal_allocation",
+      "account_total": 192.00,
+      "shared_hosts": 4,
+      "operator_approved_equal_allocation": true,
+      "allocation_formula": "account_total / shared_hosts",
+      "caveats": [
+        "Equal allocation explicitly approved by operator for PL20 cost accounting.",
+        "Approved accounting convention, not provider-metered ecommerce allocation."
+      ]
+    },
+    "supabase": {
+      "provider": "supabase",
+      "amount": 0,
+      "currency": "MXN",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "plan": "free",
+      "tier": "free",
+      "actual_or_estimated": "actual",
+      "source_type": "provider_plan_or_operator_attested_free_tier",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-19T12:00:00.000Z",
+      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/supabase-2026-08-plan.png",
+      "caveats": [
+        "Current free tier only.",
+        "Future paid plan excluded from current operating cost.",
+        "Production database contents are not billing evidence."
+      ]
+    },
+    "stripe": {
+      "provider": "stripe",
+      "amount": 142.50,
+      "currency": "MXN",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "actual_or_estimated": "actual",
+      "source_type": "provider_export",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-19T12:00:00.000Z",
+      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/stripe-2026-08-fees-export.csv",
+      "refund_dispute_treatment": "included",
+      "gross_volume": 4900.00,
+      "caveats": [
+        "Actual Stripe fees total from provider dashboard export; not derived from fee schedule."
+      ]
+    },
+    "resend": {
+      "provider": "resend",
+      "amount": 0,
+      "currency": "MXN",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "plan": "free",
+      "tier": "free",
+      "actual_or_estimated": "actual",
+      "source_type": "provider_plan_or_operator_attested_free_tier",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-19T12:00:00.000Z",
+      "evidence_reference": "AGENT_CONTEXT/evidence/post-launch-20/resend-2026-08-plan.png",
+      "caveats": [
+        "Current free tier only.",
+        "No unverified monthly volume allowance is claimed."
+      ]
+    }
+  }
+}
