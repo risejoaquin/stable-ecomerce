@@ -2,53 +2,66 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Phase: POST-LAUNCH 20 — PL20-03G Staging Provisioning Preflight (CLOSED)
-Task ID: PL20-03G-STAGING-PROVISIONING-PREFLIGHT
+Phase: POST-LAUNCH 20 — PL20-03I Remote Capacity Baseline (Isolated Staging Only)
+Task ID: PL20-03I-REMOTE-CAPACITY-BASELINE
 Working tree status:
-- Main commit: `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`
+- Main commit: `04effaf0ddf7ce72e7b374718428f1849c4e32c0`
 - Branch: `main`
-- Status: `PASS / CLOSED` (PL20-01 PASS / CLOSED; PL20-02 PASS / CLOSED; PL20-03A PASS / CLOSED; PL20-03B PASS / CLOSED; PL20-03C PASS / CLOSED; PL20-03D PASS / CLOSED; PL20-03E1 PASS / CLOSED; PL20-03F PASS / CLOSED; PL20-03G PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; COST_MEASURED = false; finalScaleReady = false)
+- Status: `PL20-03I PASS / CLOSED` (PL20-01..PL20-03I PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; CAPACITY_BASELINE_MEASURED = true; CAPACITY_SCALE_MEASURED = false; COST_MEASURED = false; finalScaleReady = false)
 
 ## Summary of Executed Implementation & Findings
 
-1. **Design Binding & Migration Evidence Refresh (Task 1):**
-   - Evaluated main commit bound to `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`.
-   - Verified that `finalize_paid_order` is `SECURITY INVOKER` (not `SECURITY DEFINER`) in `supabase/migrations/20260918004527_remote_schema.sql` (lines 6178–6191) with immutable empty search path and execute granted strictly to `postgres` and `service_role` (lines 9199–9201). Updated PL20-03F architecture plan accordingly.
+1. **Target Safety Lock (Task 1):**
+   - Verified that `scripts/load/pl20-baseline.k6.js` strictly targeted `https://web-staging-production-8fb1.up.railway.app`.
+   - Production safety lock (`scripts/load/pl20-baseline.k6.js:98`) remained intact with `ALLOW_PRODUCTION_LOAD_TEST=false`.
 
-2. **Supabase Staging Availability (Task 2):**
-   - Organization `lucilfer` (`bsreuhmlrgoqlowkrsaf`) has 2 active projects (`stable-ecomerce` and `OASIS-DRINKS-DB`). Free plan limit (2 active projects) is 100% occupied; no free active slots exist; database branching is unavailable on Free tier.
-   - Verdict: `SUPABASE_STAGING_REQUIRES_PLAN_CHANGE`.
+2. **Baseline Parameters (Task 2):**
+   - Configured exact approved parameters: 1 VU, 30s duration, 1s sleep per route.
+   - Tested only the 7 approved SAFE_READ routes (`/`, `/api/health`, `/api/readiness`, `/api/public/store`, `/api/public/home`, `/api/public/categories`, `/api/products`). Zero POSTs, zero checkout/payment flows.
 
-3. **Railway Staging Availability (Task 3):**
-   - Workspace `SolidBitsMx` operates on pay-as-you-go usage billing ($3.69 current bill, not over limit) and supports dedicated isolated projects via `railway init` with 100% variable isolation.
-   - Verdict: `RAILWAY_STAGING_AVAILABLE`.
+3. **Pre-Run Snapshot (Task 3):**
+   - Staging `GET /api/health` returned HTTP 200 OK (`version: 04effaf0ddf7ce72e7b374718428f1849c4e32c0`, uptime: 991s).
+   - Staging `GET /api/readiness` returned HTTP 200 OK (`status: ready`, Supabase latency: 247ms).
+   - Railway baseline metrics: CPU: 0.0 vCPU (0.0% util), Memory: 102.65 MB (1.3% util), Deployment ID: `c8f1bb38-37c3-4c42-a411-1f83a6612ecd`.
+   - Supabase active connections (`gecdtigvmsvsmhvnlarh`): 7 active connections across system roles (limit: 60/role).
 
-4. **Stripe Test Mode (Task 4):**
-   - Account `acct_1TLawpEKfBRabUZ0` supports native test mode keys (`sk_test_...`) and test webhooks on route `/api/webhooks/stripe`. Zero keys exposed; zero webhooks created.
+4. **Baseline Execution Results (Task 4):**
+   - Executed single k6 baseline run via `scripts/load/pl20-baseline.k6.js`.
+   - Completed cleanly with exit code 0 in 30.85s.
+   - Total requests: 21 (3 complete iterations × 7 routes).
+   - RPS: 0.6808 req/s.
+   - HTTP failure rate: 0.00% (0 / 21).
+   - HTTP 5xx count: 0.
+   - Checks rate: 100.0% (42 passed, 0 failed).
+     - `SAFE_READ status is 2xx/3xx`: 21/21 passes.
+     - `no redirect to mutation flow`: 21/21 passes.
+   - Latencies: p50: 265.79ms, avg: 318.14ms, min: 39.97ms, p90: 666.59ms, p95: 752.42ms, max: 884.85ms.
 
-5. **Resend Safe Mock (Task 5):**
-   - Application supports `EMAIL_ALLOW_MOCKS=true`. When active, `EmailService` routes sends to internal mock sink; `RESEND_API_KEY` can be completely omitted in staging.
+5. **Stop Conditions Evaluation (Task 5):**
+   - Zero abort conditions triggered. Zero 5xx, zero database connection errors (Supabase latency: 171ms post-run), zero cross-talk. Container restart state could not be proven from sequential uptime values because the captured uptime evidence was temporally inconsistent; independent Railway deployment tracking confirmed Deployment ID `c8f1bb38-37c3-4c42-a411-1f83a6612ecd` remained continuously active in `SUCCESS` status with zero restarts.
 
-6. **NODE_ENV / Staging Semantics (Task 6):**
-   - `NODE_ENV=production` is strictly required for staging capacity fidelity because `NODE_ENV !== 'production'` invokes Vite dev server middleware in `server.ts:11871`. Staging identity is established via domain/project boundaries, not by forcing `NODE_ENV=staging`.
+6. **Post-Run Data Integrity (Task 6):**
+   - Direct service role query against Supabase staging (`gecdtigvmsvsmhvnlarh`) confirmed zero mutations:
+     - `stores`: 1 (`Selfcare Sinners Staging`)
+     - `categories`: 1 (`Staging Category`)
+     - `products`: 3 (`Synthetic Serum A`, `Synthetic Cream B`, `Synthetic Cleanser C`)
+     - `orders`: 0
+     - `order_items`: 0
+     - `customer_metrics`: 0
+     - `auth.users`: 0
+     - Stripe live events: 0
+     - Resend outbound emails: 0
 
-7. **Schema & Seed Verification (Tasks 7, 8):**
-   - Canonical migration `supabase/migrations/20260918004527_remote_schema.sql` (9,934 lines) provides complete declarative schema.
-   - Seed SQL statically verified against DDL: stores, categories, products INSERT statements are valid; no `category_id`; zero PII; zero production data.
+7. **Production Isolation Audit (Task 7):**
+   - Production Railway project `heroic-solace` (`2ee53291-c0b1-4859-9ae6-8e331d1f6435`): untouched, service `stable-ecomerce` Online.
+   - Production domain (`https://selfcaresinners.com`): HTTP 200 OK, continuous uptime (82,733+ s).
+   - Production Supabase (`dporfgsbwsyqzmlnqrug`): untouched, zero staging queries or writes.
+   - Production Stripe & Resend: zero events.
 
-8. **Formal Decision (Task 9):**
-   - `STAGING_BLOCKED_BY_PROVIDER_LIMIT` (Supabase Free active project quota is exhausted).
-
-9. **Invariants Preserved:**
-   - Zero infrastructure created; zero database mutations.
-   - `COST_MEASURED = false`.
+8. **Classification & Governance (Task 8 / Hotfix):**
+   - Formal State: `PL20-03I PASS / CLOSED`.
+   - `CAPACITY_BASELINE_MEASURED = true`.
+   - `CAPACITY_SCALE_MEASURED = false` (A single 1-VU baseline is not scale capacity).
+   - `COST_MEASURED = false` (No load cost test conducted).
    - `finalScaleReady = false`.
-   - PL20-03 remains ACTIVE; PL21 NOT STARTED.
-
-10. **Documentation Closure & Staging Cost Status:**
-    - Phase PL20-03G formally CLOSED.
-    - Staging architecture plan (`PL20-03F`) and staging provisioning preflight (`PL20-03G`) documented.
-    - Railway incremental staging cost = `UNKNOWN / PENDING_OPERATOR_VERIFICATION`.
-    - Supabase Free account has 2/2 active project slots occupied; staging requires freeing an active slot or plan change.
-    - Formal blocker recorded: `STAGING_BLOCKED_BY_PROVIDER_LIMIT`.
-    - Handed off to ChatGPT Web for operator decision / roadmap sequencing.
+   - Phase PL20-03 remains ACTIVE; PL21 NOT STARTED.

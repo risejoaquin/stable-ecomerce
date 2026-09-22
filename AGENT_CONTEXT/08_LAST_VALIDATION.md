@@ -1,39 +1,42 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-20T16:30:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03G Documentation Closure)
+**Timestamp:** 2026-09-21T15:35:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03I Remote Capacity Baseline - Isolated Staging Only)
 **Branch:** `main`
-**Base Commit:** `52a48e6f1e36d9ef1d04133989c99c8bda7ddaf6`
+**Base Commit:** `04effaf0ddf7ce72e7b374718428f1849c4e32c0`
+**Deployed Staging Commit:** `04effaf0ddf7ce72e7b374718428f1849c4e32c0`
 
 ## 1. Validation & Test Suite Status
 
 | Gate / Assessment | Command / Source | Result | Status |
 |---|---|---|---|
-| TypeScript Lint | `npm run lint` (`tsc --noEmit`) | 0 errors | PASS |
-| Unit & Contract Tests | `npm test` (`vitest run`) | 182 passed across 5 test files | PASS |
-| Build Check | `npm run build` | Dist bundles built cleanly | PASS |
-| Git Whitespace Check | `git diff --check` | 0 trailing whitespace / EOF errors | PASS |
-| Supabase Preflight | `npx supabase projects list` | 2/2 free active slots occupied | BLOCKED (`SUPABASE_STAGING_REQUIRES_PLAN_CHANGE`) |
-| Railway Preflight | `railway usage; railway status` | Pay-as-you-go workspace active ($3.69 usage) | PASS (`RAILWAY_STAGING_AVAILABLE`) |
-| Stripe Preflight | `stripe config --list` | Test mode supported on `SolidBit` | PASS (`TEST_MODE_SUPPORTED`) |
-| Resend Preflight | Static code analysis | `EMAIL_ALLOW_MOCKS=true` mock sink | PASS (`CREDENTIALS_OMITTED_IN_MOCK_MODE`) |
-| Runtime Fidelity | Static code analysis | `NODE_ENV=production` required for static serving | PASS (`NODE_ENV=production`) |
-| Schema Baseline | `supabase/migrations/20260918004527_remote_schema.sql` | 9,934 lines declarative DDL, 0 live data | PASS |
-| Seed Static Validation | SQL AST & DDL check | stores, categories, products valid; no `category_id` | PASS |
-| Preflight Decision | Component analysis | Quota exhaustion on Supabase | `STAGING_BLOCKED_BY_PROVIDER_LIMIT` |
-| Documentation Closure | Formal phase sign-off | PL20-03G closed in docs | PASS / CLOSED |
+| Target Safety Lock | `scripts/load/pl20-baseline.k6.js:98` | Abort lock intact, `ALLOW_PRODUCTION_LOAD_TEST=false` | PASS |
+| Target Hostname Verification | Parameter audit | `https://web-staging-production-8fb1.up.railway.app` strictly targeted | PASS |
+| Pre-Run Health Probe | `GET /api/health` | HTTP 200 OK, version `04effaf0ddf7ce72e7b374718428f1849c4e32c0` | PASS |
+| Pre-Run Readiness Probe | `GET /api/readiness` | HTTP 200 OK, Supabase `ok: true` (247ms) | PASS |
+| Baseline k6 Execution | `k6 run scripts/load/pl20-baseline.k6.js` | 1 VU, 30s, 1s sleep, exit code 0 | PASS |
+| HTTP Failure Rate | k6 summary (`http_req_failed`) | 0.00% (0 / 21 requests failed) | PASS |
+| HTTP 5xx Count | k6 summary (`http_5xx_count`) | 0 | PASS |
+| Checks Pass Rate | k6 summary (`checks`) | 100.0% (42 / 42 passed) | PASS |
+| Baseline Latencies | k6 summary (`http_req_duration`) | p50: 265.79ms, p95: 752.42ms, max: 884.85ms | MEASURED |
+| Throughput | k6 summary (`http_reqs`) | 21 total requests, 0.6808 req/s | MEASURED |
+| Stop Conditions Audit | Runtime & provider monitoring | 0 5xx, 0 Railway restarts (Deployment ID c8f1bb38 maintained), 0 pool exhaustion, 0 cross-talk | PASS |
+| Post-Run Data Integrity | Supabase staging service_role audit | Stores: 1, Categories: 1, Products: 3, Orders: 0, Customers: 0 | PASS |
+| Production Railway Isolation | `railway status -p heroic-solace` | Service `stable-ecomerce` Online; zero changes | PASS |
+| Production Service Uptime | `GET https://selfcaresinners.com/api/health` | HTTP 200 OK, continuous uptime (82,733+ s) | PASS |
+| Production DB Isolation | Ref audit against `dporfgsbwsyqzmlnqrug` | Zero network requests directed to production database | PASS |
+| Production Stripe/Resend | Isolation audit | Zero live Stripe events, zero Resend emails | PASS |
 
 ## 2. Key Assessment Findings
 
-- Staging provisioning preflight completed under strict read-only mode (zero infrastructure created).
-- `finalize_paid_order` verified as `SECURITY INVOKER` in canonical migration (lines 6178–6191) with execute restricted to `postgres` and `service_role`.
-- Supabase Free tier active project limit (2/2) reached by `stable-ecomerce` and `OASIS-DRINKS-DB`.
-- Railway workspace `SolidBitsMx` ready for dedicated isolated project (`railway init`).
-- Stripe test mode confirmed supported on `acct_1TLawpEKfBRabUZ0`.
-- Resend credentials can be completely omitted in staging using `EMAIL_ALLOW_MOCKS=true`.
-- `NODE_ENV=production` strictly required to avoid Vite dev server middleware activation (`server.ts:11871`).
-- `COST_MEASURED = false`.
-- `finalScaleReady` strictly remains `false`.
-- PL20-03 remains ACTIVE; PL21 NOT STARTED.
-- PL20-03G formally CLOSED; documentation closure complete.
-- Railway incremental staging cost = `UNKNOWN / PENDING_OPERATOR_VERIFICATION`; Supabase staging requires freeing an active slot or plan change.
+- Remote capacity baseline successfully executed on isolated staging environment `https://web-staging-production-8fb1.up.railway.app`.
+- 100% of 21 SAFE_READ requests returned HTTP 200 OK with zero errors or redirects to mutation flows.
+- Data integrity verified: 0 orders, 0 order_items, 0 customers, 0 database mutations created.
+- Production environment was completely isolated and undisturbed (82,733s continuous uptime).
+- Formal state:
+  - `PL20-03I PASS / CLOSED`
+  - `CAPACITY_BASELINE_MEASURED = true`
+  - `CAPACITY_SCALE_MEASURED = false`
+  - `COST_MEASURED = false`
+  - `finalScaleReady = false`
+- Phase state: PL20-03 ACTIVE; PL21 NOT STARTED.
