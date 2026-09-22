@@ -1,30 +1,35 @@
 # CURRENT TASK
 
-TASK ID: PL20-03I-REMOTE-CAPACITY-BASELINE
+TASK ID: PL20-03J-ISOLATED-STAGING-CAPACITY-SCALE-CHARACTERIZATION
 PHASE: POST-LAUNCH 20
-STATUS: PL20-03I PASS / CLOSED (PL20-01..PL20-03I PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; CAPACITY_BASELINE_MEASURED = true; CAPACITY_SCALE_MEASURED = false; COST_MEASURED = false; finalScaleReady = false)
+STATUS: PL20-03J PASS / CLOSED (PL20-01..PL20-03J PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; CAPACITY_SCALE_MEASURED = true; CAPACITY_BASELINE_MEASURED = true; COST_MEASURED = false; finalScaleReady = false)
 
 ## Objective
 
-Execute exactly one remote capacity baseline against the isolated staging environment using `scripts/load/pl20-baseline.k6.js`:
-1. **Target Safety Lock (Task 1):** Verified existing `scripts/load/pl20-baseline.k6.js` target lock (`scripts/load/pl20-baseline.k6.js:98`). Target set strictly to `https://web-staging-production-8fb1.up.railway.app`. `ALLOW_PRODUCTION_LOAD_TEST=false`. Safety lock preserved unmodified.
-2. **Baseline Parameters (Task 2):** Configured approved baseline parameters: 1 VU, 30s duration, 1s sleep after each route, targeting strictly the 7 approved SAFE_READ routes (`/`, `/api/health`, `/api/readiness`, `/api/public/store`, `/api/public/home`, `/api/public/categories`, `/api/products`). Zero POSTs, zero checkout/payment calls.
-3. **Pre-Run Snapshot (Task 3):**
-   - Staging `GET /api/health`: HTTP 200 OK (`version: 04effaf0ddf7ce72e7b374718428f1849c4e32c0`, uptime: 991s).
-   - Staging `GET /api/readiness`: HTTP 200 OK (`status: ready`, Supabase latency: 247ms).
-   - Railway baseline metrics: CPU: 0.0 vCPU (0.0% util), Memory: 102.65 MB (1.3% util), Deployment ID: `c8f1bb38-37c3-4c42-a411-1f83a6612ecd`.
-   - Supabase connection baseline (`gecdtigvmsvsmhvnlarh`): 7 active connections across system roles (limit: 60/role).
-4. **Run Baseline (Task 4):** Executed single k6 baseline run (`& 'C:\Program Files\k6\k6.exe' run ...`). Completed cleanly with exit code 0 in 30.85s. Total requests: 21 (3 complete iterations × 7 routes), 0.6808 req/s, 0 HTTP failures (0.00%), 0 5xx errors, 42/42 checks passed (100%), p50: 265.79ms, p90: 666.59ms, p95: 752.42ms, max: 884.85ms.
-5. **Stop Conditions Audit (Task 5):** Zero abort triggers observed (zero 5xx, zero database connection errors, 0 cross-talk). Container restart state could not be proven from sequential uptime values because the captured uptime evidence was temporally inconsistent; independent Railway deployment tracking confirmed Deployment ID `c8f1bb38-37c3-4c42-a411-1f83a6612ecd` remained continuously active in `SUCCESS` status with zero restarts.
-6. **Post-Run Data Integrity (Task 6):** Staging Supabase (`gecdtigvmsvsmhvnlarh`) verified immediately post-run: stores = 1 (`Selfcare Sinners Staging`), categories = 1 (`Staging Category`), products = 3 (`Synthetic Serum A, B, C`), orders = 0, order_items = 0, customer_metrics = 0, auth.users = 0, Stripe live events = 0, Resend outbound emails = 0.
-7. **Production Isolation Audit (Task 7):** Production Railway (`heroic-solace`), production domain (`https://selfcaresinners.com`, uptime: 82,733s), and production Supabase (`dporfgsbwsyqzmlnqrug`) verified 100% untouched and isolated.
-8. **Classification & Closure (Task 8 / Hotfix):** Formally marked `PL20-03I PASS / CLOSED`. Classified `CAPACITY_BASELINE_MEASURED = true`. Kept `CAPACITY_SCALE_MEASURED = false`, `finalScaleReady = false`, `COST_MEASURED = false`.
-9. **Documentation (Task 9):** Persisted machine-readable summary `AGENT_CONTEXT/evidence/post-launch-20/pl20-03i-remote-baseline-summary.json` (unproven started_at/finished_at removed, duration_ms: 30847.6278 preserved) and human-readable evidence report `AGENT_CONTEXT/evidence/post-launch-20/2026-09-20-pl20-03i-remote-capacity-baseline.md`.
+Measure how the existing SAFE_READ workload behaves as concurrency increases (2 VUs, 5 VUs, 10 VUs for 60s each with 1s sleep) against the isolated staging environment (`https://web-staging-production-8fb1.up.railway.app`):
+1. **Target Safety Lock (Task 1):** Verified staging target lock in `scripts/load/pl20-scale.k6.js`. Target set strictly to `https://web-staging-production-8fb1.up.railway.app`. Hard-coded production abort guard enforced.
+2. **Pre-Flight Snapshot (Task 1, 6, 8):**
+   - HEAD: `6225e50eecc4aafffa69f969559518acdb2a7c63` (matches origin/main).
+   - Staging `/api/health` and `/api/readiness`: HTTP 200 OK.
+   - Pre-scale DB counts: stores=1, categories=1, products=3, orders=0, order_items=0, customer_metrics=0, auth.users=0.
+   - Railway baseline: CPU `0.0022 vCPU` (0.0%), Memory `90.35 MB` (1.1%).
+   - Supabase connection baseline: 13 active connections.
+3. **Stage A (2 VUs, 60s) (Task 3):** 98 requests, 1.5242 RPS, 0.00% failure rate, 0 5xx, p50: 243.12ms, p95: 539.90ms, max: 893.55ms. All safety checks passed.
+4. **Stage B (5 VUs, 60s) (Task 3):** 245 requests, 3.8215 RPS, 0.00% failure rate, 0 5xx, p50: 243.95ms, p95: 570.62ms, max: 895.18ms. All safety checks passed.
+5. **Stage C (10 VUs, 60s) (Task 3):** 490 requests, 7.7850 RPS, 0.00% failure rate, 0 5xx, p50: 234.53ms, p95: 423.28ms, max: 635.40ms. All safety checks passed.
+6. **Data Integrity Audit (Task 8):** Post-scale staging Supabase verified: stores=1, categories=1, products=3, orders=0, order_items=0, customer_metrics=0, auth.users=0. Delta = 0.
+7. **Production Isolation Audit (Task 7):** No production target configured in load harness; no production mutations or provider side effects observed; production cross-talk not observed.
+8. **Resource Utilization (Task 6):** Observed memory utilization was ~2.5% of the configured 8192 MB limit (peak 204.39 MB); peak observed CPU was 0.0396 vCPU relative to the configured 8.0 vCPU limit (unused resource is not inferred as proven linear capacity); Supabase active connections stayed flat at 13 (limit: 60/role).
+9. **Documentation & Closure (Tasks 11, 12, 13):** Generated `pl20-03j-capacity-scale-summary.json` (no unproven timestamps) and `2026-09-21-pl20-03j-capacity-scale-characterization.md`. Formally closed PL20-03J with CAPACITY_SCALE_MEASURED = true accepted.
 
 ## Files Modified / Created
 
-- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03i-remote-baseline-summary.json` (created by k6, structured)
-- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-20-pl20-03i-remote-capacity-baseline.md` (created)
+- `scripts/load/pl20-scale.k6.js` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03j-stage-2vu-summary.json` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03j-stage-5vu-summary.json` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03j-stage-10vu-summary.json` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/pl20-03j-capacity-scale-summary.json` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-21-pl20-03j-capacity-scale-characterization.md` (created)
 - `AGENT_CONTEXT/06_CURRENT_TASK.md` (updated)
 - `AGENT_CONTEXT/07_HANDOFF.md` (updated)
 - `AGENT_CONTEXT/08_LAST_VALIDATION.md` (updated)
@@ -33,16 +38,13 @@ Execute exactly one remote capacity baseline against the isolated staging enviro
 ## Verification Summary
 
 - Target: `https://web-staging-production-8fb1.up.railway.app`
-- Deployed SHA: `04effaf0ddf7ce72e7b374718428f1849c4e32c0`
-- k6 Baseline: 1 VU, 30s, 7 SAFE_READ routes, exit code 0
-- Requests: 21 total, 0.6808 RPS, 0.00% failure rate, 0 HTTP 5xx
-- Latency: p50: 265.79ms, p95: 752.42ms, max: 884.85ms
-- Checks: 42/42 passed (100.0%)
-- Pre/Post Data Integrity: 100% matched (1 store, 1 cat, 3 prods, 0 orders, 0 customers)
-- Production Isolation: 100% PASS (Zero cross-talk, production continuous uptime)
-- `PL20-03I`: PASS / CLOSED
-- `CAPACITY_BASELINE_MEASURED`: `true`
-- `CAPACITY_SCALE_MEASURED`: Strictly `false`
-- `COST_MEASURED`: Strictly `false`
-- `finalScaleReady`: Strictly `false`
-- Phase State: PL20-03 ACTIVE; PL21 NOT STARTED
+- Workload: SAFE_READ (7 routes, 1s sleep)
+- Concurrency Stages: 2 VUs (1.52 RPS) -> 5 VUs (3.82 RPS) -> 10 VUs (7.78 RPS)
+- Total Requests: 833 requests, 0 HTTP failures (0.00%), 0 HTTP 5xx
+- Latency (10-VU): p50: 234.53ms, p95: 423.28ms, max: 635.40ms
+- Data Integrity: 100% matched (zero mutations)
+- Production Isolation: 100% PASS (zero cross-talk)
+- State: `PL20-03J PASS / CLOSED`
+- `CAPACITY_SCALE_MEASURED = true`
+- Confirmed Invariants: `COST_MEASURED = false`, `finalScaleReady = false`
+- Phase Governance: PL20-03 ACTIVE; PL21 NOT STARTED
