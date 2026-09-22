@@ -1,47 +1,53 @@
 # CURRENT TASK
 
-TASK ID: PL20-03M-MEASURED-COST-PERSISTENCE-FINAL-SCALE-RE-EVALUATION
+TASK ID: PL20-03N-AUTHORITATIVE-READINESS-EVIDENCE-ALIGNMENT
 PHASE: POST-LAUNCH 20
-STATUS: PL20-03M CANDIDATE READY FOR CHATGPT WEB VALIDATION (PL20-01..PL20-03L PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; CAPACITY_SCALE_MEASURED = true; CAPACITY_BASELINE_MEASURED = true; COST_MEASURED = true; finalScaleReady = false)
+STATUS: PL20-03N ALIGNED & READY FOR CHATGPT WEB VALIDATION (PL20-01..PL20-03M PASS / CLOSED; PL20-03 ACTIVE; PL21 NOT STARTED; CAPACITY_SCALE_MEASURED = true; CAPACITY_BASELINE_MEASURED = true; COST_MEASURED = true; isCommercialMeasured = true; isCapacityLoadMeasured = true; isCostEvidenceMeasured = true; technicalRequiredPass = false; finalScaleReady = false)
 
 ## Objective
 
-1. **Contract Compatibility Audit (Task 1):** Verified database schema (`operating_cost_summaries.total_estimate` is nullable `numeric(10,2)`), service/domain logic (`server.ts` operating cost run & summary calculation), and validator (`validate-cost-evidence.mjs`). Identified and resolved single-currency numeric summing flaws.
-2. **Implement Multi-Currency Contract (Task 2):**
-   - Updated `scripts/pl20/validate-cost-evidence.mjs` to support `provider_direct_billing_share`, validate `provider_workspace_total` / `account_total`, and emit `MEASURED_MULTI_CURRENCY` with `single_currency_total = null` and `single_currency_total_state = NOT_COMPUTED_MULTI_CURRENCY`.
-   - Updated `server.ts` to support `railwayAllocationModel === 'provider_direct_billing_share'` in USD and detect mixed currencies, setting `total_estimate = null` in the database row to strictly avoid summing unlike currencies.
-3. **Tests (Task 3):** Added 10 tests in `tests/pl20/cost-evidence-validator.test.ts` covering all 9 required scenarios plus candidate package validation. All 29 tests passed. Functional contracts suite (146 tests) all passed.
-4. **Candidate Package Validation (Task 4):** Validated `AGENT_CONTEXT/evidence/post-launch-20/pl20-03l-multi-currency-cost-intake.json` as `VALID` with exit 0.
-5. **Database Persistence (Task 5):** Persisted accepted evidence via `scripts/pl20/persist-cost-evidence.mjs` to PostgreSQL table `operating_cost_summaries` for store `11111111-1111-4111-8111-111111111111`, period `2026-08`, key `monthly_operating_cost_baseline`.
-6. **Database Verification (Task 6):** Read back persisted row (`3187d7e3-068d-423f-8e67-08a341b9fa0d`). Verified:
-   - Railway: `1.2574 USD` MEASURED (`provider_direct_billing_share`)
-   - Supabase: `0.00 MXN` MEASURED (`direct_attributed`)
-   - Stripe: `7.96 MXN` MEASURED (`direct_metered`)
-   - Resend: `0.00 MXN` MEASURED (`direct_attributed`)
-   - `COST_MEASURED = true`
-   - `single_currency_total = null`, `total_estimate = null` (not 0, not 7.96, not 9.2174)
-7. **Final Scale Re-Evaluation (Task 7):** Calculated `finalScaleReady = false` exclusively from real measured evidence. Identified exact blockers: unresolved security findings (P0 SEC-001, P1 SEC-002..SEC-019) and pending CI trust provenance.
-8. **Final Scale Artifact (Task 8):** Created candidate assessment artifact `AGENT_CONTEXT/evidence/post-launch-20/2026-09-21-pl20-03m-final-scale-assessment.md`.
-9. **Validation (Task 9):** TypeScript PASS, Unit tests PASS (29/29), Contract tests PASS (146/146), Build PASS, git diff --check PASS.
-10. **Governance Hold (Task 10):** Do NOT close PL20-03M or POST-LAUNCH 20; return candidate results to ChatGPT Web.
+1. **Trusted CI Import (Task 1):** Imported trusted CI evidence for commit `a404795edead62faab73447e0527b75f8efb00ad` across all 7 technical dimensions (`release_gate`, `production_smoke`, `build`, `unit_tests`, `e2e`, `secret_scan`, `database_reproducibility`) from verified GitHub Actions runs (`35688301207`, `35688420652`) into production table `final_technical_assessments`. Origin: `persisted_trusted_import` / `persisted_database_evidence`.
+2. **Scale Capacity Alignment (Task 2):** Aligned 10-VU controlled scale characterization from PL20-03J (`pl20-03j-capacity-scale-summary.json`) into production table `scale_capacity_assessments` (`synthetic_vs_load_testing`, `status: measured`, `is_scale_capacity: true`, `concurrent_users: 10`, `measured_state: MEASURED`). No rerun of k6; no max capacity or SLA claimed.
+3. **Commercial Evidence Alignment (Task 3):** Recomputed commercial metrics directly from production `orders` table (11 orders total, 2 paid orders: `24.00 MXN` gross revenue, `12.00 MXN` AOV, 0 anomalies). Persisted into production table `final_commercial_assessments` (`commercial_volume_performance`, `status: measured`, `measured_state: MEASURED`).
+4. **Security Claim Correction (Task 4):** Reconciled findings SEC-001..SEC-019 against current code and CI baseline:
+   - `MITIGATED`: SEC-001, SEC-002, SEC-005
+   - `CURRENT_ACTIVE`: SEC-003, SEC-004, SEC-006, SEC-007, SEC-008, SEC-009, SEC-010, SEC-011, SEC-012, SEC-013, SEC-014, SEC-015, SEC-016
+   - `REVIEW_PENDING`: SEC-017, SEC-018, SEC-019
+   - Security blockers dimension remains `NOT_MEASURED`; security is NOT closed in this task.
+5. **Live Verification (Task 9):** Queried live production endpoint `GET /api/admin/final-scale/summary`:
+   - `isCostEvidenceMeasured`: `true`
+   - `isCommercialMeasured`: `true`
+   - `isCapacityLoadMeasured`: `true`
+   - `technicalRequiredPass`: `false` (security blockers unclosed)
+   - `isSecurityBlockersSatisfied`: `false`
+   - `hasCriticalTechnicalFailure`: `false`
+   - `hasCriticalRisk`: `false`
+   - `hasCriticalDebt`: `false`
+   - `finalScaleReady`: `false` (strictly calculated; not forced)
+6. **Governance Hold:** PL20-03 remains ACTIVE; PL21 NOT STARTED.
 
-## Files Modified / Created
+## Files Created / Updated
 
-- `scripts/pl20/validate-cost-evidence.mjs` (modified)
-- `server.ts` (modified)
-- `tests/pl20/cost-evidence-validator.test.ts` (modified)
-- `scripts/pl20/persist-cost-evidence.mjs` (created)
-- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-21-pl20-03m-final-scale-assessment.md` (created)
+- `scripts/pl20/import-trusted-ci-and-align.mjs` (created)
+- `AGENT_CONTEXT/evidence/post-launch-20/2026-09-21-pl20-03n-authoritative-readiness-alignment.md` (created)
 - `AGENT_CONTEXT/06_CURRENT_TASK.md` (updated)
 - `AGENT_CONTEXT/07_HANDOFF.md` (updated)
 - `AGENT_CONTEXT/08_LAST_VALIDATION.md` (updated)
 
 ## Verification Summary
 
-- Cost Evidence State: `MEASURED_MULTI_CURRENCY`
-- `COST_MEASURED`: `true`
-- `CAPACITY_BASELINE_MEASURED`: `true`
-- `CAPACITY_SCALE_MEASURED`: `true`
-- `technicalRequiredPass`: `false` (Blockers: P0 SEC-001, P1 SEC-002..SEC-019 open)
-- `finalScaleReady`: `false` (strictly calculated, not forced)
+- Authoritative Production Store: `25f3ff7a-ee2f-4d88-b67c-b1b6327855b6`
+- Production Database: `dporfgsbwsyqzmlnqrug`
+- Evaluated SHA: `a404795edead62faab73447e0527b75f8efb00ad`
+- `isCostEvidenceMeasured`: `true`
+- `isCommercialMeasured`: `true`
+- `isCapacityLoadMeasured`: `true`
+- `technicalRequiredPass`: `false` (security blockers open)
+- `finalScaleReady`: `false`
+- Task 6 Test Suite:
+  - `npx tsc --noEmit`: PASS (exit code 0)
+  - `npm test`: PASS (5 test files, 198 tests passed)
+  - `npm run build`: PASS (exit code 0)
+  - `git diff --check`: PASS (clean)
+  - Added 5 regression tests in `tests/api/functional-quality-contracts.test.ts` verifying trusted CI import requirement, capacity recognition, commercial low-volume valid measurement, stale/static exclusion, and unreviewed security blocker behavior.
 - State: `READY_FOR_CHATGPT_WEB_VALIDATION`

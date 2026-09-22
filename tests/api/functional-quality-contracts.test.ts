@@ -3257,4 +3257,277 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(() => normalizeBaseUrl('http://127.0.0.1:3000#main')).toThrow(/must not include query parameters or fragments/);
     });
   });
+
+  describe('PL20-03N Authoritative Readiness Evidence Alignment Contracts', () => {
+    const validCommit = 'a404795edead62faab73447e0527b75f8efb00ad';
+    const adminToken = authToken('admin');
+
+    it('1. trusted CI import is required: untrusted origin is downgraded to MANUAL_EVIDENCE and rejects technicalRequiredPass', async () => {
+      const measuredAt = new Date().toISOString();
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'ci-untrusted',
+          assessment_key: 'technical_release_gate',
+          status: 'pass',
+          score: null,
+          source_classification: 'VERIFIED_CI_EVIDENCE',
+          origin: 'request_body',
+          metadata: {
+            source: 'github_actions_ci',
+            source_type: 'ci_pipeline',
+            calculation_version: 'pl20-ci-evidence-v1',
+            measured_state: 'MEASURED',
+            source_classification: 'VERIFIED_CI_EVIDENCE',
+            origin: 'request_body',
+            validated_commit_sha: validCommit,
+            measured_at: measuredAt,
+            evidence_reference: 'run:35688301207',
+            workflow_identity: 'Selfcare Quality Gate'
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.technicalDimensions.release_gate.classification).toBe('MANUAL_EVIDENCE');
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+    });
+
+    it('2. capacity accepted evidence is recognized: multi-user load test satisfies isCapacityLoadMeasured', async () => {
+      // Ordinary RSS / connection health alone must NOT satisfy isCapacityLoadMeasured
+      customMockTableRows['scale_capacity_assessments'] = [
+        {
+          id: 'cap-ordinary',
+          capacity_key: 'runtime_rss_usage',
+          status: 'pass',
+          metadata: {
+            source: 'runtime_telemetry',
+            source_type: 'metrics',
+            calculation_version: 'pl20-capacity-v1',
+            measured_state: 'MEASURED',
+            measured_at: new Date().toISOString()
+          }
+        }
+      ];
+
+      let res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
+
+      // Now add accepted 10-VU load test evidence
+      customMockTableRows['scale_capacity_assessments'].push({
+        id: 'cap-accepted-10vu',
+        capacity_key: 'synthetic_vs_load_testing',
+        status: 'measured',
+        metadata: {
+          source: 'k6_controlled_scale_characterization',
+          source_type: 'load_test',
+          calculation_version: 'pl20-capacity-scale-v1',
+          measured_state: 'MEASURED',
+          measured_at: new Date().toISOString(),
+          is_scale_capacity: true,
+          load_test_evidence: {
+            concurrent_users: 10,
+            duration: '30s',
+            rps: 7.78,
+            error_rate: 0
+          }
+        }
+      });
+
+      res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(true);
+    });
+
+    it('3. commercial low-volume MEASURED remains valid: real production orders satisfy isCommercialMeasured', async () => {
+      customMockTableRows['final_commercial_assessments'] = [
+        {
+          id: 'comm-real-orders',
+          assessment_key: 'commercial_volume_performance',
+          status: 'measured',
+          metadata: {
+            source: 'production_orders_reconciliation',
+            source_type: 'orders_table',
+            calculation_version: 'pl20-commercial-v1',
+            measured_state: 'MEASURED',
+            measured_at: new Date().toISOString(),
+            orders_total: 11,
+            orders_paid: 2,
+            gross_revenue_paid_mxn: 24.00,
+            anomalies: 0
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.isCommercialMeasured).toBe(true);
+    });
+
+    it('4. stale / static baseline rows lacking provenance remain excluded from active evidence', async () => {
+      // Add rows without required provenance fields (e.g. missing calculation_version, measured_state, source)
+      customMockTableRows['final_technical_assessments'] = [
+        {
+          id: 'legacy-tech-row',
+          assessment_key: 'technical_release_gate',
+          status: 'pass',
+          score: 100,
+          metadata: { note: 'legacy unversioned row' }
+        }
+      ];
+      customMockTableRows['scale_capacity_assessments'] = [
+        {
+          id: 'legacy-cap-row',
+          capacity_key: 'synthetic_vs_load_testing',
+          status: 'pass',
+          metadata: { note: 'legacy unversioned row' }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.historicalBaselineRows).toBeGreaterThanOrEqual(2);
+      expect(res.body.summary.technicalAssessments).toBe(0);
+      expect(res.body.summary.capacityAssessments).toBe(0);
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+      expect(res.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(false);
+    });
+
+    it('5. unreviewed security candidate keeps technicalRequiredPass and finalScaleReady false even if CI/cost/capacity/commercial pass', async () => {
+      const measuredAt = new Date().toISOString();
+      const ciKeys = [
+        { key: 'technical_release_gate', id: 'release_gate', workflow: 'Selfcare Quality Gate' },
+        { key: 'technical_production_smoke', id: 'production_smoke', workflow: 'Selfcare Production Smoke' },
+        { key: 'technical_build', id: 'build', workflow: 'Selfcare Quality Gate' },
+        { key: 'technical_unit_tests', id: 'unit_tests', workflow: 'Selfcare Quality Gate' },
+        { key: 'technical_e2e', id: 'e2e', workflow: 'Selfcare Quality Gate / e2e' },
+        { key: 'technical_secret_scan', id: 'secret_scan', workflow: 'Selfcare Quality Gate' },
+        { key: 'technical_database_reproducibility', id: 'database_reproducibility', workflow: 'db-migration-verifier' }
+      ];
+
+      const technicalRows = ciKeys.map((item, idx) => ({
+        id: `ci-pass-${idx}`,
+        assessment_key: item.key,
+        status: 'pass',
+        score: null,
+        origin: item.id === 'database_reproducibility' ? 'persisted_database_evidence' : 'persisted_trusted_import',
+        source_classification: item.id === 'database_reproducibility' ? 'PERSISTED_EVIDENCE' : 'VERIFIED_CI_EVIDENCE',
+        metadata: {
+          source: item.id === 'database_reproducibility' ? 'database_migration_verifier' : 'github_actions_ci',
+          source_type: item.id === 'database_reproducibility' ? 'migration_history' : 'ci_pipeline',
+          calculation_version: 'pl20-ci-evidence-v1',
+          measured_state: 'MEASURED',
+          source_classification: item.id === 'database_reproducibility' ? 'PERSISTED_EVIDENCE' : 'VERIFIED_CI_EVIDENCE',
+          origin: item.id === 'database_reproducibility' ? 'persisted_database_evidence' : 'persisted_trusted_import',
+          validated_commit_sha: validCommit,
+          measured_at: measuredAt,
+          evidence_reference: `run:35688301207:job:${idx}`,
+          workflow_identity: item.workflow
+        }
+      }));
+
+      // Candidate security blockers row (no reviewer_class, candidate=true)
+      technicalRows.push({
+        id: 'sec-candidate',
+        assessment_key: 'technical_security_blockers',
+        status: 'pass',
+        score: null,
+        source_classification: 'CANDIDATE_EVIDENCE',
+        origin: 'security_review_candidate',
+        metadata: {
+          source: 'security_audit',
+          source_type: 'security_candidate',
+          calculation_version: 'pl20-reviewed-security-v1',
+          measured_state: 'MEASURED',
+          measured_at: measuredAt,
+          candidate: true,
+          reviewer_class: null,
+          status: 'PREPARED_FOR_REVIEW',
+          source_classification: 'CANDIDATE_EVIDENCE',
+          origin: 'security_review_candidate',
+          validated_commit_sha: validCommit
+        }
+      } as any);
+
+      customMockTableRows['final_technical_assessments'] = technicalRows;
+
+      // Operating costs MEASURED
+      customMockTableRows['operating_cost_summaries'] = [
+        {
+          id: 'costs-measured',
+          status: 'pass',
+          metadata: {
+            source: 'provider_billing_intake',
+            source_type: 'multi_provider_billing',
+            calculation_version: 'pl20-cost-evidence-v1',
+            measured_state: 'MEASURED',
+            measured_at: measuredAt,
+            providers: {
+              railway: { measured_state: 'MEASURED' },
+              supabase: { measured_state: 'MEASURED' },
+              stripe: { measured_state: 'MEASURED' },
+              resend: { measured_state: 'MEASURED' }
+            }
+          }
+        }
+      ];
+
+      // Capacity MEASURED
+      customMockTableRows['scale_capacity_assessments'] = [
+        {
+          id: 'cap-10vu',
+          capacity_key: 'synthetic_vs_load_testing',
+          status: 'measured',
+          metadata: {
+            source: 'k6_controlled_scale_characterization',
+            source_type: 'load_test',
+            calculation_version: 'pl20-capacity-scale-v1',
+            measured_state: 'MEASURED',
+            measured_at: measuredAt,
+            is_scale_capacity: true,
+            load_test_evidence: { concurrent_users: 10 }
+          }
+        }
+      ];
+
+      // Commercial MEASURED
+      customMockTableRows['final_commercial_assessments'] = [
+        {
+          id: 'comm-measured',
+          assessment_key: 'commercial_volume_performance',
+          status: 'measured',
+          metadata: {
+            source: 'production_orders_reconciliation',
+            source_type: 'orders_table',
+            calculation_version: 'pl20-commercial-v1',
+            measured_state: 'MEASURED',
+            measured_at: measuredAt
+          }
+        }
+      ];
+
+      const res = await request(app)
+        .get(`/api/admin/final-scale/summary?commit_sha=${validCommit}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(true);
+      expect(res.body.summary.evaluationRules.isCapacityLoadMeasured).toBe(true);
+      expect(res.body.summary.evaluationRules.isCommercialMeasured).toBe(true);
+      expect(res.body.summary.evaluationRules.technicalDimensions.security_blockers.status).toBe('NOT_MEASURED');
+      expect(res.body.summary.evaluationRules.isSecurityBlockersSatisfied).toBe(false);
+      expect(res.body.summary.evaluationRules.technicalRequiredPass).toBe(false);
+      expect(res.body.summary.finalScaleReady).toBe(false);
+    });
+  });
 });

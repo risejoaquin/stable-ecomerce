@@ -1,33 +1,37 @@
 # LAST VALIDATION
 
-**Timestamp:** 2026-09-21T21:40:00-07:00
-**Phase:** POST-LAUNCH 20 (PL20-03M Measured Cost Persistence + Final Scale Re-Evaluation)
+**Timestamp:** 2026-09-21T22:29:00-07:00
+**Phase:** POST-LAUNCH 20 (PL20-03N Authoritative Readiness Evidence Alignment)
 **Branch:** `main`
-**Base Commit:** `1bec59b68cddf1f136ba08666e675ad323516721`
+**Base Commit:** `a404795edead62faab73447e0527b75f8efb00ad`
+**Origin Commit:** `a404795edead62faab73447e0527b75f8efb00ad`
+**Deployed Production SHA:** `a404795edead62faab73447e0527b75f8efb00ad`
 
 ## 1. Validation & Test Suite Status
 
 | Gate / Assessment | Command / Source | Result | Status |
 |---|---|---|---|
-| Cost Evidence Unit Tests | `npx vitest run tests/pl20/cost-evidence-validator.test.ts` | 29 passed (29 / 29) | PASS |
-| Functional Quality Contracts | `npx vitest run tests/api/functional-quality-contracts.test.ts` | 146 passed (146 / 146) | PASS |
-| Candidate Package Validation | `node scripts/pl20/validate-cost-evidence.mjs ...` | Exit code 0, MEASURED_MULTI_CURRENCY | PASS |
-| Database Persistence | `railway run node scripts/pl20/persist-cost-evidence.mjs ...` | Persisted row `3187d7e3-068d-423f-8e67-08a341b9fa0d` | PASS |
-| Database Read-Back Assertions | `scripts/pl20/persist-cost-evidence.mjs` | All 8 assertions passed; total_estimate = null | PASS |
-| TypeScript Check | `npx tsc --noEmit` | Exit code 0, zero type errors | PASS |
-| Production Build | `npm run build` | Exit code 0 (Vite + esbuild bundle) | PASS |
-| Git Formatting & Whitespace | `git diff --check` | Exit code 0 | PASS |
+| Trusted CI Artifact Verification | `artifacts/ci/quality-gate` & `artifacts/ci/production-smoke` | Provenance, run IDs (35688301207, 35688420652), SHA match | PASS |
+| Technical Dimensions Persistence | Table `final_technical_assessments` (7 rows) | 7 dimensions persisted with trusted origin and classification | PASS |
+| Scale Capacity Persistence | Table `scale_capacity_assessments` (`synthetic_vs_load_testing`) | 10-VU evidence aligned; concurrent_users: 10 | PASS |
+| Commercial Evidence Recomputation | Table `orders` -> `final_commercial_assessments` | 2 paid orders (24.00 MXN gross, 12.00 AOV, 0 anomalies) | PASS |
+| Live Production Summary Check | `GET https://selfcaresinners.com/api/admin/final-scale/summary` | Live endpoint queried with admin token | PASS |
+| TypeScript Check | `npx tsc --noEmit` | Exit code 0, 0 type errors | PASS |
+| Unit / Contract Tests | `npm test` | 5 test files, 198 tests passed | PASS |
+| Production Build | `npm run build` | Exit code 0, client & server built | PASS |
+| Git Diff Check | `git diff --check` | 0 whitespace or formatting errors | PASS |
 
 ## 2. Key Assessment Findings
 
-- Cost contract successfully accommodates multi-currency evidence (USD for Railway, MXN for Supabase, Stripe, Resend) without synthetic exchange rate conversion.
-- Unlike currencies are strictly prohibited from being numerically summed: database column `total_estimate` is `null`, and metadata indicates `single_currency_total = null` and `single_currency_total_state = NOT_COMPUTED_MULTI_CURRENCY`.
-- `COST_MEASURED = true` formally verified and persisted in PostgreSQL database.
-- `finalScaleReady` calculated strictly from real evidence as `false` (blockers: open security findings P0 SEC-001, P1 SEC-002..SEC-019, and CI trust provenance).
+- `isCostEvidenceMeasured`: **`true`**
+- `isCommercialMeasured`: **`true`**
+- `isCapacityLoadMeasured`: **`true`**
+- `technicalRequiredPass`: **`false`** (Security blockers unclosed)
+- `finalScaleReady`: **`false`** (Derived strictly from real evidence; not forced)
+- All 7 CI technical dimensions evaluate to `status=PASS`, `classification=VERIFIED_CI_EVIDENCE` / `PERSISTED_EVIDENCE`, `origin=persisted_trusted_import` / `persisted_database_evidence` on live production.
+- Security findings matrix reconciled: 3 MITIGATED (SEC-001, SEC-002, SEC-005), 13 CURRENT_ACTIVE, 3 REVIEW_PENDING. Security is NOT closed.
 - Formal state governance:
-  - `PL20-03M` Candidate Ready for ChatGPT Web validation
-  - `CAPACITY_BASELINE_MEASURED = true`
-  - `CAPACITY_SCALE_MEASURED = true`
-  - `COST_MEASURED = true`
-  - `finalScaleReady = false`
-- Phase state: PL20-03 ACTIVE; PL21 NOT STARTED.
+  - `PL20-03M` PASS / CLOSED
+  - `PL20-03N` COMPLETE / ALIGNED
+  - `PL20-03` ACTIVE
+  - `PL21` NOT STARTED
