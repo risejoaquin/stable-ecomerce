@@ -638,6 +638,8 @@ export async function startServer(options: { listen?: boolean } = {}) {
   const emailSensitiveLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many email requests, please try again later.' } });
   const adminEmailLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many admin email actions, please try again later.' } });
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts, please try again later.' } });
+  const logErrorLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many error logs, please try again later.' } });
+  const cartSyncLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many cart sync requests, please try again later.' } });
 
 
   // Stripe webhook needs raw body. This route intentionally runs before express.json().
@@ -788,10 +790,15 @@ export async function startServer(options: { listen?: boolean } = {}) {
             // so the public API returns a clean 404 instead of a 500.
             const { data, error } = await supabase
               .from('orders')
-              .select('*, order_items(*, products(name, images, sku))')
+              .select('id, status, created_at, tracking_number, tracking_url, carrier, total, currency, customer_email, order_items(id, quantity, unit_price, product_snapshot, products(name, images, sku))')
               .eq('id', orderId)
               .maybeSingle();
-            if (error) throw error;
+            if (error) {
+              if (error.code === 'PGRST116') {
+                return res.status(404).json({ error: 'Order not found' });
+              }
+              throw error;
+            }
 
             const storedEmail = String(data?.customer_email || '').trim().toLowerCase();
             if (!data || !storedEmail || storedEmail !== email) {
@@ -800,13 +807,36 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
             const timelineResult = await supabase
               .from('order_timeline')
-              .select('*')
+              .select('id, event_type, from_status, to_status, created_at')
               .eq('order_id', orderId)
               .order('created_at', { ascending: true });
 
             res.json({
-              ...data,
-              timeline: timelineResult.error ? [] : (timelineResult.data || [])
+              id: data.id,
+              created_at: data.created_at,
+              status: data.status,
+              tracking_number: data.tracking_number || null,
+              tracking_url: data.tracking_url || null,
+              carrier: data.carrier || null,
+              total: data.total,
+              currency: data.currency || 'MXN',
+              order_items: (data.order_items || []).map((item: any) => ({
+                id: item.id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                product_snapshot: item.product_snapshot?.name ? { name: item.product_snapshot.name } : undefined,
+                products: item.products ? {
+                  name: item.products.name,
+                  images: Array.isArray(item.products.images) ? item.products.images : []
+                } : undefined
+              })),
+              timeline: (timelineResult.error ? [] : (timelineResult.data || [])).map((t: any) => ({
+                id: t.id,
+                event_type: t.event_type,
+                from_status: t.from_status,
+                to_status: t.to_status,
+                created_at: t.created_at
+              }))
             });
           } catch (e: any) {
             logger.error({ err: e, orderId: req.query.order_id }, 'Public order tracking failed');
@@ -1042,23 +1072,21 @@ export async function startServer(options: { listen?: boolean } = {}) {
               return res.status(400).json({ error: 'Invalid token purpose' });
             }
             
-            // Update user as verified in database
-            const { data, error } = await supabase
+            // Update user as verified in database without selecting or returning sensitive row data
+            const { error } = await supabase
               .from('users')
-              .update({ is_verified: true })
-              .eq('id', decoded.userId)
-              .select()
-              .single();
+              .update({ is_verified: true, verified_at: new Date().toISOString() })
+              .eq('id', decoded.userId);
               
             if (error) {
               // If column doesn't exist yet, just ignore for now to prevent crash
               if (error.code === 'PGRST204' || error.message.includes('Could not find')) {
-                  return res.json({ success: true, message: 'Verified (DB column missing)' });
+                  return res.json({ success: true, message: 'Email verified' });
               }
               throw error;
             }
             
-            res.json({ success: true, user: data });
+            res.json({ success: true, message: 'Email verified' });
           } catch (e: any) {
             return res.status(400).json({ error: 'Invalid or expired token' });
           }
@@ -1181,10 +1209,22 @@ export async function startServer(options: { listen?: boolean } = {}) {
           }
         }));
 
-  app.post('/api/log-error', express.json(), (req, res) => {
-  fs.appendFileSync('frontend-error.log', req.body.error + '\n\n');
-  res.json({ ok: true });
-});
+  app.post('/api/log-error', logErrorLimiter, (req, res) => {
+    const contentLength = Number(req.headers['content-length'] || 0);
+    if (contentLength > 10 * 1024) {
+      return res.status(413).json({ error: 'Payload too large: exceeds 10kb' });
+    }
+    const errorPayload = req.body?.error;
+    if (typeof errorPayload !== 'string') {
+      return res.status(400).json({ error: 'Invalid error payload: string required' });
+    }
+    if (errorPayload.length > 10 * 1024) {
+      return res.status(413).json({ error: 'Payload too large: exceeds 10kb' });
+    }
+    const sanitizedError = errorPayload.slice(0, 1000);
+    logger.warn({ frontendError: sanitizedError }, 'Frontend error reported');
+    res.json({ ok: true });
+  });
 
 app.get('/api/health', asyncHandler(async (req, res) => {
     const uptimeSeconds = Math.round(process.uptime());
@@ -1446,7 +1486,7 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
     }
   }));
 
-  app.post('/api/stores', requireAuth(), asyncHandler(async (req: any, res) => {
+  app.post('/api/stores', requireAuth(), requireAdmin(), asyncHandler(async (req: any, res) => {
           const userId = req.auth.userId;
           const { name } = req.body;
           if (!name) return res.status(400).json({ error: 'Name is required' });
@@ -3354,38 +3394,118 @@ app.post(
         }));
 
   // --- ABANDONED CART ENDPOINTS ---
-  app.post('/api/cart/sync', asyncHandler(async (req: any, res) => {
+  app.post('/api/cart/sync', cartSyncLimiter, express.json({ limit: '32kb' }), asyncHandler(async (req: any, res) => {
           try {
-            // allow unauthenticated if email provided (for guest checkout step)
-            let userId = null;
-            try {
-              if (req.auth?.userId) userId = req.auth.userId;
-            } catch (e) {}
+            let authUserId: string | null = null;
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+              try {
+                const decoded = jwt.verify(authHeader.split(' ')[1], effectiveJwtSecret) as any;
+                if (decoded?.userId) authUserId = decoded.userId;
+              } catch (_) {}
+            }
             
-            const { email, items } = req.body;
+            const { email, items, guestCartToken } = req.body || {};
             
-            if (!userId && !email) {
-              return res.json({ success: false, message: 'No user info' });
+            if (!authUserId && !email) {
+              return res.status(400).json({ success: false, error: 'Email or authentication required' });
             }
 
-            // Check if cart exists
-            let query = supabase.from('abandoned_carts').select('id');
-            if (userId) query = query.eq('user_id', userId);
-            else query = query.eq('email', email);
-            
-            const { data: existing } = await query.single();
-            
-            if (existing) {
-              await supabase
-                .from('abandoned_carts')
-                .update({ items, updated_at: new Date().toISOString(), reminder_sent: false, reminder_sent_at: null, recovery_lock_id: null, recovery_locked_until: null, recovery_last_error: null })
-                .eq('id', existing.id);
-            } else {
-              await supabase
-                .from('abandoned_carts')
-                .insert([{ user_id: userId, email, items }]);
+            // Validate items array schema and bounds
+            if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
+              return res.status(400).json({ success: false, error: 'Items must be an array containing between 1 and 50 elements' });
             }
-            res.json({ success: true });
+
+            for (const item of items) {
+              if (!item || typeof item !== 'object') {
+                return res.status(400).json({ success: false, error: 'Invalid cart item payload' });
+              }
+              const hasId = typeof item.id === 'string' || typeof item.productId === 'string' || typeof item.product_id === 'string';
+              if (!hasId) {
+                return res.status(400).json({ success: false, error: 'Cart item missing product identifier' });
+              }
+              if (typeof item.quantity !== 'number' || item.quantity <= 0 || item.quantity > 999 || !Number.isInteger(item.quantity)) {
+                return res.status(400).json({ success: false, error: 'Cart item invalid quantity' });
+              }
+            }
+
+            // Authenticated user path
+            if (authUserId) {
+              const { data: existing } = await supabase
+                .from('abandoned_carts')
+                .select('id')
+                .eq('user_id', authUserId)
+                .maybeSingle();
+
+              if (existing) {
+                await supabase
+                  .from('abandoned_carts')
+                  .update({ items, updated_at: new Date().toISOString() })
+                  .eq('id', existing.id);
+              } else {
+                await supabase
+                  .from('abandoned_carts')
+                  .insert([{ user_id: authUserId, email: normalizeRecipientEmail(email) || null, items }]);
+              }
+              return res.json({ success: true });
+            }
+
+            // Guest path: validate and normalize email
+            const normalizedEmail = normalizeRecipientEmail(email);
+            if (!normalizedEmail || !normalizedEmail.includes('@')) {
+              return res.status(400).json({ success: false, error: 'Valid email required' });
+            }
+
+            // Check if an existing guest cart already exists for this email
+            const { data: existing } = await supabase
+              .from('abandoned_carts')
+              .select('id, reminder_sent')
+              .eq('email', normalizedEmail)
+              .is('user_id', null)
+              .maybeSingle();
+
+            if (existing) {
+              const token = guestCartToken || req.headers['x-guest-cart-token'];
+              if (!token || typeof token !== 'string') {
+                return res.status(403).json({ success: false, error: 'Valid guestCartToken required to update existing cart' });
+              }
+
+              let decodedGuest: any;
+              try {
+                decodedGuest = jwt.verify(token, effectiveJwtSecret) as any;
+              } catch (e) {
+                return res.status(403).json({ success: false, error: 'Invalid or expired guest cart token' });
+              }
+
+              if (decodedGuest.purpose !== 'guest_cart' || String(decodedGuest.email || '').trim().toLowerCase() !== normalizedEmail) {
+                return res.status(403).json({ success: false, error: 'Guest cart token email mismatch' });
+              }
+
+              // Authorized guest: update items only. Do NOT reset reminder_sent or recovery_lock_id!
+              await supabase
+                .from('abandoned_carts')
+                .update({ items, updated_at: new Date().toISOString() })
+                .eq('id', existing.id);
+
+              return res.json({ success: true, guestCartToken: token });
+            } else {
+              // First-time guest cart: mint signed guest cart token bound to email
+              const newGuestToken = jwt.sign(
+                {
+                  email: normalizedEmail,
+                  purpose: 'guest_cart',
+                  nonce: crypto.randomUUID()
+                },
+                effectiveJwtSecret,
+                { expiresIn: '7d' }
+              );
+
+              await supabase
+                .from('abandoned_carts')
+                .insert([{ user_id: null, email: normalizedEmail, items }]);
+
+              return res.json({ success: true, guestCartToken: newGuestToken });
+            }
           } catch (err: any) {
             res.status(500).json({ error: err.message });
           }
@@ -3403,7 +3523,18 @@ app.post(
               .single();
               
             if (error || !data) throw new Error('Cart not found');
-            res.json({ items: data.items });
+
+            const guestCartToken = data.email ? jwt.sign(
+              {
+                email: normalizeRecipientEmail(data.email),
+                purpose: 'guest_cart',
+                nonce: crypto.randomUUID()
+              },
+              effectiveJwtSecret,
+              { expiresIn: '7d' }
+            ) : undefined;
+
+            res.json({ items: data.items, guestCartToken });
           } catch (err: any) {
             res.status(500).json({ error: err.message });
           }

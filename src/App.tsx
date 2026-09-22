@@ -268,11 +268,20 @@ export function CartDrawer({ storeId, themeColor, buttonColor }: { storeId?: str
       }
       localStorage.setItem('guest_email', email);
       trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: true }, { source: 'cart' });
+      const storedGuestToken = typeof window !== 'undefined' ? localStorage.getItem('guest_cart_token') || undefined : undefined;
       fetch('/api/cart/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, items })
-      }).finally(() => checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined }));
+        body: JSON.stringify({ email, items, guestCartToken: storedGuestToken })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.guestCartToken) {
+          localStorage.setItem('guest_cart_token', data.guestCartToken);
+        }
+      })
+      .catch(() => {})
+      .finally(() => checkout.mutate({ couponCode: isCouponActive ? appliedCoupon?.code : undefined }));
       return;
     }
     trackMarketingEvent('checkout_started', { itemCount, total, finalTotal, couponCode: isCouponActive ? appliedCoupon?.code : undefined, guest: false }, { source: 'cart' });

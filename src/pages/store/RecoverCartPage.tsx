@@ -30,6 +30,9 @@ export function RecoverCartPage() {
       .then(data => {
         if (!active) return;
         if (Array.isArray(data.items)) {
+          if (data.guestCartToken) {
+            localStorage.setItem('guest_cart_token', data.guestCartToken);
+          }
           setItems(data.items);
           setStatus('success');
           setMessage('Tu carrito fue recuperado. Te llevaremos a la tienda para continuar tu compra.');
