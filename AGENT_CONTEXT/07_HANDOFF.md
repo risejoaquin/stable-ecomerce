@@ -2,87 +2,65 @@
 
 Previous agent: Codex / Antigravity
 Next agent: ChatGPT Web
-Phase: POST-LAUNCH 20 — PL20-03J Isolated Staging Capacity Scale Characterization
-Task ID: PL20-03J-ISOLATED-STAGING-CAPACITY-SCALE-CHARACTERIZATION
+Phase: POST-LAUNCH 20 — PL20-03M Measured Cost Persistence + Final Scale Re-Evaluation
+Task ID: PL20-03M-MEASURED-COST-PERSISTENCE-FINAL-SCALE-RE-EVALUATION
 Working tree status:
-- Base commit: `6225e50eecc4aafffa69f969559518acdb2a7c63`
+- Base commit: `1bec59b68cddf1f136ba08666e675ad323516721`
 - Branch: `main`
-- Status: `PL20-03J PASS / CLOSED`
+- Status: `READY_FOR_CHATGPT_WEB_VALIDATION` (PL20-03M Candidate)
 - Formal Governance:
-  - PL20-01..PL20-03J: PASS / CLOSED
-  - PL20-03: ACTIVE
+  - PL20-01..PL20-03L: PASS / CLOSED
+  - PL20-03: ACTIVE (PL20-03M candidate pending ChatGPT Web review)
   - PL21: NOT STARTED
   - `CAPACITY_BASELINE_MEASURED`: `true`
   - `CAPACITY_SCALE_MEASURED`: `true`
-  - `COST_MEASURED`: Strictly `false`
-  - `finalScaleReady`: Strictly `false`
+  - `COST_MEASURED`: `true` (persisted in DB row `3187d7e3-068d-423f-8e67-08a341b9fa0d`)
+  - `finalScaleReady`: Strictly `false` (unforced, calculated from real evidence)
 
 ## Summary of Executed Implementation & Findings
 
-1. **Target Safety Lock & Scale Harness (Tasks 1, 2):**
-   - Created `scripts/load/pl20-scale.k6.js` targeting strictly `https://web-staging-production-8fb1.up.railway.app`.
-   - Hard-coded production abort guard enforced against `selfcaresinners.com` and `www.selfcaresinners.com`.
-   - Workload restricted strictly to the 7 approved SAFE_READ routes (`/`, `/api/health`, `/api/readiness`, `/api/public/store`, `/api/public/home`, `/api/public/categories`, `/api/products`).
+1. **Multi-Currency Contract Implementation:**
+   - Updated `scripts/pl20/validate-cost-evidence.mjs` and `server.ts` to support `provider_direct_billing_share` in USD.
+   - Enforced rule that mixed currencies across providers result in `total_estimate = null`, `single_currency_total = null`, `single_currency_total_state = NOT_COMPUTED_MULTI_CURRENCY`, and `cost_total_state = MEASURED_MULTI_CURRENCY`.
+   - Zero synthetic FX conversion introduced.
 
-2. **Pre-Flight Snapshot & Provider Baselines (Tasks 1, 6, 8):**
-   - Git HEAD: `6225e50eecc4aafffa69f969559518acdb2a7c63` (matches origin/main).
-   - Staging `/api/health` and `/api/readiness`: HTTP 200 OK.
-   - Pre-scale DB counts: stores=1, categories=1, products=3, orders=0, order_items=0, customer_metrics=0, auth.users=0.
-   - Railway baseline: CPU `0.0022 vCPU` (0.0%), Memory `90.35 MB` (1.1%).
-   - Supabase connection baseline: 13 active connections.
+2. **Automated Test Coverage:**
+   - Added 10 tests in `tests/pl20/cost-evidence-validator.test.ts` covering all required scenarios:
+     1. four providers measured, same currency
+     2. four providers measured, mixed currencies
+     3. one provider PARTIAL
+     4. period mismatch
+     5. missing provenance
+     6. arbitrary FX conversion rejected
+     7. mixed-currency total not numerically summed
+     8. COST_MEASURED=true for valid measured multi-currency set
+     9. finalScaleReady cannot become true from placeholder/example evidence
+     10. Candidate package file validation (`pl20-03l-multi-currency-cost-intake.json`)
+   - 29/29 tests passed in validator suite.
+   - 146/146 tests passed in functional quality suite.
 
-3. **Stage A (2 VUs, 60s) (Task 3):**
-   - Completed in 64.29s. Total requests: 98 (14 iterations × 7 routes).
-   - Throughput: 1.5242 RPS (~2.24x vs 1-VU).
-   - HTTP failure rate: 0.00% (0 / 98). 0 HTTP 5xx. Checks: 196/196 passed (100%).
-   - Latencies: p50: 243.12ms, avg: 246.70ms, p90: 443.31ms, p95: 539.90ms, max: 893.55ms.
-   - Between-stage health: `/api/health` 200 OK, `/api/readiness` 200 OK (Supabase latency: 560ms), memory: 145.16 MB (1.8%), connections: 13.
+3. **Database Evidence Persistence & Read-Back Verification:**
+   - Persisted via `scripts/pl20/persist-cost-evidence.mjs` to `operating_cost_summaries`:
+     - Row ID: `3187d7e3-068d-423f-8e67-08a341b9fa0d`
+     - Period: `2026-08` (Common Period `2026-08-09T20:56:36Z` through `2026-09-09T20:56:36Z`)
+     - Railway: `1.2574 USD` MEASURED (`provider_direct_billing_share`)
+     - Supabase: `0.00 MXN` MEASURED (`direct_attributed`)
+     - Stripe: `7.96 MXN` MEASURED (`direct_metered`)
+     - Resend: `0.00 MXN` MEASURED (`direct_attributed`)
+     - `total_estimate` (DB column): `null` (not 0, not 7.96, not 9.2174)
+     - `COST_MEASURED`: `true`
 
-4. **Stage B (5 VUs, 60s) (Task 3):**
-   - Completed in 64.11s. Total requests: 245 (35 iterations × 7 routes).
-   - Throughput: 3.8215 RPS (~5.61x vs 1-VU).
-   - HTTP failure rate: 0.00% (0 / 245). 0 HTTP 5xx. Checks: 490/490 passed (100%).
-   - Latencies: p50: 243.95ms, avg: 240.16ms, p90: 421.31ms, p95: 570.62ms, max: 895.18ms.
-   - Between-stage health: `/api/health` 200 OK, `/api/readiness` 200 OK (Supabase latency: 480ms), memory: 182.49 MB (2.2%), connections: 13.
+4. **Final Scale Re-Evaluation:**
+   - Derived strictly from real evidence: `finalScaleReady = false`.
+   - Primary Blockers:
+     - Open Security Findings: P0 SEC-001 (Resend webhook signature verification missing) and P1 findings SEC-002..SEC-019.
+     - Technical CI Trust Provenance: `technicalRequiredPass = false` due to security blockers count > 0.
+   - Candidate final scale assessment documented in `AGENT_CONTEXT/evidence/post-launch-20/2026-09-21-pl20-03m-final-scale-assessment.md`.
 
-5. **Stage C (10 VUs, 60s) (Task 3):**
-   - Completed in 62.94s. Total requests: 490 (70 iterations × 7 routes).
-   - Throughput: 7.7850 RPS (~11.44x vs 1-VU).
-   - HTTP failure rate: 0.00% (0 / 490). 0 HTTP 5xx. Checks: 980/980 passed (100%).
-   - Latencies: p50: 234.53ms, avg: 210.30ms, p90: 386.95ms, p95: 423.28ms, max: 635.40ms.
-   - Post-stage health: `/api/health` 200 OK, `/api/readiness` 200 OK (Supabase latency: 158ms), memory: 204.36 MB (2.5%), connections: 13.
-
-6. **Provider Resource Utilization (Task 6):**
-   - Observed memory utilization was ~2.5% of the configured 8192 MB limit (peak 204.39 MB).
-   - Peak observed CPU was 0.0396 vCPU relative to the configured 8 vCPU limit.
-   - Do NOT infer that all unused configured resource represents proven linear capacity.
-   - Supabase active connections stayed flat at 13 across all stages (pool limit: 60/role). Zero saturation or connection leaks.
-
-7. **Data Integrity Audit (Task 8):**
-   - Queried staging Supabase database `gecdtigvmsvsmhvnlarh` post-test:
-     - `stores`: 1 (delta 0)
-     - `categories`: 1 (delta 0)
-     - `products`: 3 (delta 0)
-     - `orders`: 0 (delta 0)
-     - `order_items`: 0 (delta 0)
-     - `customer_metrics`: 0 (delta 0)
-     - `auth.users`: 0 (delta 0)
-   - Zero mutations occurred.
-
-8. **Production Isolation & Cross-Talk Audit (Task 7):**
-   - No production target was configured in the load harness.
-   - No production mutations or provider side effects were observed.
-   - Production cross-talk was not observed.
-   - Production Railway `heroic-solace` (`2ee53291-c0b1-4859-9ae6-8e331d1f6435`): untouched, service `stable-ecomerce` Online.
-   - Production domain `https://selfcaresinners.com`: HTTP 200 OK, continuous uptime (3,696+ s).
-   - Production Stripe & Resend: zero events.
-
-9. **Stop Conditions (Task 9):**
-   - Zero abort conditions triggered (zero 5xx, zero container restarts, zero database refusals, zero mutations, zero cross-talk).
-
-10. **State & Roadmap Governance (Task 10):**
-    - `PL20-03J PASS / CLOSED`.
-    - `CAPACITY_SCALE_MEASURED = true` accepted (controlled scale characterization evidence exists through 10 VUs on isolated staging; does not imply maximum capacity is known, production supports 10 users only, or SLA certification exists).
-    - `COST_MEASURED = false` strictly preserved.
-    - `finalScaleReady = false` strictly preserved.
-    - Phase PL20-03 remains ACTIVE; PL21 NOT STARTED.
+5. **Governance Hold:**
+   - PL20-03M is NOT declared closed.
+   - POST-LAUNCH 20 is NOT declared closed.
+   - ROADMAP PASS is NOT declared.
+   - PL21 is NOT started.
+   - No Git commit or push has been performed.
+   - Candidate package and technical evidence returned to ChatGPT Web.

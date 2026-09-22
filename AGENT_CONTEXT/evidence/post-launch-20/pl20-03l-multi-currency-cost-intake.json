@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "PL20-03L Multi-Currency Measured Operating Cost Candidate Evidence Package",
+  "contract_type": "MEASURED_MULTI_CURRENCY",
+  "period": {
+    "period_start": "2026-08-09T20:56:36Z",
+    "period_end": "2026-09-09T20:56:36Z",
+    "period_convention": "provider_billing_cycle",
+    "period_match": true
+  },
+  "providers": {
+    "railway": {
+      "provider": "railway",
+      "amount": 1.2574,
+      "currency": "USD",
+      "measured_state": "MEASURED",
+      "allocation_method": "provider_direct_billing_share",
+      "provider_workspace_total": 6.3059,
+      "provider_workspace_currency": "USD",
+      "billing_share": 0.1994005614,
+      "period_start": "2026-08-09T20:56:36Z",
+      "period_end": "2026-09-09T20:56:36Z",
+      "source_type": "provider_billing",
+      "provided_by": "railway_cli_usage_projects",
+      "measured_at": "2026-09-21T20:38:51.000Z",
+      "evidence_reference": "railway:cli:usage:projects:heroic-solace:2026-08",
+      "shared_hosts": 6,
+      "reconciled_services": [
+        "stable-ecomerce (262ce4a4, $1.2574 USD, 19.94%)",
+        "FULL-METAL-CASH (fdcf686a, $2.5197 USD, 39.96%)",
+        "cooperative-connection (e0e69a10, $0.7669 USD, 12.16%)",
+        "solidbit (a19369aa, $0.7419 USD, 11.76%)",
+        "POS-FULL-SERVICE-cf142005 (fce50181, $0.7080 USD, 11.23%, deleted 2026-08-22)",
+        "POS-SERVICE-1a2204e7 (845f77b5, $0.3121 USD, 4.95%, deleted 2026-08-16)"
+      ],
+      "caveats": [
+        "Railway cost is retained in provider-native USD because exact settlement conversion to operator-paid MXN is not proven.",
+        "Attribution derived from Railway CLI direct service-level billing export (1.2574 USD / 6.3059 USD = 19.94005614%).",
+        "Zero synthetic FX conversion applied."
+      ]
+    },
+    "supabase": {
+      "provider": "supabase",
+      "amount": 0.00,
+      "currency": "MXN",
+      "measured_state": "MEASURED",
+      "allocation_method": "direct_attributed",
+      "period_start": "2026-08-09T20:56:36Z",
+      "period_end": "2026-09-09T20:56:36Z",
+      "plan": "free",
+      "tier": "free",
+      "source_type": "provider_plan_or_operator_attested_free_tier",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-21T19:00:00.000Z",
+      "evidence_reference": "supabase:project:dporfgsbwsyqzmlnqrug:plan:free",
+      "caveats": [
+        "Production database dporfgsbwsyqzmlnqrug operated continuously on Supabase Free Tier during the common accounting period with zero compute or storage overages."
+      ]
+    },
+    "stripe": {
+      "provider": "stripe",
+      "amount": 7.96,
+      "gross_volume": 24.00,
+      "currency": "MXN",
+      "measured_state": "MEASURED",
+      "allocation_method": "direct_metered",
+      "period_start": "2026-08-09T20:56:36Z",
+      "period_end": "2026-09-09T20:56:36Z",
+      "source_type": "provider_billing",
+      "provided_by": "operator_and_stripe_cli",
+      "measured_at": "2026-09-21T21:02:48.000Z",
+      "evidence_reference": "stripe:api:balance_transactions:acct_1TLawpEKfBRabUZ0:2026-08-09_2026-09-09",
+      "refund_dispute_treatment": "none_observed",
+      "refunds_count": 0,
+      "disputes_count": 0,
+      "caveats": [
+        "Live Stripe account acct_1TLawpEKfBRabUZ0 processed 2 charges in common period totaling 24.00 MXN gross with 7.96 MXN in provider processing fees (zero refunds, zero disputes)."
+      ]
+    },
+    "resend": {
+      "provider": "resend",
+      "amount": 0.00,
+      "currency": "MXN",
+      "measured_state": "MEASURED",
+      "allocation_method": "direct_attributed",
+      "period_start": "2026-08-09T20:56:36Z",
+      "period_end": "2026-09-09T20:56:36Z",
+      "plan": "free",
+      "tier": "free",
+      "source_type": "provider_plan_or_operator_attested_free_tier",
+      "provided_by": "joaquin_operator",
+      "measured_at": "2026-09-21T19:00:00.000Z",
+      "evidence_reference": "resend:account:free_tier:2026-08-09_2026-09-09",
+      "caveats": [
+        "Resend account operated continuously under free tier during common period with zero billing charges."
+      ]
+    }
+  },
+  "totals": {
+    "single_currency_total": null,
+    "single_currency_total_state": "NOT_COMPUTED_MULTI_CURRENCY",
+    "multi_currency_totals": {
+      "USD": 1.2574,
+      "MXN": 7.96
+    },
+    "all_four_measured": true,
+    "multi_currency": true,
+    "candidate_cost_measured": true
+  },
+  "governance": {
+    "candidate_COST_MEASURED": true,
+    "confirmed_finalScaleReady": false,
+    "phase_state": "PL20-03 ACTIVE",
+    "next_phase": "PL21 NOT STARTED"
+  }
+}

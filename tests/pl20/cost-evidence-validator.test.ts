@@ -344,3 +344,228 @@ describe('PL20-03E1 Cost Evidence Intake Validator', () => {
     expect(result4.isCostEvidenceMeasured).toBe(false);
   });
 });
+
+function createValidMultiCurrencyRecords(): any {
+  return {
+    contract_type: 'MEASURED_MULTI_CURRENCY',
+    period: {
+      period_start: '2026-08-09T20:56:36Z',
+      period_end: '2026-09-09T20:56:36Z',
+      period_convention: 'provider_billing_cycle',
+      period_match: true
+    },
+    providers: {
+      railway: {
+        provider: 'railway',
+        amount: 1.2574,
+        currency: 'USD',
+        measured_state: 'MEASURED',
+        allocation_method: 'provider_direct_billing_share',
+        provider_workspace_total: 6.3059,
+        account_total: 6.3059,
+        provider_workspace_currency: 'USD',
+        billing_share: 0.1994005614,
+        period_start: '2026-08-09T20:56:36Z',
+        period_end: '2026-09-09T20:56:36Z',
+        source_type: 'provider_billing',
+        provided_by: 'railway_cli_usage_projects',
+        measured_at: '2026-09-21T20:38:51.000Z',
+        evidence_reference: 'railway:cli:usage:projects:heroic-solace:2026-08',
+        shared_hosts: 6,
+        reconciled_services: [
+          'stable-ecomerce (262ce4a4, $1.2574 USD, 19.94%)',
+          'FULL-METAL-CASH (fdcf686a, $2.5197 USD, 39.96%)',
+          'cooperative-connection (e0e69a10, $0.7669 USD, 12.16%)',
+          'solidbit (a19369aa, $0.7419 USD, 11.76%)',
+          'POS-FULL-SERVICE-cf142005 (fce50181, $0.7080 USD, 11.23%, deleted 2026-08-22)',
+          'POS-SERVICE-1a2204e7 (845f77b5, $0.3121 USD, 4.95%, deleted 2026-08-16)'
+        ],
+        caveats: [
+          'Railway cost is retained in provider-native USD because exact settlement conversion to operator-paid MXN is not proven.',
+          'Zero synthetic FX conversion applied.'
+        ]
+      },
+      supabase: {
+        provider: 'supabase',
+        amount: 0.00,
+        currency: 'MXN',
+        measured_state: 'MEASURED',
+        allocation_method: 'direct_attributed',
+        period_start: '2026-08-09T20:56:36Z',
+        period_end: '2026-09-09T20:56:36Z',
+        plan: 'free',
+        tier: 'free',
+        source_type: 'provider_plan_or_operator_attested_free_tier',
+        provided_by: 'joaquin_operator',
+        measured_at: '2026-09-21T19:00:00.000Z',
+        evidence_reference: 'supabase:project:dporfgsbwsyqzmlnqrug:plan:free',
+        caveats: [
+          'Production database dporfgsbwsyqzmlnqrug operated continuously on Supabase Free Tier during the common accounting period with zero compute or storage overages.'
+        ]
+      },
+      stripe: {
+        provider: 'stripe',
+        amount: 7.96,
+        currency: 'MXN',
+        measured_state: 'MEASURED',
+        allocation_method: 'direct_metered',
+        period_start: '2026-08-09T20:56:36Z',
+        period_end: '2026-09-09T20:56:36Z',
+        source_type: 'provider_export',
+        provided_by: 'joaquin_operator',
+        measured_at: '2026-09-21T19:00:00.000Z',
+        evidence_reference: 'stripe:dashboard:balance_history:payouts:2026-08-09_to_2026-09-09',
+        gross_volume: 24.00,
+        transaction_count: 2,
+        refund_dispute_treatment: 'included',
+        caveats: [
+          'Stripe processing fees incurred in native MXN for production store transactions during common period.'
+        ]
+      },
+      resend: {
+        provider: 'resend',
+        amount: 0.00,
+        currency: 'MXN',
+        measured_state: 'MEASURED',
+        allocation_method: 'direct_attributed',
+        period_start: '2026-08-09T20:56:36Z',
+        period_end: '2026-09-09T20:56:36Z',
+        plan: 'free',
+        tier: 'free',
+        source_type: 'provider_plan_or_operator_attested_free_tier',
+        provided_by: 'joaquin_operator',
+        measured_at: '2026-09-21T19:00:00.000Z',
+        evidence_reference: 'resend:team:selfcare-sinners:plan:free',
+        caveats: [
+          'Transactional email delivery executed within Resend free tier monthly quota of 3,000 emails.'
+        ]
+      }
+    }
+  };
+}
+
+describe('PL20-03M Multi-Currency Measured Cost Contracts', () => {
+  // Scenario 1: Four providers measured, same currency
+  it('1. four providers measured, same currency: produces cost_total_state = MEASURED and single currency total', () => {
+    const data = createValidBaseRecords();
+    const result = validateCostEvidence(data);
+    expect(result.cost_total_state).toBe('MEASURED');
+    expect(result.isCostEvidenceMeasured).toBe(true);
+    expect(result.providers.railway.currency).toBe('MXN');
+    expect(result.providers.supabase.currency).toBe('MXN');
+    expect(result.providers.stripe.currency).toBe('MXN');
+    expect(result.providers.resend.currency).toBe('MXN');
+  });
+
+  // Scenario 2: Four providers measured, mixed currencies
+  it('2. four providers measured, mixed currencies: produces MEASURED_MULTI_CURRENCY', () => {
+    const data = createValidMultiCurrencyRecords();
+    const result = validateCostEvidence(data);
+    expect(result.cost_total_state).toBe('MEASURED_MULTI_CURRENCY');
+    expect(result.isCostEvidenceMeasured).toBe(true);
+    expect(result.providers.railway.currency).toBe('USD');
+    expect(result.providers.stripe.currency).toBe('MXN');
+  });
+
+  // Scenario 3: One provider PARTIAL
+  it('3. one provider PARTIAL: sets cost_total_state = PARTIAL and isCostEvidenceMeasured = false', () => {
+    const data = createValidMultiCurrencyRecords();
+    data.providers.supabase.evidence_reference = null; // invalidates supabase
+    const result = validateCostEvidence(data);
+    expect(result.providers.supabase.state).toBe('PARTIAL');
+    expect(result.cost_total_state).toBe('PARTIAL');
+    expect(result.isCostEvidenceMeasured).toBe(false);
+  });
+
+  // Scenario 4: Period mismatch
+  it('4. period mismatch: marks period_match = false, cost_total_state = PARTIAL, and isCostEvidenceMeasured = false', () => {
+    const data = createValidMultiCurrencyRecords();
+    data.providers.stripe.period_start = '2026-07-01T00:00:00Z';
+    data.providers.stripe.period_end = '2026-07-31T23:59:59Z';
+    const result = validateCostEvidence(data);
+    expect(result.period.period_match).toBe(false);
+    expect(result.cost_total_state).toBe('PARTIAL');
+    expect(result.isCostEvidenceMeasured).toBe(false);
+    expect(result.blocking_reasons.some((r: string) => r.includes('stripe') && r.includes('does not match reference period'))).toBe(true);
+  });
+
+  // Scenario 5: Missing provenance
+  it('5. missing provenance: fails closed as PARTIAL when source_type or evidence_reference is omitted', () => {
+    const data = createValidMultiCurrencyRecords();
+    delete data.providers.railway.evidence_reference;
+    const result = validateCostEvidence(data);
+    expect(result.providers.railway.state).toBe('PARTIAL');
+    expect(result.cost_total_state).toBe('PARTIAL');
+    expect(result.isCostEvidenceMeasured).toBe(false);
+  });
+
+  // Scenario 6: Arbitrary FX conversion rejected
+  it('6. arbitrary FX conversion rejected: preserves native provider currencies without synthetic conversion', () => {
+    const data = createValidMultiCurrencyRecords();
+    const result = validateCostEvidence(data);
+    expect(result.providers.railway.amount).toBe(1.2574);
+    expect(result.providers.railway.currency).toBe('USD');
+    expect(result.providers.stripe.amount).toBe(7.96);
+    expect(result.providers.stripe.currency).toBe('MXN');
+    // Ensure no synthetic conversion fields exist in output
+    expect((result as any).fx_rate).toBeUndefined();
+    expect((result as any).railway_converted_mxn).toBeUndefined();
+  });
+
+  // Scenario 7: Mixed-currency total not numerically summed
+  it('7. mixed-currency total not numerically summed: single_currency_total is strictly null', () => {
+    const data = createValidMultiCurrencyRecords();
+    const result = validateCostEvidence(data);
+    expect(result.single_currency_total).toBeNull();
+    expect(result.single_currency_total_state).toBe('NOT_COMPUTED_MULTI_CURRENCY');
+    // Ensure unlike numbers were not added: 1.2574 + 7.96 = 9.2174 must NOT be the total
+    expect((result as any).total).not.toBe(9.2174);
+    expect((result as any).total).not.toBe(9.22);
+    expect(result.multi_currency_totals).toEqual({
+      USD: 1.2574,
+      MXN: 7.96
+    });
+  });
+
+  // Scenario 8: COST_MEASURED=true for valid measured multi-currency set
+  it('8. COST_MEASURED=true for valid measured multi-currency set: all 4 providers MEASURED in native units', () => {
+    const data = createValidMultiCurrencyRecords();
+    const result = validateCostEvidence(data);
+    expect(result.isCostEvidenceMeasured).toBe(true);
+    expect(result.cost_total_state).toBe('MEASURED_MULTI_CURRENCY');
+    expect(result.providers.railway.state).toBe('MEASURED');
+    expect(result.providers.supabase.state).toBe('MEASURED');
+    expect(result.providers.stripe.state).toBe('MEASURED');
+    expect(result.providers.resend.state).toBe('MEASURED');
+    expect(result.blocking_reasons).toHaveLength(0);
+  });
+
+  // Scenario 9: finalScaleReady cannot become true from placeholder/example evidence
+  it('9. finalScaleReady cannot become true from placeholder/example evidence', () => {
+    // Template file must fail closed
+    const templateResult = validateCostEvidenceFile('AGENT_CONTEXT/evidence/post-launch-20/pl20-03e-provider-cost-input.example.json');
+    expect(templateResult.isCostEvidenceMeasured).toBe(false);
+    expect(templateResult.cost_total_state).toBe('NOT_MEASURED');
+
+    // Data with placeholder values must fail closed
+    const data = createValidMultiCurrencyRecords();
+    data.providers.railway.evidence_reference = '<railway-usage-export>';
+    const placeholderResult = validateCostEvidence(data);
+    expect(placeholderResult.isCostEvidenceMeasured).toBe(false);
+    expect(placeholderResult.providers.railway.state).toBe('PARTIAL');
+  });
+
+  // File contract: Validate actual candidate package file
+  it('10. validates candidate package pl20-03l-multi-currency-cost-intake.json as VALID', () => {
+    const fileResult = validateCostEvidenceFile('AGENT_CONTEXT/evidence/post-launch-20/pl20-03l-multi-currency-cost-intake.json');
+    expect(fileResult.isCostEvidenceMeasured).toBe(true);
+    expect(fileResult.cost_total_state).toBe('MEASURED_MULTI_CURRENCY');
+    expect(fileResult.single_currency_total).toBeNull();
+    expect(fileResult.single_currency_total_state).toBe('NOT_COMPUTED_MULTI_CURRENCY');
+    expect(fileResult.multi_currency_totals).toEqual({
+      USD: 1.2574,
+      MXN: 7.96
+    });
+    expect(fileResult.blocking_reasons).toHaveLength(0);
+  });
+});

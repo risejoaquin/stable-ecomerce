@@ -1917,6 +1917,64 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
       expect(summaryRes.body.summary.evaluationRules.finalScaleReady).toBe(false);
     });
 
+    it('14b. multi-currency row with total_estimate=null evaluates isCostEvidenceMeasured=true and is not shadowed by older partial rows', async () => {
+      const multiCurrencyMeasuredRow = {
+        id: 'cost-multi-currency-row',
+        cost_key: 'monthly_operating_cost_baseline',
+        period: '2026-08',
+        total_estimate: null,
+        currency: 'MXN',
+        metadata: {
+          calculation_version: 'pl20-03m-v1',
+          measured_at: new Date().toISOString(),
+          measured_state: 'MEASURED',
+          cost_total_state: 'MEASURED_MULTI_CURRENCY',
+          is_cost_evidence_measured: true,
+          single_currency_total: null,
+          single_currency_total_state: 'NOT_COMPUTED_MULTI_CURRENCY',
+          multi_currency_totals: { USD: 1.2574, MXN: 7.96 },
+          source: 'scripts/pl20/persist-cost-evidence.mjs',
+          source_type: 'provider_evidence_aggregation',
+          providers: {
+            railway: { amount: 1.2574, currency: 'USD', measured_state: 'MEASURED', allocation_method: 'provider_direct_billing_share' },
+            supabase: { amount: 0.00, currency: 'MXN', measured_state: 'MEASURED', allocation_method: 'direct_attributed' },
+            stripe: { amount: 7.96, currency: 'MXN', measured_state: 'MEASURED', allocation_method: 'direct_metered' },
+            resend: { amount: 0.00, currency: 'MXN', measured_state: 'MEASURED', allocation_method: 'direct_attributed' }
+          }
+        }
+      };
+
+      const olderSeptemberPartialRow = {
+        id: 'cost-older-partial-row',
+        cost_key: 'monthly_operating_cost_baseline',
+        period: '2026-09',
+        total_estimate: null,
+        currency: 'MXN',
+        metadata: {
+          calculation_version: 'pl20-03a-v1',
+          measured_at: new Date().toISOString(),
+          measured_state: 'PARTIAL',
+          source: 'api_final_scale_operating_costs_run',
+          source_type: 'provider_evidence_aggregation',
+          providers: {
+            railway: { measured_state: 'PARTIAL' },
+            supabase: { measured_state: 'MEASURED' },
+            stripe: { measured_state: 'PARTIAL' },
+            resend: { measured_state: 'MEASURED' }
+          }
+        }
+      };
+
+      // Both rows present in table: the measured row must not be shadowed
+      customMockTableRows['operating_cost_summaries'] = [olderSeptemberPartialRow, multiCurrencyMeasuredRow];
+
+      const summaryRes = await request(app)
+        .get('/api/admin/final-scale/summary')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(summaryRes.status).toBe(200);
+      expect(summaryRes.body.summary.evaluationRules.isCostEvidenceMeasured).toBe(true);
+    });
+
     it('15. zero without provenance is NOT_MEASURED/PARTIAL', async () => {
       const res = await request(app)
         .post('/api/admin/final-scale/operating-costs/run')

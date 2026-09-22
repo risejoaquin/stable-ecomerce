@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ALLOWED_PROVIDERS = ['railway', 'supabase', 'stripe', 'resend'];
-const ALLOWED_RAILWAY_MODELS = ['resource_based', 'equal_allocation', 'shared_unallocated'];
+const ALLOWED_RAILWAY_MODELS = ['resource_based', 'equal_allocation', 'shared_unallocated', 'provider_direct_billing_share'];
 const ALLOWED_STRIPE_SOURCE_TYPES = ['provider_export', 'provider_billing', 'stripe_dashboard_export'];
 
 function isPlaceholderValue(val) {
@@ -160,9 +160,12 @@ function validatePeriodAlignment(providers, topPeriod) {
     referenceEnd = topPeriod.period_end;
   }
 
-  if (!isValidDateString(referenceStart) || !isValidDateString(referenceEnd)) {
-    reasons.push(`Reference period is not a valid YYYY-MM-DD date range: ${referenceStart} to ${referenceEnd}`);
-  } else if (referenceStart > referenceEnd) {
+  const isValidStart = isValidDateString(referenceStart) || isValidIsoTimestamp(referenceStart);
+  const isValidEnd = isValidDateString(referenceEnd) || isValidIsoTimestamp(referenceEnd);
+
+  if (!isValidStart || !isValidEnd) {
+    reasons.push(`Reference period is not a valid YYYY-MM-DD date range or ISO 8601 timestamp range: ${referenceStart} to ${referenceEnd}`);
+  } else if (Date.parse(referenceStart) > Date.parse(referenceEnd) || (isValidDateString(referenceStart) && isValidDateString(referenceEnd) && referenceStart > referenceEnd)) {
     reasons.push(`Period start (${referenceStart}) cannot be later than period end (${referenceEnd}).`);
   }
 
@@ -200,7 +203,7 @@ function validateRailway(rec) {
   }
 
   const reasons = [];
-  const model = rec.allocation_model;
+  const model = rec.allocation_model || rec.allocation_method;
 
   if (!model || !ALLOWED_RAILWAY_MODELS.includes(model)) {
     return {
@@ -223,23 +226,25 @@ function validateRailway(rec) {
   }
 
   // Common checks for resource_based and equal_allocation
-  if (typeof rec.account_total !== 'number' || rec.account_total <= 0 || isPlaceholderValue(rec.account_total)) {
-    reasons.push('Railway account_total must be a positive number.');
-  }
-  if (!Number.isInteger(rec.shared_hosts) || rec.shared_hosts < 1) {
-    reasons.push('Railway shared_hosts must be an integer >= 1.');
-  }
-  if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
-    reasons.push('Railway evidence_reference must be a non-empty string path or reference, not a placeholder.');
-  }
-  if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
-    reasons.push('Railway measured_at must be a valid ISO 8601 timestamp, not a placeholder.');
-  }
-  if (!rec.currency || typeof rec.currency !== 'string' || isPlaceholderValue(rec.currency)) {
-    reasons.push('Railway currency must be specified (e.g. MXN).');
-  }
-  if (!rec.provided_by || typeof rec.provided_by !== 'string' || isPlaceholderValue(rec.provided_by)) {
-    reasons.push('Railway provided_by must be specified, not a placeholder.');
+  if (model === 'equal_allocation' || model === 'resource_based') {
+    if (typeof rec.account_total !== 'number' || rec.account_total <= 0 || isPlaceholderValue(rec.account_total)) {
+      reasons.push('Railway account_total must be a positive number.');
+    }
+    if (!Number.isInteger(rec.shared_hosts) || rec.shared_hosts < 1) {
+      reasons.push('Railway shared_hosts must be an integer >= 1.');
+    }
+    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
+      reasons.push('Railway evidence_reference must be a non-empty string path or reference, not a placeholder.');
+    }
+    if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+      reasons.push('Railway measured_at must be a valid ISO 8601 timestamp, not a placeholder.');
+    }
+    if (!rec.currency || typeof rec.currency !== 'string' || isPlaceholderValue(rec.currency)) {
+      reasons.push('Railway currency must be specified (e.g. MXN).');
+    }
+    if (!rec.provided_by || typeof rec.provided_by !== 'string' || isPlaceholderValue(rec.provided_by)) {
+      reasons.push('Railway provided_by must be specified, not a placeholder.');
+    }
   }
 
   if (model === 'equal_allocation') {
@@ -312,6 +317,50 @@ function validateRailway(rec) {
       state: 'MEASURED',
       amount: rec.amount,
       currency: rec.currency || 'MXN',
+      reasons: []
+    };
+  }
+
+  if (model === 'provider_direct_billing_share') {
+    const workspaceTotal = rec.provider_workspace_total ?? rec.account_total;
+    if (typeof workspaceTotal !== 'number' || workspaceTotal <= 0 || isPlaceholderValue(workspaceTotal)) {
+      reasons.push('Railway provider_direct_billing_share requires positive provider_workspace_total or account_total.');
+    }
+    if (typeof rec.billing_share === 'number' && (rec.billing_share <= 0 || rec.billing_share > 1)) {
+      reasons.push('Railway billing_share must be between 0 and 1.');
+    }
+    if (typeof rec.amount !== 'number' || rec.amount <= 0 || isPlaceholderValue(rec.amount)) {
+      reasons.push('Railway provider_direct_billing_share attributable amount must be a positive number.');
+    }
+    if (!rec.currency || typeof rec.currency !== 'string' || isPlaceholderValue(rec.currency)) {
+      reasons.push('Railway currency must be specified (e.g. USD).');
+    }
+    if (!rec.evidence_reference || typeof rec.evidence_reference !== 'string' || !rec.evidence_reference.trim() || isPlaceholderValue(rec.evidence_reference)) {
+      reasons.push('Railway evidence_reference must be a non-empty string path or reference, not a placeholder.');
+    }
+    if (!isValidIsoTimestamp(rec.measured_at) || isPlaceholderValue(rec.measured_at)) {
+      reasons.push('Railway measured_at must be a valid ISO 8601 timestamp, not a placeholder.');
+    }
+    if (!rec.source_type || typeof rec.source_type !== 'string' || isPlaceholderValue(rec.source_type) || rec.source_type === 'manual_estimate') {
+      reasons.push('Railway source_type must be a valid provider billing source type, not a placeholder or manual estimate.');
+    }
+    if (!rec.provided_by || typeof rec.provided_by !== 'string' || isPlaceholderValue(rec.provided_by)) {
+      reasons.push('Railway provided_by must be specified, not a placeholder.');
+    }
+
+    if (reasons.length > 0) {
+      return {
+        state: 'PARTIAL',
+        amount: typeof rec.amount === 'number' ? rec.amount : null,
+        currency: rec.currency || 'USD',
+        reasons
+      };
+    }
+
+    return {
+      state: 'MEASURED',
+      amount: rec.amount,
+      currency: rec.currency || 'USD',
       reasons: []
     };
   }
@@ -548,10 +597,31 @@ export function validateCostEvidence(inputData) {
 
   let cost_total_state = 'PARTIAL';
   let isCostEvidenceMeasured = false;
+  let single_currency_total = null;
+  let single_currency_total_state = null;
+  let multi_currency_totals = null;
 
   if (allProvidersMeasured && periodValidation.period_match) {
-    cost_total_state = 'MEASURED';
-    isCostEvidenceMeasured = true;
+    const providerList = [railwayResult, supabaseResult, stripeResult, resendResult];
+    const distinctCurrencies = Array.from(new Set(providerList.map(p => p.currency).filter(Boolean)));
+    const isMultiCurrency = distinctCurrencies.length > 1;
+
+    if (isMultiCurrency) {
+      cost_total_state = 'MEASURED_MULTI_CURRENCY';
+      isCostEvidenceMeasured = true;
+      single_currency_total = null;
+      single_currency_total_state = 'NOT_COMPUTED_MULTI_CURRENCY';
+      multi_currency_totals = {};
+      providerList.forEach(p => {
+        const curr = p.currency || 'UNKNOWN';
+        multi_currency_totals[curr] = Number(((multi_currency_totals[curr] || 0) + (p.amount || 0)).toFixed(4));
+      });
+    } else {
+      cost_total_state = 'MEASURED';
+      isCostEvidenceMeasured = true;
+      single_currency_total = Number(providerList.reduce((sum, p) => sum + (p.amount || 0), 0).toFixed(2));
+      single_currency_total_state = 'COMPUTED';
+    }
   } else if (allProvidersNotMeasured) {
     cost_total_state = 'NOT_MEASURED';
     isCostEvidenceMeasured = false;
@@ -597,6 +667,9 @@ export function validateCostEvidence(inputData) {
     },
     cost_total_state,
     isCostEvidenceMeasured,
+    single_currency_total,
+    single_currency_total_state,
+    multi_currency_totals,
     blocking_reasons
   };
 }

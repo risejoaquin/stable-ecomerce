@@ -8743,7 +8743,7 @@ app.post(
       else railwayCaveats.push(String(rawRailway.caveats));
     }
 
-    const railwayAllocationModel = rawRailway?.allocation_model || rawRailway?.allocationModel || 'shared_unallocated';
+    const railwayAllocationModel = rawRailway?.allocation_model || rawRailway?.allocationModel || rawRailway?.allocation_method || rawRailway?.allocationMethod || 'shared_unallocated';
     const railwayAccountTotal = rawRailway?.account_total ?? rawRailway?.accountTotal ?? (
       typeof rawRailway?.amount === 'number' && railwayAllocationModel === 'shared_unallocated'
         ? rawRailway.amount
@@ -8776,6 +8776,15 @@ app.post(
         railwayAmount = null;
         railwayCaveats.push('resource_based allocation requires explicit amount, verified evidence_reference, and non-manual source_type.');
       }
+    } else if (railwayAllocationModel === 'provider_direct_billing_share') {
+      if (typeof rawRailway?.amount === 'number' && rawRailway?.evidence_reference && railwaySourceType !== 'manual_estimate') {
+        railwayAmount = validateFinalScaleCostNumber(rawRailway.amount, 'railway.amount');
+        railwayMeasuredState = 'MEASURED';
+      } else {
+        railwayMeasuredState = 'PARTIAL';
+        railwayAmount = null;
+        railwayCaveats.push('provider_direct_billing_share allocation requires explicit amount, verified evidence_reference, and non-manual source_type.');
+      }
     } else {
       railwayMeasuredState = 'PARTIAL';
       railwayAmount = null;
@@ -8795,8 +8804,12 @@ app.post(
       evidence_reference: railwayEvidenceRef,
       measured_state: railwayMeasuredState,
       allocation_model: railwayAllocationModel,
+      allocation_method: railwayAllocationModel,
       account_total: railwayAccountTotal,
+      provider_workspace_total: rawRailway?.provider_workspace_total ?? rawRailway?.account_total ?? railwayAccountTotal,
+      billing_share: rawRailway?.billing_share ?? null,
       shared_hosts: railwaySharedHosts,
+      reconciled_services: rawRailway?.reconciled_services ?? null,
       caveats: railwayCaveats
     };
 
@@ -9027,6 +9040,9 @@ app.post(
     const allFourMeasured = providerRecords.every(p => p.measured_state === 'MEASURED');
     const allNotMeasured = providerRecords.every(p => p.measured_state === 'NOT_MEASURED');
 
+    const distinctCurrencies = new Set(providerRecords.map(p => p.currency).filter(Boolean));
+    const isMultiCurrency = distinctCurrencies.size > 1;
+
     let totalMeasuredState: 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED';
     if (allFourMeasured) {
       totalMeasuredState = 'MEASURED';
@@ -9034,6 +9050,17 @@ app.post(
       totalMeasuredState = 'NOT_MEASURED';
     } else {
       totalMeasuredState = 'PARTIAL';
+    }
+
+    const costTotalState = allFourMeasured
+      ? (isMultiCurrency ? 'MEASURED_MULTI_CURRENCY' : 'MEASURED')
+      : (allNotMeasured ? 'NOT_MEASURED' : 'PARTIAL');
+
+    const multiCurrencyTotals: Record<string, number> = {};
+    for (const p of providerRecords) {
+      if (p.measured_state === 'MEASURED' && typeof p.amount === 'number' && p.currency) {
+        multiCurrencyTotals[p.currency] = Number(((multiCurrencyTotals[p.currency] || 0) + p.amount).toFixed(4));
+      }
     }
 
     // Explicit concepts (Tasks 2 & 5):
@@ -9047,10 +9074,14 @@ app.post(
       .filter(p => p.amount === null || p.amount === undefined)
       .map(p => p.provider);
 
-    // 3. measured_provider_total: Only fully MEASURED + attributable provider amounts may contribute
+    // 3. measured_provider_total: Only fully MEASURED + attributable provider amounts may contribute when single currency
     const measuredProviders = providerRecords.filter(p => p.measured_state === 'MEASURED' && typeof p.amount === 'number');
-    const measuredProviderTotalNumber = measuredProviders.reduce((sum, p) => sum + (p.amount as number), 0);
-    const measuredProviderTotal = Number(measuredProviderTotalNumber.toFixed(2));
+    const measuredProviderTotalNumber = !isMultiCurrency
+      ? measuredProviders.reduce((sum, p) => sum + (p.amount as number), 0)
+      : null;
+    const measuredProviderTotal = measuredProviderTotalNumber !== null
+      ? Number(measuredProviderTotalNumber.toFixed(2))
+      : null;
 
     // 4. partial_provider_amounts / partial_known_amounts: Known numeric amounts for providers in PARTIAL state
     const partialProviderAmounts: Record<string, number> = {};
@@ -9066,9 +9097,10 @@ app.post(
       sharedAccountCosts.railway = railwayAccountTotal;
     }
 
-    // 6. total_estimate: If all four providers are MEASURED, sum(all four attributable amounts).
+    // 6. total_estimate: If all four providers are MEASURED and single currency, sum(all four attributable amounts).
+    // If multi-currency, total_estimate must NOT be summed (strictly null).
     // Otherwise, total_estimate must NOT imply a complete ecommerce monthly total (null preferred).
-    const totalEstimateValue: number | null = allFourMeasured ? measuredProviderTotal : null;
+    const totalEstimateValue: number | null = (allFourMeasured && !isMultiCurrency) ? measuredProviderTotal : null;
 
     const allCaveats: string[] = [];
     providerRecords.forEach(p => {
@@ -9081,6 +9113,12 @@ app.post(
         `total_estimate is null to avoid presenting incomplete or unallocated infrastructure amounts as ecommerce total.`
       );
     }
+    if (isMultiCurrency && totalMeasuredState === 'MEASURED') {
+      allCaveats.push(
+        'Multi-currency operating cost contract: provider amounts preserved in native currencies (USD, MXN). ' +
+        'Single numeric currency total is null (NOT_COMPUTED_MULTI_CURRENCY) to prevent synthetic FX conversion or summing unlike currencies.'
+      );
+    }
 
     const payload = {
       store_id: storeId,
@@ -9091,10 +9129,12 @@ app.post(
       stripe_variable_cost_estimate: stripeRecord.amount,
       email_cost_estimate: resendRecord.amount,
       total_estimate: totalEstimateValue,
-      currency,
+      currency: isMultiCurrency ? 'MULTI' : currency,
       notes: req.body?.notes || (
         totalMeasuredState === 'MEASURED'
-          ? 'Full verified operating cost baseline across all four providers (MEASURED).'
+          ? (isMultiCurrency
+              ? 'Multi-currency operating cost baseline across all four providers (MEASURED_MULTI_CURRENCY, zero synthetic FX conversion).'
+              : 'Full verified operating cost baseline across all four providers (MEASURED).')
           : totalMeasuredState === 'PARTIAL'
             ? 'Partial operating costs (PARTIAL - preliminary review only, does not satisfy final scale ready; total_estimate is null to separate shared/unknown infrastructure from ecommerce total).'
             : 'PL20 unestimated operating cost baseline (NOT_MEASURED).'
@@ -9107,15 +9147,19 @@ app.post(
         calculation_version: 'pl20-03a-v1',
         measured_at: measuredAt,
         measured_state: totalMeasuredState,
-        cost_total_state: totalMeasuredState,
+        cost_total_state: costTotalState,
         is_cost_evidence_measured: totalMeasuredState === 'MEASURED',
-        has_explicit_estimates: providerRecords.some(p => p.amount !== null && p.amount !== 0) || measuredProviderTotal > 0 || Object.keys(partialProviderAmounts).length > 0,
+        is_multi_currency: isMultiCurrency,
+        single_currency_total: isMultiCurrency ? null : totalEstimateValue,
+        single_currency_total_state: isMultiCurrency ? 'NOT_COMPUTED_MULTI_CURRENCY' : (totalMeasuredState === 'MEASURED' ? 'COMPUTED' : 'NOT_COMPUTED'),
+        multi_currency_totals: isMultiCurrency ? multiCurrencyTotals : undefined,
+        has_explicit_estimates: providerRecords.some(p => p.amount !== null && p.amount !== 0) || (measuredProviderTotal !== null && measuredProviderTotal > 0) || Object.keys(partialProviderAmounts).length > 0,
         total_is_partial: totalMeasuredState === 'PARTIAL',
         period,
-        period_start: defaultPeriodStart,
-        period_end: defaultPeriodEnd,
-        period_boundary_convention: 'inclusive_calendar_month',
-        currency,
+        period_start: rawRailway?.period_start || defaultPeriodStart,
+        period_end: rawRailway?.period_end || defaultPeriodEnd,
+        period_boundary_convention: isMultiCurrency ? 'provider_billing_cycle' : 'inclusive_calendar_month',
+        currency: isMultiCurrency ? 'MULTI' : currency,
         measured_provider_total: measuredProviderTotal,
         partial_provider_amounts: partialProviderAmounts,
         partial_known_amounts: partialProviderAmounts,
