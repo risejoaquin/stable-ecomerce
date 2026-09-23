@@ -590,6 +590,13 @@ export function getMonthPeriodBounds(periodStr: string): { periodStart: string; 
   };
 }
 
+// AUDIT-01A (SEC-003): Canonical Public Storefront Projections
+const PUBLIC_STORE_SELECT = 'id,name,slug,description,config,created_at';
+const PUBLIC_PRODUCT_SELECT = 'id,store_id,name,slug,description,long_description,price,compare_at_price,stock,brand,category,categories,category_ids,subcategory,variants,status,images,image_alt_text,rating,total_reviews,is_featured,sort_priority,short_marketing_copy,hero_badge,sku,seo_title,seo_description,ingredients,created_at,updated_at';
+const PUBLIC_CAMPAIGN_LANDING_PAGE_SELECT = 'id,store_id,campaign_id,slug,title,subtitle,headline,value_proposition,hero_image_url,primary_cta,secondary_cta,status,content,seo_title,seo_description,metadata,created_at,updated_at';
+const PUBLIC_PAID_TRAFFIC_CAMPAIGN_SELECT = 'id,name,slug,channel,objective,status,utm_source,utm_medium,utm_campaign,coupon_code,metadata,starts_at,ends_at';
+const PUBLIC_COMMERCIAL_CAMPAIGN_SELECT = 'id,name,type,channel,status,starts_at,ends_at,metadata';
+
 export async function startServer(options: { listen?: boolean } = {}) {
   const { listen = true } = options;
   const app = express();
@@ -928,7 +935,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
           .order('updated_at', { ascending: false })
           .limit(12),
         supabase.from('commercial_campaigns')
-          .select('*')
+          .select(PUBLIC_COMMERCIAL_CAMPAIGN_SELECT)
           .eq('store_id', storeId)
           .eq('status', 'active')
           .or(`starts_at.is.null,starts_at.lte.${now}`)
@@ -948,16 +955,26 @@ export async function startServer(options: { listen?: boolean } = {}) {
         type: campaign.type,
         channel: campaign.channel,
         headline: campaign.metadata?.headline || campaign.name,
-        body: campaign.metadata?.body || campaign.notes || 'Campaña activa Selfcare Sinners.',
+        body: campaign.metadata?.body || 'Campaña activa Selfcare Sinners.',
         cta: campaign.metadata?.cta || 'Comprar ahora',
         href: campaign.metadata?.href || '/#catalogo'
+      }));
+      const publicCampaigns = campaigns.map((campaign: any) => ({
+        id: campaign.id,
+        name: campaign.name,
+        type: campaign.type,
+        channel: campaign.channel,
+        status: campaign.status,
+        starts_at: campaign.starts_at,
+        ends_at: campaign.ends_at,
+        metadata: campaign.metadata || {}
       }));
       res.json({
         store: storeResult.data,
         banners,
         categories: categories.map((name: any) => ({ name, slug: slugify(name) })),
         featuredProducts: products.map((product: any) => ({ ...product, canonical_path: productPublicPath(product) })),
-        campaigns
+        campaigns: publicCampaigns
       });
     } catch (e: any) {
       logger.error({ err: e }, 'Public home payload failed');
@@ -2676,7 +2693,7 @@ app.post(
           if (!supabase) return res.json({ id: 'dummy', name: req.params.slug, config: {} });
           try {
             const { data, error } = await supabase.from('stores')
-              .select('*')
+              .select(PUBLIC_STORE_SELECT)
               .eq('slug', req.params.slug)
               .single();
             if (error) throw error;
@@ -2784,7 +2801,7 @@ app.post(
           if (!supabase) return res.json(null);
           try {
             const { id } = req.params;
-            const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+            const { data, error } = await supabase.from('products').select(PUBLIC_PRODUCT_SELECT).eq('id', id).single();
             if (error) throw error;
             res.json(data);
           } catch (e: any) {
@@ -2812,7 +2829,7 @@ app.post(
 
             const category = req.query.category as string;
             const subcategory = req.query.subcategory as string;
-            let query = supabase.from('products').select('*', { count: 'exact' }).eq('store_id', storeId).eq('status', 'active');
+            let query = supabase.from('products').select(PUBLIC_PRODUCT_SELECT, { count: 'exact' }).eq('store_id', storeId).eq('status', 'active');
             
             if (search) {
               query = query.ilike('name', `%${search}%`);
@@ -3017,7 +3034,7 @@ app.post(
           try {
             const { code, storeId, orderTotal } = req.body;
             const { data: coupon, error } = await supabase.from('coupons')
-              .select('*')
+              .select('code, discount_type, discount_value, min_order_amount, max_uses, current_uses, expires_at')
               .eq('code', code)
               .eq('store_id', storeId)
               .eq('is_active', true)
@@ -3051,7 +3068,22 @@ app.post(
               discountAmount = coupon.discount_value;
             }
 
-            res.json({ valid: true, discountAmount, coupon });
+            const safeCoupon = {
+              code: coupon.code,
+              discount_type: coupon.discount_type,
+              discount_value: coupon.discount_value,
+              min_order_amount: coupon.min_order_amount || 0
+            };
+
+            res.json({
+              valid: true,
+              code: coupon.code,
+              discount_type: coupon.discount_type,
+              discount_value: coupon.discount_value,
+              discountAmount,
+              message: 'Cupón aplicado con éxito',
+              coupon: safeCoupon
+            });
           } catch (e: any) {
             res.status(500).json({ error: e.message });
           }
@@ -3334,10 +3366,10 @@ app.post(
           try {
             const storeId = await getPrimaryStoreId();
             if (!storeId) return res.json({ store: { name: 'Selfcare Sinners', config: { themeColor: '#6B705C' } }, products: [] });
-            const { data: store, error } = await supabase.from('stores').select('*').eq('id', storeId).single();
+            const { data: store, error } = await supabase.from('stores').select(PUBLIC_STORE_SELECT).eq('id', storeId).single();
             if (error || !store) return res.json({ store: { name: 'Selfcare Sinners', config: { themeColor: '#6B705C' } }, products: [] });
 
-            const { data: products } = await supabase.from('products').select('*').eq('store_id', storeId);
+            const { data: products } = await supabase.from('products').select(PUBLIC_PRODUCT_SELECT).eq('store_id', storeId).eq('status', 'active');
             res.json({ store, products: products || [] });
           } catch (e: any) {
             res.status(500).json({ error: e.message });
@@ -4266,7 +4298,7 @@ app.post(
       const slug = normalizePaidTrafficSlug(req.params.slug);
       const { data: landingPage, error } = await supabase
         .from('campaign_landing_pages')
-        .select('*')
+        .select(PUBLIC_CAMPAIGN_LANDING_PAGE_SELECT)
         .eq('store_id', storeId)
         .eq('slug', slug)
         .eq('status', 'published')
@@ -4274,7 +4306,11 @@ app.post(
       if (error) throw error;
       if (!landingPage) return res.status(404).json({ error: 'Campaign landing page not found' });
       const { data: campaign } = landingPage.campaign_id
-        ? await supabase.from('paid_traffic_campaigns').select('*').eq('id', landingPage.campaign_id).maybeSingle()
+        ? await supabase
+            .from('paid_traffic_campaigns')
+            .select(PUBLIC_PAID_TRAFFIC_CAMPAIGN_SELECT)
+            .eq('id', landingPage.campaign_id)
+            .maybeSingle()
         : { data: null } as any;
       const { data: products } = await supabase
         .from('products')
