@@ -596,6 +596,9 @@ const PUBLIC_PRODUCT_SELECT = 'id,store_id,name,slug,description,long_descriptio
 const PUBLIC_CAMPAIGN_LANDING_PAGE_SELECT = 'id,store_id,campaign_id,slug,title,subtitle,headline,value_proposition,hero_image_url,primary_cta,secondary_cta,status,content,seo_title,seo_description,metadata,created_at,updated_at';
 const PUBLIC_PAID_TRAFFIC_CAMPAIGN_SELECT = 'id,name,slug,channel,objective,status,utm_source,utm_medium,utm_campaign,coupon_code,metadata,starts_at,ends_at';
 const PUBLIC_COMMERCIAL_CAMPAIGN_SELECT = 'id,name,type,channel,status,starts_at,ends_at,metadata';
+const PUBLIC_REVIEW_SELECT = 'id,product_id,rating,comment,verified_purchase,helpful_count,response_text,responded_at,created_at';
+const PUBLIC_CATEGORY_COLLECTION_SELECT = 'id,store_id,name,slug,description,image_url,sort_order,hero_title,hero_subtitle,cta_label,cta_url';
+const PUBLIC_TRUST_BADGE_SELECT = 'id,store_id,badge_key,label,description,icon,sort_order';
 
 export async function startServer(options: { listen?: boolean } = {}) {
   const { listen = true } = options;
@@ -2869,7 +2872,7 @@ app.post(
 
             const { data, count, error } = await supabase
               .from('reviews')
-              .select('*', { count: 'exact' })
+              .select(PUBLIC_REVIEW_SELECT, { count: 'exact' })
               .eq('product_id', productId)
               .eq('moderation_status', 'approved')
               .order('created_at', { ascending: false })
@@ -4898,8 +4901,8 @@ app.post(
       if (!storeId) return res.status(404).json({ error: 'Store not found' });
       const [productsResult, collectionsResult, badgesResult] = await Promise.all([
         supabase.from('products').select('id,name,slug,description,short_marketing_copy,price,compare_at_price,stock,image_url,images,image_alt_text,category,collection,brand,is_featured,sort_priority,merchandising_priority,promo_badge,hero_badge,commercial_status').eq('store_id', storeId).eq('status', 'active').order('is_featured', { ascending: false }).order('sort_priority', { ascending: true }).limit(24),
-        supabase.from('category_collections').select('*').eq('store_id', storeId).eq('is_visible', true).order('sort_order', { ascending: true }).limit(12),
-        supabase.from('trust_badges').select('*').eq('store_id', storeId).eq('is_active', true).order('sort_order', { ascending: true }).limit(12)
+        supabase.from('category_collections').select(PUBLIC_CATEGORY_COLLECTION_SELECT).eq('store_id', storeId).eq('is_visible', true).order('sort_order', { ascending: true }).limit(12),
+        supabase.from('trust_badges').select(PUBLIC_TRUST_BADGE_SELECT).eq('store_id', storeId).eq('is_active', true).order('sort_order', { ascending: true }).limit(12)
       ]);
       if (productsResult.error) throw productsResult.error;
       if (collectionsResult.error) throw collectionsResult.error;

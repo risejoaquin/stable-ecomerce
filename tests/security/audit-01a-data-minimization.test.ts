@@ -248,6 +248,57 @@ describe('AUDIT-01A / SEC-003: Public API Data Minimization Contracts', () => {
     updated_at: '2026-09-01T00:00:00Z'
   };
 
+  const mockReviewRow = {
+    id: 'rev-1111-2222',
+    product_id: 'prod-aaaa-bbbb-cccc',
+    user_id: 'user-secret-reviewer-123',
+    rating: 5,
+    comment: 'Excelente serum hidratante, resultados visibles.',
+    status: 'published',
+    created_at: '2026-09-01T00:00:00Z',
+    moderation_status: 'approved',
+    moderated_at: '2026-09-01T12:00:00Z',
+    moderated_by: 'user-admin-moderator-999',
+    source: 'storefront',
+    helpful_count: 3,
+    verified_purchase: true,
+    response_text: '¡Muchas gracias por tu reseña!',
+    responded_at: '2026-09-02T10:00:00Z'
+  };
+
+  const mockCategoryCollectionRow = {
+    id: 'col-1111-2222',
+    store_id: 'store-1111-2222-3333',
+    name: 'Colección Cuidado Facial',
+    slug: 'cuidado-facial',
+    description: 'Los mejores productos para tu rutina diaria',
+    image_url: 'https://example.com/collection.jpg',
+    sort_order: 1,
+    hero_title: 'Rutina Completa Facial',
+    hero_subtitle: 'Luce una piel radiante todos los días',
+    cta_label: 'Comprar colección',
+    cta_url: '/collections/cuidado-facial',
+    is_visible: true,
+    metadata: { internal_campaign_code: 'CAMP-SECRET-001', admin_priority: 'high' },
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z'
+  };
+
+  const mockTrustBadgeRow = {
+    id: 'badge-1111-2222',
+    store_id: 'store-1111-2222-3333',
+    badge_key: 'secure_checkout',
+    label: 'Checkout seguro',
+    description: 'Pagos encriptados de extremo a extremo',
+    icon: 'lock',
+    sort_order: 1,
+    is_visible: true,
+    is_active: true,
+    metadata: { provider_internal_id: 'stripe-sec-123', test_mode: false },
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z'
+  };
+
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.JWT_SECRET = 'audit-01a-test-secret-key-32chars!!';
@@ -332,6 +383,39 @@ describe('AUDIT-01A / SEC-003: Public API Data Minimization Contracts', () => {
             status: 200,
             headers: {
               'Content-Type': isSingle ? 'application/vnd.pgrst.object+json' : 'application/json',
+              'Content-Range': '0-0/1'
+            }
+          });
+        }
+
+        if (pathname.includes('/reviews')) {
+          const projected = projectRow(mockReviewRow, selectParam);
+          return new Response(JSON.stringify([projected]), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Range': '0-0/1'
+            }
+          });
+        }
+
+        if (pathname.includes('/category_collections')) {
+          const projected = projectRow(mockCategoryCollectionRow, selectParam);
+          return new Response(JSON.stringify([projected]), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Range': '0-0/1'
+            }
+          });
+        }
+
+        if (pathname.includes('/trust_badges')) {
+          const projected = projectRow(mockTrustBadgeRow, selectParam);
+          return new Response(JSON.stringify([projected]), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
               'Content-Range': '0-0/1'
             }
           });
@@ -458,6 +542,18 @@ describe('AUDIT-01A / SEC-003: Public API Data Minimization Contracts', () => {
       expect(couponRoute).not.toContain(".select('*')");
       expect(couponRoute).toContain('safeCoupon');
       expect(couponRoute).not.toContain('res.json({ valid: true, discountAmount, coupon });');
+
+      // 8. GET /api/products/:productId/reviews
+      const reviewsRoute = getRouteBlock("app.get('/api/products/:productId/reviews'", "app.get('/api/products/:productId/rating'");
+      expect(reviewsRoute).not.toContain(".select('*'");
+      expect(reviewsRoute).toContain('PUBLIC_REVIEW_SELECT');
+
+      // 9. GET /api/public/merchandising/home
+      const merchandisingRoute = getRouteBlock("app.get('/api/public/merchandising/home'", "app.get('/api/admin/fulfillment/summary'");
+      expect(merchandisingRoute).not.toContain(".from('category_collections').select('*')");
+      expect(merchandisingRoute).not.toContain(".from('trust_badges').select('*')");
+      expect(merchandisingRoute).toContain('PUBLIC_CATEGORY_COLLECTION_SELECT');
+      expect(merchandisingRoute).toContain('PUBLIC_TRUST_BADGE_SELECT');
     });
   });
 
@@ -588,6 +684,62 @@ describe('AUDIT-01A / SEC-003: Public API Data Minimization Contracts', () => {
       expect(res.body.coupon).not.toHaveProperty('created_at');
       expect(res.body.coupon).not.toHaveProperty('id');
       expect(res.body.coupon).not.toHaveProperty('store_id');
+    });
+
+    it('GET /api/products/:productId/reviews returns reviews and omits user_id, moderated_by, and moderation fields', async () => {
+      const res = await request(app).get('/api/products/prod-aaaa-bbbb-cccc/reviews');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('data');
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      const review = res.body.data[0];
+      expect(review).toHaveProperty('id');
+      expect(review).toHaveProperty('product_id');
+      expect(review).toHaveProperty('rating', 5);
+      expect(review).toHaveProperty('comment');
+      expect(review).toHaveProperty('verified_purchase', true);
+
+      // Explicitly prove absence of internal and sensitive fields
+      expect(review).not.toHaveProperty('user_id');
+      expect(review).not.toHaveProperty('moderated_by');
+      expect(review).not.toHaveProperty('moderated_at');
+      expect(review).not.toHaveProperty('moderation_status');
+      expect(review).not.toHaveProperty('status');
+      expect(review).not.toHaveProperty('source');
+
+      assertNoForbiddenFields(res.body);
+    });
+
+    it('GET /api/public/merchandising/home returns safe collections and badges without internal metadata or audit timestamps', async () => {
+      const res = await request(app).get('/api/public/merchandising/home');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('status', 'ok');
+      expect(res.body).toHaveProperty('featuredProducts');
+      expect(res.body).toHaveProperty('collections');
+      expect(res.body).toHaveProperty('trustBadges');
+
+      // Check collections allowlist
+      expect(res.body.collections.length).toBeGreaterThan(0);
+      const col = res.body.collections[0];
+      expect(col).toHaveProperty('name', 'Colección Cuidado Facial');
+      expect(col).toHaveProperty('slug', 'cuidado-facial');
+      expect(col).not.toHaveProperty('metadata');
+      expect(col).not.toHaveProperty('is_visible');
+      expect(col).not.toHaveProperty('created_at');
+      expect(col).not.toHaveProperty('updated_at');
+
+      // Check trust badges allowlist
+      expect(res.body.trustBadges.length).toBeGreaterThan(0);
+      const badge = res.body.trustBadges[0];
+      expect(badge).toHaveProperty('badge_key', 'secure_checkout');
+      expect(badge).toHaveProperty('label', 'Checkout seguro');
+      expect(badge).not.toHaveProperty('metadata');
+      expect(badge).not.toHaveProperty('is_visible');
+      expect(badge).not.toHaveProperty('is_active');
+      expect(badge).not.toHaveProperty('created_at');
+      expect(badge).not.toHaveProperty('updated_at');
+
+      assertNoForbiddenFields(res.body);
     });
   });
 });
