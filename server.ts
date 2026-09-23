@@ -592,7 +592,7 @@ export function getMonthPeriodBounds(periodStr: string): { periodStart: string; 
 
 // AUDIT-01A (SEC-003): Canonical Public Storefront Projections
 const PUBLIC_STORE_SELECT = 'id,name,slug,description,config,created_at';
-const PUBLIC_PRODUCT_SELECT = 'id,store_id,name,slug,description,long_description,price,compare_at_price,stock,brand,category,categories,category_ids,subcategory,variants,status,images,image_alt_text,rating,total_reviews,is_featured,sort_priority,short_marketing_copy,hero_badge,sku,seo_title,seo_description,ingredients,created_at,updated_at';
+const PUBLIC_PRODUCT_SELECT = 'id,store_id,name,slug,description,long_description,price,compare_at_price,stock,brand,category,categories,subcategory,variants,status,images,image_url,image_alt_text,is_featured,sort_priority,short_marketing_copy,hero_badge,sku,seo_title,seo_description,ingredients,created_at,updated_at';
 const PUBLIC_CAMPAIGN_LANDING_PAGE_SELECT = 'id,store_id,campaign_id,slug,title,subtitle,headline,value_proposition,hero_image_url,primary_cta,secondary_cta,status,content,seo_title,seo_description,metadata,created_at,updated_at';
 const PUBLIC_PAID_TRAFFIC_CAMPAIGN_SELECT = 'id,name,slug,channel,objective,status,utm_source,utm_medium,utm_campaign,coupon_code,metadata,starts_at,ends_at';
 const PUBLIC_COMMERCIAL_CAMPAIGN_SELECT = 'id,name,type,channel,status,starts_at,ends_at,metadata';
