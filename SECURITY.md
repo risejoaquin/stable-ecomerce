@@ -51,7 +51,7 @@ The following safeguards represent **verified current** operational controls in 
    - Public customer-facing endpoints (`/api/products`, `/api/products/:id`) strictly whitelist public product attributes. Internal administrative attributes, cost structures, and warehouse metadata are quarantined from public responses.
 
 3. **Stripe Webhook Cryptographic Verification [VERIFIED_CURRENT]**:
-   - Incoming `/api/stripe/webhook` requests are cryptographically validated against `STRIPE_WEBHOOK_SECRET` using raw request buffers.
+   - Incoming `/api/webhooks/stripe` requests are cryptographically validated against `STRIPE_WEBHOOK_SECRET` using raw request buffers.
 
 4. **Resend Webhook Cryptographic Verification [VERIFIED_CURRENT]**:
    - Incoming `/api/webhooks/resend` requests are cryptographically validated against `RESEND_WEBHOOK_SECRET` via official SDK Svix verification (`resend.webhooks.verify`) using raw JSON buffers and Svix headers (`svix-id`, `svix-timestamp`, `svix-signature`). Verified via automated security gate `.\scripts\qa\security\validate-resend-webhook-signature.ps1`.
