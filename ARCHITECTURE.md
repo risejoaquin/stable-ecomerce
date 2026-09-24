@@ -80,7 +80,7 @@ This document defines the architectural reality of the platform **as it exists t
 ### 1.4 Third-Party Integrations
 - **Stripe**:
   - Checkout session creation via `@stripe/stripe-js` and server SDK.
-  - Asynchronous order fulfillment driven by cryptographically signed Stripe webhooks (`/api/stripe/webhook` verified with `STRIPE_WEBHOOK_SECRET`).
+  - Asynchronous order fulfillment driven by cryptographically signed Stripe webhooks (`/api/webhooks/stripe` verified with `STRIPE_WEBHOOK_SECRET`).
 - **Resend**:
   - Transactional email dispatch (order confirmations, verification emails, cart recovery).
   - Dedicated DB email queue (`email_queue`), asynchronous queue worker (`email-worker.ts`), and incoming webhook endpoint (`/api/webhooks/resend`, `email-webhooks.ts`) cryptographically validated against `RESEND_WEBHOOK_SECRET` via Svix headers.
