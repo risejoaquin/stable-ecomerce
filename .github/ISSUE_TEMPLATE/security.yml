@@ -42,7 +42,7 @@ body:
         - "Database & Row Level Security (RLS)"
         - "Public API Data Exposure / Minimization (AUDIT-01A)"
         - "Storage & Upload Authorization (Pending Implementation)"
-        - "Resend Webhook Verification (Pending Implementation)"
+        - "Resend Webhook Signature Verification"
         - "Stripe Webhook Signature Verification"
         - "Content Security Policy & HTTP Headers (Helmet, CSP)"
         - "Dependency Vulnerability (npm audit / Dependabot)"

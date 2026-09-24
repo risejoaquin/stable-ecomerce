@@ -5,10 +5,10 @@ Set-Location $root
 $ps = Get-QaPowerShellExecutable
 $run = New-QaRunDirectory -Suite "regression-core"
 $scripts = @(
-  "scripts\qa\smoke-qa-release-e.ps1",
-  "scripts\qa\smoke-mobile-ux-f.ps1",
-  "scripts\qa\smoke-post-ux-c-hotfix-20.ps1",
-  "scripts\qa\smoke-post-ux-c-hotfix-20-2.ps1"
+  "scripts\archive\qa-smokes\smoke-qa-release-e.ps1",
+  "scripts\archive\qa-smokes\smoke-mobile-ux-f.ps1",
+  "scripts\archive\qa-smokes\smoke-post-ux-c-hotfix-20.ps1",
+  "scripts\archive\qa-smokes\smoke-post-ux-c-hotfix-20-2.ps1"
 )
 $results = @()
 foreach ($script in $scripts) {

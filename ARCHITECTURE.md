@@ -83,7 +83,7 @@ This document defines the architectural reality of the platform **as it exists t
   - Asynchronous order fulfillment driven by cryptographically signed Stripe webhooks (`/api/stripe/webhook` verified with `STRIPE_WEBHOOK_SECRET`).
 - **Resend**:
   - Transactional email dispatch (order confirmations, verification emails, cart recovery).
-  - Dedicated DB email queue (`email_queue`), asynchronous queue worker (`email-worker.ts`), and incoming webhook endpoint (`email-webhooks.ts`).
+  - Dedicated DB email queue (`email_queue`), asynchronous queue worker (`email-worker.ts`), and incoming webhook endpoint (`/api/webhooks/resend`, `email-webhooks.ts`) cryptographically validated against `RESEND_WEBHOOK_SECRET` via Svix headers.
 
 ### 1.5 Infrastructure & Hosting
 - **Provider**: Railway (`heroic-solace`).

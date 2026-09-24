@@ -53,10 +53,13 @@ The following safeguards represent **verified current** operational controls in 
 3. **Stripe Webhook Cryptographic Verification [VERIFIED_CURRENT]**:
    - Incoming `/api/stripe/webhook` requests are cryptographically validated against `STRIPE_WEBHOOK_SECRET` using raw request buffers.
 
-4. **HTTP Header Hardening & Transport Security [VERIFIED_CURRENT]**:
+4. **Resend Webhook Cryptographic Verification [VERIFIED_CURRENT]**:
+   - Incoming `/api/webhooks/resend` requests are cryptographically validated against `RESEND_WEBHOOK_SECRET` via official SDK Svix verification (`resend.webhooks.verify`) using raw JSON buffers and Svix headers (`svix-id`, `svix-timestamp`, `svix-signature`). Verified via automated security gate `.\scripts\qa\security\validate-resend-webhook-signature.ps1`.
+
+5. **HTTP Header Hardening & Transport Security [VERIFIED_CURRENT]**:
    - Helmet middleware enforces strict HTTP security headers: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and baseline Content Security Policies.
 
-5. **Automated Secret Scanning [VERIFIED_CURRENT]**:
+6. **Automated Secret Scanning [VERIFIED_CURRENT]**:
    - Automated secret scanning (`.\scripts\qa\security\scan-local-secrets.ps1`) executes as a mandatory gate in CI and local QA test suites.
 
 ---
@@ -65,9 +68,7 @@ The following safeguards represent **verified current** operational controls in 
 
 The following security controls are tracked in the delivery backlog and are **not yet active** in production:
 
-1. **Resend Webhook Cryptographic Verification [PLANNED]**:
-   - Implementation of HMAC signature verification for incoming Resend email event webhooks.
-2. **Storage & Upload Authorization [PLANNED]**:
+1. **Storage & Upload Authorization [PLANNED]**:
    - Explicit storage bucket authorization policies for media uploads.
-3. **CSP Inline Script Elimination (ADR-009 / AUDIT-01G) [PLANNED]**:
+2. **CSP Inline Script Elimination (ADR-009 / AUDIT-01G) [PLANNED]**:
    - Static extraction of inline discovery scripts from `index.html` to eliminate `'unsafe-inline'` from CSP.
