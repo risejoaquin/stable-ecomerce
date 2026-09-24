@@ -1,0 +1,65 @@
+version: 2
+updates:
+  # ----------------------------------------------------------------------------
+  # NPM Dependencies (Weekly Cadence)
+  # NOTE: Auto-merge is strictly disabled. All updates require local gate
+  # verification (`npm run qa:fast`) and human peer review.
+  # ----------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Hermosillo"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "risejoaquin"
+      - "bonjourrog"
+      - "Julian716"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "@testing-library/*"
+          - "@types/*"
+          - "@vitejs/*"
+          - "autoprefixer"
+          - "esbuild"
+          - "jsdom"
+          - "ts-morph"
+          - "tsx"
+          - "typescript"
+          - "vitest"
+      react-ecosystem:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router"
+          - "react-router-dom"
+          - "@tanstack/react-query"
+    # Core infrastructural dependencies (express, stripe, @supabase/supabase-js, helmet)
+    # remain ungrouped to ensure distinct, individual review of any major/minor changes.
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ----------------------------------------------------------------------------
+  # GitHub Actions Workflows (Weekly Cadence)
+  # ----------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Hermosillo"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "risejoaquin"
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"

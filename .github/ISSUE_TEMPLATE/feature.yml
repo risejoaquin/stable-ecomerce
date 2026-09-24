@@ -1,0 +1,62 @@
+name: Feature Request / Capability Proposal
+description: Propose a functional enhancement, new user capability, or technical improvement.
+title: "[FEAT]: "
+labels: ["enhancement", "design-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        All functional proposals must align with the current single-merchant monolith architecture.
+        Proposals must cite an active Jira ticket from solidbit.atlassian.net.
+
+  - type: input
+    id: jira-key
+    attributes:
+      label: Jira Ticket Reference
+      description: Enter the corresponding Jira issue key (Required for roadmap tracking).
+      placeholder: "e.g., COMM-101, POS-102"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: architecture-lifecycle
+    attributes:
+      label: Architecture Lifecycle Stage
+      description: Categorize the scope of this feature proposal.
+      options:
+        - "CURRENT: Enhancement to existing monolith web storefront / admin / Express backend"
+        - "PLANNED: Client 01 delivery scope (e.g. Web POS, shared stock decrement, ADR-009 script extraction)"
+        - "FUTURE: Out-of-scope post-launch item (e.g. physical printer drivers, offline SQLite POS, multi-tenant)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Business or Technical Problem Statement
+      description: What specific problem or customer need does this proposal solve?
+      placeholder: Detailed description of the business motivation or operational bottleneck.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Implementation Details
+      description: Outline the architectural approach, affected components, and APIs.
+      placeholder: Describe the technical implementation, new endpoints, and DB schema requirements.
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-validation-plan
+    attributes:
+      label: Testing & Verification Strategy
+      description: How will this feature be verified locally and in CI?
+      placeholder: |
+        - Unit tests: vitest specifications in tests/
+        - Integration: API endpoint verification
+        - E2E: Playwright scenarios in e2e/
+        - Command: npm run qa:fast / npm run test:e2e
+    validations:
+      required: true

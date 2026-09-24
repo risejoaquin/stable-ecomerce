@@ -1,0 +1,68 @@
+name: Security Notice / Vulnerability Report
+description: Report a security finding, configuration flaw, or dependency alert.
+title: "[SEC]: "
+labels: ["security", "priority-high"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### ⚠️ CRITICAL NOTICE: DO NOT POST SENSITIVE SECRETS OR EXPLOITS PUBLICLY
+        If this report involves an active, exploitable vulnerability or exposes credentials,
+        **DO NOT USE THIS PUBLIC FORM**.
+        Please refer to SECURITY.md. Use GitHub Private Vulnerability Reporting if enabled for this repository.
+
+  - type: input
+    id: jira-key
+    attributes:
+      label: Jira Security Key
+      description: Internal tracking key from solidbit.atlassian.net (e.g., SEC-005).
+      placeholder: "SEC-XXX"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity-level
+    attributes:
+      label: Estimated Severity
+      description: Initial risk assessment.
+      options:
+        - "Low (Informational, non-exploitable configuration suggestion)"
+        - "Medium (Requires unusual prerequisites or limited data impact)"
+        - "High (Data exposure, broken authorization, or unauthenticated state modification)"
+        - "Critical (Complete bypass of authentication, remote execution, or secret exposure)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: security-domain
+    attributes:
+      label: Vulnerability Domain
+      description: Area of the security baseline affected.
+      options:
+        - "Database & Row Level Security (RLS)"
+        - "Public API Data Exposure / Minimization (AUDIT-01A)"
+        - "Storage & Upload Authorization (Pending Implementation)"
+        - "Resend Webhook Verification (Pending Implementation)"
+        - "Stripe Webhook Signature Verification"
+        - "Content Security Policy & HTTP Headers (Helmet, CSP)"
+        - "Dependency Vulnerability (npm audit / Dependabot)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: sanitized-description
+    attributes:
+      label: Sanitized Vulnerability Description
+      description: Describe the flaw without providing raw production tokens or actionable exploit vectors.
+      placeholder: Concise explanation of the vulnerability mechanism.
+    validations:
+      required: true
+
+  - type: textarea
+    id: remediation-proposal
+    attributes:
+      label: Recommended Remediation
+      description: Proposed code fix, header configuration, or schema adjustment.
+      placeholder: Proposed patch or architectural correction.
+    validations:
+      required: false
