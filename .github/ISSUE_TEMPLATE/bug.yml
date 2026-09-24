@@ -1,0 +1,84 @@
+name: Bug Report
+description: Report an unexpected defect, regression, or failure in the current application.
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please report bugs with verifiable reproduction steps against the active repository state.
+
+  - type: input
+    id: jira-key
+    attributes:
+      label: Jira Ticket Reference
+      description: Enter the corresponding Jira issue key from solidbit.atlassian.net.
+      placeholder: "e.g., COMM-101, SEC-005"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: affected-subsystem
+    attributes:
+      label: Affected Subsystem
+      description: Select the primary repository area where the defect occurs.
+      options:
+        - Storefront Customer UI (Home, PDP, Cart, Checkout)
+        - Web POS In-Store UI (Register, Cart, Cashier Tender)
+        - Admin Command Center (Orders, Inventory, Customers, Email Center)
+        - Express Backend Server (server.ts, API routes, Middleware)
+        - Database & Supabase (PostgreSQL, RLS, Storage)
+        - Payment Processing (Stripe Checkout Sessions, Webhooks)
+        - Transactional Email (Resend queue, worker, templates)
+        - CI / Quality Gate / Automated Scripts
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Defect Description
+      description: Detailed summary of what went wrong.
+      placeholder: Clear explanation of the bug and its observable impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed sequence of actions to trigger the defect.
+      value: |
+        1. Navigate to '...'
+        2. Perform action '...'
+        3. Observe error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: Expected vs. Actual Behavior
+      description: Describe what should have happened versus what actually occurred.
+      placeholder: |
+        Expected: Stock decrements atomically on in-store cash sale.
+        Actual: Stock remains unchanged after checkout success.
+    validations:
+      required: true
+
+  - type: textarea
+    id: local-repro-logs
+    attributes:
+      label: Relevant Logs, Terminal Output, or Screenshots
+      description: Paste terminal output, browser console logs, or relevant stack traces.
+      render: shell
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Local Pre-Check
+      options:
+        - label: I have verified this behavior against the latest `main` branch.
+          required: true
+        - label: I have run local test suites (`npm test` or `npm run qa:fast`) to isolate the failure.
+          required: false

@@ -1,0 +1,75 @@
+# ==============================================================================
+# Client Commerce Platform / Selfcare Sinners - Repository Code Ownership
+# ==============================================================================
+# Engineering Team:
+# - Joaquin (@risejoaquin): Technical & Release Authority, Architecture, Security, Governance
+# - Rogelio Beltran Valenzuela (@bonjourrog): Backend, Database, Inventory, Orders, APIs (Engineer A)
+# - Julian Alejandro Rodriguez Verdugo (@Julian716): Frontend, Storefront UI, Admin UI, Web POS UI (Engineer B)
+# ==============================================================================
+
+# Global Default Owner (Fallback & Release Authority)
+* @risejoaquin
+
+# ------------------------------------------------------------------------------
+# Frontend, UI & Client Presentation Layer (Julian)
+# ------------------------------------------------------------------------------
+/src/components/            @Julian716
+/src/pages/                 @Julian716
+/src/styles/                @Julian716
+/src/hooks/                 @Julian716
+/src/App.tsx                @Julian716
+/src/main.tsx               @Julian716
+/src/index.css              @Julian716
+/public/                    @Julian716
+/assets/                    @Julian716
+/index.html                 @Julian716
+/vite.config.ts             @Julian716
+
+# Planned Client 01 Web POS UI (Sprint Scope)
+/src/pages/pos/             @Julian716
+/src/components/pos/        @Julian716
+
+# ------------------------------------------------------------------------------
+# Backend, Database, APIs & Integrations (Rogelio)
+# ------------------------------------------------------------------------------
+/server.ts                  @bonjourrog
+/email-templates.ts         @bonjourrog
+/src/server/                @bonjourrog
+/src/api/                   @bonjourrog
+/supabase/                  @bonjourrog
+/scripts/db/                @bonjourrog
+/docs/database/             @bonjourrog
+/scripts/qa/database/       @bonjourrog
+
+# Planned Client 01 Web POS Backend & Shared Stock RPC
+/src/server/pos/            @bonjourrog
+
+# ------------------------------------------------------------------------------
+# Shared Contracts, DTOs & Cross-Cutting Utilities
+# ------------------------------------------------------------------------------
+/src/lib/                   @risejoaquin @bonjourrog @Julian716
+/src/types/                 @bonjourrog @Julian716
+/src/types.ts               @bonjourrog @Julian716
+/src/routes/                @Julian716 @risejoaquin
+
+# ------------------------------------------------------------------------------
+# Testing & Quality Assurance
+# ------------------------------------------------------------------------------
+/tests/                     @bonjourrog @Julian716 @risejoaquin
+/e2e/                       @Julian716 @risejoaquin
+/scripts/qa/                @risejoaquin @bonjourrog
+
+# ------------------------------------------------------------------------------
+# Architecture, Governance, Security & Release Engineering (Joaquin)
+# ------------------------------------------------------------------------------
+/.github/                   @risejoaquin
+/scripts/qa/security/       @risejoaquin
+/tests/security/            @risejoaquin
+/config/                    @risejoaquin
+/package.json               @risejoaquin
+/package-lock.json          @risejoaquin
+/SECURITY.md                @risejoaquin
+/CONTRIBUTING.md            @risejoaquin
+/ARCHITECTURE.md            @risejoaquin
+/CHANGELOG.md               @risejoaquin
+/docs/                      @risejoaquin
