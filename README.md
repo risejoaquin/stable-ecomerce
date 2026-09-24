@@ -1,211 +1,101 @@
-# Selfcare Sinners Ecommerce
+# Selfcare Sinners — Client Commerce Platform
 
-## Estado actual
-
-Proyecto ecommerce avanzado en producción sobre Railway, Supabase, Stripe y Resend.
-
-### Macrofases recientes cerradas
-
-- EMERGENCY-DRY-01 — Route/logout deduplication: PASS
-- EMERGENCY-DRY-02 — Analytics dedupe centralization: PASS
-- EMERGENCY-DRY-03 — Abandoned cart race-condition fix: PASS
-- EMERGENCY-DRY-04 — CSS system collision cleanup: PASS
-- EMERGENCY-DRY-05 — Account menu/types consolidation: PASS
-- EMAIL PRODUCTION A — Safety/service consolidation: PASS
-- EMAIL PRODUCTION B — Queue/webhooks/deliverability: PASS
-- EMAIL PRODUCTION C — Admin Email Center/templates: PASS
-- UIX SYSTEM A — Storefront/home architecture: PASS
-- UIX SYSTEM B — Admin command center: PASS
-- UIX SYSTEM C — Storefront/admin/profile consistency polish: PASS
-- PERFORMANCE/FRONTEND D — Bundle optimization/route splitting: PASS
-
-## Stack
-
-- Frontend: Vite / React
-- Backend: Node / Express
-- DB: Supabase PostgreSQL
-- Payments: Stripe
-- Email: Resend
-- Deploy: Railway
-
-## Validación PERFORMANCE/FRONTEND D
-
-```powershell
-Unblock-File .\scripts\qa\smoke-performance-frontend-d.ps1
-.\scripts\qa\smoke-performance-frontend-d.ps1
-npm install
-npm run build
-```
-
-## Deploy
-
-```powershell
-git add .
-git commit -m "Performance Frontend D bundle route splitting"
-git push origin main
-```
-
-## Pendientes restantes
-
-- QA/RELEASE E — Final regression, accessibility and production closure.
-- Security Dependencies — revisión controlada de `npm audit` sin aplicar `npm audit fix` a ciegas.
-
+Production e-commerce platform powering the Selfcare Sinners brand, built with a modern single-merchant monolith architecture deployed on Railway.
 
 ---
 
-# QA/RELEASE E — Final Regression, Accessibility & Production Closure
+## 1. Quick Start & Development
 
-Estado: preparado para validación final.
+### Prerequisites
+- **Node.js**: v22.x LTS (Recommended)
+- **Package Manager**: npm 10+
+- **Shell**: PowerShell 7+ / Windows Terminal (for QA scripts)
 
-Incluye cierre de regresión, accesibilidad básica, responsive QA, producción, readiness final y reporte de estado del proyecto.
+### Installation
+```powershell
+# Install locked dependencies
+npm ci
+```
 
-## Validación QA/RELEASE E
+### Local Development Scripts
+*All scripts correspond directly to definitions in `package.json`:*
+
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Starts local development server via `tsx server.ts` |
+| `npm run build` | Compiles client via Vite and bundles server via esbuild to `dist/server.cjs` |
+| `npm start` | Executes production CommonJS server bundle (`node dist/server.cjs`) |
+| `npm run preview` | Previews static client production build via Vite |
+| `npm run clean` | Cleans previous build artifacts (`dist/`, `server.js`) |
+
+---
+
+## 2. Quality Gates & Testing
+
+Before opening a Pull Request or pushing changes, run the local quality verification suite:
 
 ```powershell
-Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
-.\scripts\qa\smoke-qa-release-e.ps1
-npm install
+# 1. Typecheck: TypeScript compilation without emitting output
+npm run lint
+
+# 2. Unit & Integration Tests: Run Vitest test runner
+npm test
+
+# 3. Production Build: Bundle client and server
 npm run build
+
+# 4. Fast Local Quality Gate: PowerShell automated pre-push validation
+npm run qa:fast
 ```
 
-## Validación opcional contra producción
-
+### Extended Quality Suites
 ```powershell
-.\scripts\qa\smoke-qa-release-e.ps1 `
-  -BaseUrl "https://selfcaresinners.com"
+# Full release candidate validation (security baseline, regression contracts, build)
+npm run qa:release
+
+# End-to-end customer journey testing (requires server running)
+npm run test:e2e
+
+# Targeted security baseline audit
+npm run qa:security
 ```
 
-## Estado del roadmap actual
+---
 
-- EMERGENCY-DRY-01: PASS
-- EMERGENCY-DRY-02: PASS
-- EMERGENCY-DRY-03: PASS
-- EMERGENCY-DRY-04: PASS
-- EMERGENCY-DRY-05: PASS
-- EMAIL PRODUCTION A: PASS
-- EMAIL PRODUCTION B: PASS
-- EMAIL PRODUCTION C: PASS
-- UIX SYSTEM A: PASS
-- UIX SYSTEM B: PASS
-- UIX SYSTEM C: PASS
-- PERFORMANCE/FRONTEND D: PASS
-- QA/RELEASE E: preparado para cierre
+## 3. Technology Stack & Architecture
 
-Resultado esperado: `PASS qa release e final regression accessibility production closure checks`.
+- **Frontend Tier**: React 19.0.1, Vite 6.2.3, Tailwind CSS v4, Motion, Lucide Icons, TanStack Query v5, Zustand.
+- **Backend Tier**: Node.js 22 LTS, Express 4.21.2 (`server.ts` bundled with esbuild to `dist/server.cjs`), Helmet, CORS, Pino logging, Sentry error monitoring.
+- **Database & Storage**: Managed PostgreSQL on Supabase Cloud with Row Level Security (RLS) policies and Supabase Storage buckets.
+- **Payment Processing**: Stripe Checkout Sessions and cryptographically verified webhooks (`STRIPE_WEBHOOK_SECRET`).
+- **Transactional Email**: Resend API integration with local database queue (`email_queue`) and asynchronous background worker.
+- **Hosting & Infrastructure**: Single container process on Railway (`heroic-solace`) serving static assets and API routes at `https://selfcaresinners.com`.
 
+For full technical specifications and architectural boundaries, see [**`ARCHITECTURE.md`**](ARCHITECTURE.md).
 
-## QA RELEASE E HOTFIX 01 — PowerShell production smoke variable fix
+---
 
-Corrige el smoke `scripts/qa/smoke-qa-release-e.ps1` para no usar `$home`, porque en PowerShell `HOME` es una variable reservada/constante en algunos entornos.
+## 4. Repository Information Architecture & Governance
 
-Cambio aplicado:
+The repository enforces strict enterprise governance standards across all contributions:
 
-- `$home` -> `$homeResponse`
+| Resource | Scope |
+| :--- | :--- |
+| [**`ARCHITECTURE.md`**](ARCHITECTURE.md) | Technical architecture, runtime components, and CURRENT / PLANNED / FUTURE boundaries. |
+| [**`CONTRIBUTING.md`**](CONTRIBUTING.md) | 10-step development lifecycle, branching strategy, and PR submission rules. |
+| [**`SECURITY.md`**](SECURITY.md) | Responsible disclosure policy, reporting process, and active security controls. |
+| [**`CHANGELOG.md`**](CHANGELOG.md) | Keep a Changelog 1.1 records of milestones, security fixes, and releases. |
+| [**`.github/CODEOWNERS`**](.github/CODEOWNERS) | Path-based code ownership and review assignments across the 3-person team. |
+| [**`AGENTS.md`**](AGENTS.md) | Agent execution protocol, responsibilities, and operating rules. |
+| [**`docs/README.md`**](docs/README.md) | Canonical documentation table of contents and domain directory index. |
 
-Validación esperada:
+---
 
-```powershell
-Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
-.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
-```
+## 5. Historical Context & Archive
 
-Resultado esperado adicional:
+Historical development phases, previous macrofase hotfix records (EMERGENCY-DRY, UIX, PERFORMANCE, QA/RELEASE E), and legacy smoke test scripts have been permanently preserved under zero-deletion governance:
 
-```txt
-PASS production home responds
-PASS qa release e final regression accessibility production closure checks
-```
-
-
-## QA RELEASE E HOTFIX 02 — Vite Vendor Circular Chunk
-
-Corrige el blank screen de producción causado por la advertencia de Rollup/Vite:
-
-```txt
-Circular chunk: vendor -> vendor-react -> vendor
-```
-
-La corrección deja React, React DOM, React Router y lucide-react dentro del mismo chunk `vendor` para evitar inicialización circular entre chunks.
-
-Validación:
-
-```powershell
-Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
-.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
-npm run build
-```
-
-## QA/RELEASE E HOTFIX 03 — Service Worker Fetch Response Guard
-
-Corrige el error de consola `TypeError: Failed to convert value to 'Response'` producido por el service worker al navegar rutas con query params como `/?search=Piel%20sensible`.
-
-Archivos clave:
-
-- `public/sw.js`
-- `docs/release/QA_RELEASE_E_HOTFIX_03_SERVICE_WORKER_FETCH_RESPONSE_GUARD.md`
-- `scripts/qa/smoke-qa-release-e.ps1`
-
-Validación:
-
-```powershell
-Unblock-File .\scripts\qa\smoke-qa-release-e.ps1
-.\scripts\qa\smoke-qa-release-e.ps1 -BaseUrl "https://selfcaresinners.com"
-npm run build
-```
-
-
-## QA RELEASE E HOTFIX 04 — PowerShell Regex Literal Assert
-
-Corrige el smoke final para que la validación del service worker use comparación literal en patrones con `||` y paréntesis. No cambia lógica de producción.
-
-## QA RELEASE E HOTFIX 05 — Assert-ContainsLiteral Applied
-
-Corrige definitivamente el smoke `scripts/qa/smoke-qa-release-e.ps1` para que la validación literal del fallback del service worker use `Assert-ContainsLiteral` y no `Assert-Contains`/`-match`.
-
-## LOGIN UIX A — Premium Auth Modal
-
-Actualiza el diseño frontend del login/registro/recuperación para alinearlo al sistema visual premium de Selfcare Sinners.
-
-### Archivos principales
-- `src/components/AuthMock.tsx`
-- `src/styles/uix-soft-premium-system.css`
-- `docs/design/LOGIN_UIX_A_PREMIUM_AUTH_MODAL.md`
-- `scripts/qa/smoke-login-uix-a.ps1`
-
-### Validación
-```powershell
-Unblock-File .\scripts\qa\smoke-login-uix-a.ps1
-.\scripts\qa\smoke-login-uix-a.ps1
-npm run build
-```
-
-## LOGIN UIX A HOTFIX 01 — Dialog Role Smoke Assert
-
-Corrige el smoke test del login premium para validar `role="dialog"` con búsqueda literal estable. No cambia lógica de autenticación ni backend.
-
-
-## LOGIN UIX A HOTFIX 02 — PowerShell Quote Literal Assert
-
-Corrige el smoke `scripts/qa/smoke-login-uix-a.ps1` para validar atributos TSX como `role="dialog"` usando literales PowerShell con comillas simples. No cambia lógica de producción.
-
-## ACCOUNT FLOW A — Roles, Registration and Profile Data Integrity
-
-Corrección post-cierre para roles, registro, verificación de correo y perfil de usuario.
-
-### Incluye
-
-- Matriz clara guest/user/admin.
-- Registro sin `alert()` del navegador; ahora usa mensaje inline premium.
-- Página `/verify-email` migrada al UIX premium.
-- Plantillas legacy de correo actualizadas al formato Soft Premium.
-- Perfil sin pedidos, tarjetas, puntos, cupones, envíos o notificaciones estáticas.
-- Perfil conectado a `/api/profile`, `/api/orders/my` y wishlist real.
-- `useUserSafe` ya no devuelve `Local Admin` falso.
-
-### Validación
-
-```powershell
-Unblock-File .\scripts\qa\smoke-account-flow-a.ps1
-.\scripts\qa\smoke-account-flow-a.ps1
-npm run build
-```
+- **Historical Project Reports**: [`docs/release/FINAL_PROJECT_STATUS_REPORT.md`](docs/release/FINAL_PROJECT_STATUS_REPORT.md)
+- **Documentation Archive**: [`docs/archive/`](docs/archive/)
+- **Commercial Requirements Archive**: [`docs/commercial/`](docs/commercial/)
+- **QA Automation & Diagnostics**: [`scripts/archive/`](scripts/archive/) and [`scripts/diagnostics/`](scripts/diagnostics/)
