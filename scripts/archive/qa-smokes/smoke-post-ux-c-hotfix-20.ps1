@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$root = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 Set-Location $root
 
 function Pass([string]$m) { Write-Host "PASS $m" -ForegroundColor Green }

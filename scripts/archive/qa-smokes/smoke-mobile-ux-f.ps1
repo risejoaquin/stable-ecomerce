@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$root = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 Set-Location $root
 
 function Pass($message) { Write-Host "PASS $message" -ForegroundColor Green }

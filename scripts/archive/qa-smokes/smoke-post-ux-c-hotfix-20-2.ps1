@@ -1,11 +1,11 @@
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$root = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 Set-Location $root
 
 function Pass([string]$m) { Write-Host "PASS $m" -ForegroundColor Green }
 function Fail([string]$m) { Write-Host "FAIL $m" -ForegroundColor Red; exit 1 }
 
-$qa = Get-Content '.\scripts\qa\smoke-post-ux-c-hotfix-20.ps1' -Raw
+$qa = Get-Content '.\scripts\archive\qa-smokes\smoke-post-ux-c-hotfix-20.ps1' -Raw
 $pdp = Get-Content '.\src\pages\store\ProductDetailPage.tsx' -Raw
 
 foreach ($needle in @(
