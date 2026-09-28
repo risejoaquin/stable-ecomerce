@@ -1,9 +1,15 @@
-# Execution Pack: CCP-34 — POS Refund, Restock & Receipt E2E Test Suite
+# Execution Pack: CCP-34 — POS Refund, Restock & Receipt E2E Test Suite (Operations & QA Runbook Supplement)
+
+> [!IMPORTANT]
+> **Canonical Implementation Authority**: This document serves as the operational QA and CI runbook supplement. The single authoritative implementation execution pack for this Jira ticket is:
+> [`docs/engineering/client-01/execution/CCP-34.md`](../../client-01/execution/CCP-34.md)
 
 **Ticket ID**: `CCP-34`  
 **Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: QA Engineer / Payments & Inventory Specialist  
-**Target Delivery**: Pre-Hardening / RC Hardening  
+**Role / Owner Profile**: QA Automation Lead / System Validation Engineer  
+**Secondary Reviewers**: Rogelio (Backend Lead) & Julian (Frontend Lead)  
+**Technical & Release Authority**: Joaquin (@risejoaquin)  
+**Target Delivery**: Pre-Hardening / RC Hardening (03 Oct 2026)  
 **Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
 
 ---
@@ -11,10 +17,10 @@
 ## 1. Objective, Context & Why
 
 ### Objective
-Design, implement, and verify the comprehensive end-to-end automated test suite covering Web POS returns, refund processing across multiple payment channels (`cash`, `card_reference`, `stripe`), idempotent inventory restocking, and receipt read model rendering (`DR-REC-001`).
+Execute and maintain the comprehensive end-to-end automated validation suite covering Web POS returns, refund processing across multiple payment channels (`cash`, `card_reference`, `stripe`), idempotent inventory restocking, secret scanning, and receipt read model rendering (`DR-REC-001`).
 
 ### Why This Matters
-Returns and refunds represent high-risk operations where inventory loss or financial loss occurs if controls fail. If an item is refunded without restocking, physical stock is lost to the system; conversely, if a damaged item is improperly restocked, customers buy unusable goods. Furthermore, issuing a cash refund must never invoke the Stripe refund API. CCP-34 provides complete automated verification of these rules.
+Returns and refunds represent high-risk financial and inventory operations. Issuing a cash refund must never invoke the Stripe refund API. Restocking must restore the exact discrete SellableUnits sold. CCP-34 operationalizes the automated verification of these rules as a mandatory pre-freeze gate.
 
 ---
 
@@ -29,13 +35,13 @@ Returns and refunds represent high-risk operations where inventory loss or finan
    - Restocked items must update the exact `SellableUnit` and emit an `inventory_movements` record.
 
 2. **FROZEN CONTRACT**:
-   - `DR-INV-001`: Restocking increments `SellableUnit` stock atomically.
-   - `DR-PAY-001`: Refunds write negative ledger entries into `order_payments` with status `refunded` or `partially_refunded`.
-   - `DR-REC-001`: Receipt read model outputs compliant credit note detailing refunded line items and amounts.
+   - `DR-INV-001`: Restocking increments `SellableUnit` stock atomically via stored procedure.
+   - `DR-PAY-001`: Refunds write negative ledger entries into `order_payments` with status `refunded`.
+   - `DR-REC-001`: Receipt read model outputs compliant credit note detailing refunded line items.
    - `DR-ERR-001`: Over-refund attempts return HTTP 400 / `REFUND_NOT_ALLOWED`.
 
 3. **DERIVED ENGINEERING DESIGN**:
-   - Automated refund test matrix (Full Refund + Restock, Partial Refund + Restock, Return without Restock / Write-off).
+   - Automated refund test matrix (Full Refund + Restock, Partial Refund + Restock, Non-Stripe Cash Return).
    - Playwright test suite under `e2e/pos-refund-restock.spec.ts`.
 
 4. **ENGINEER IMPLEMENTATION CHOICE**:
@@ -43,111 +49,58 @@ Returns and refunds represent high-risk operations where inventory loss or finan
 
 ---
 
-## 3. Scope Boundaries
+## 3. Scope Boundaries & Test Paths
 
+- **CANONICAL TEST PATHS**:
+  - Automated Playwright browser tests: `e2e/pos-refund-restock.spec.ts` (configured via root `playwright.config.ts`).
+  - Automated API integration tests: `tests/api/pos-refund.test.ts`.
 - **IN SCOPE**:
   - Automated Playwright tests for POS order search, return dialog, and restock toggles.
-  - API integration tests for `POST /api/pos/refunds`.
-  - Channel isolation verification (verifying Stripe SDK is never invoked for cash/card_reference refunds).
-  - Over-refund boundary validation.
-  - Receipt credit note schema and print preview verification.
+  - API integration tests for `POST /api/pos/orders/:id/refund`.
+  - Non-Stripe verification: asserting Stripe SDK is never invoked on cash/card-reference returns.
+  - Concurrency boundary checks: final unit race with zero negative inventory.
+  - Secret scanner execution: `scripts/qa/security/scan-local-secrets.ps1`.
 - **EXPLICITLY OUT OF SCOPE**:
-  - Automated bank transfer or ACH reversal flows.
-  - Physical cash drawer kick triggers.
+  - Redesigning frozen contracts.
+  - Automated bank transfer or ACH refunds.
 
 ---
 
-## 4. Dependencies & Preconditions
+## 4. Operational Execution Procedure
 
-- **Preceding Dependencies**: `CCP-33` (POS Sales E2E Suite), `CCP-13` (Payment Ledger), `CCP-14` (POS Backend API).
-- **Downstream Dependents**: `CCP-35` (Staging Verification), `CCP-37` (Release Gate Sign-off).
-- **Preconditions**:
-  - Pre-existing completed POS orders in test database (one Cash order, one Card Reference order).
-  - Test SellableUnits with known baseline stock.
-
----
-
-## 5. Step-by-Step Implementation & Verification Guide
-
-```
-[Playwright Refund Test Starts]
-                 │
-                 ▼
-[Step 1: Order Lookup by Receipt Number]
-         Enter receipt ID in POS Returns tab -> Order details load
-                 │
-                 ▼
-[Step 2: Full Refund with Restock Execution]
-         Select all items -> Toggle "Restock to Inventory = YES"
-         Submit refund -> Assert HTTP 200 OK
-                 │
-                 ▼
-[Step 3: Database Ledger & Inventory Assertions]
-         Assert order_payments records refund entry (amount = -original)
-         Assert order status transitions to "refunded"
-         Assert sellable_units stock increments by returned quantity
-         Assert inventory_movements records RESTOCK_RETURN
-                 │
-                 ▼
-[Step 4: Non-Restock (Write-Off) Return Test]
-         Return item -> Toggle "Restock = NO" (damaged goods)
-         Assert refund issued but sellable_units stock does NOT increment
-                 │
-                 ▼
-[Step 5: Over-Refund Boundary Prevention Test]
-         Attempt second refund on already refunded order
-         Assert HTTP 400 / REFUND_NOT_ALLOWED
-                 │
-                 ▼
-[Step 6: Gateway Isolation Test]
-         Verify Stripe API mock was NOT invoked during cash/card refund
-```
-
-### Execution Commands:
-
-1. **Run Refund E2E Browser Suite**:
+1. **Local Test Execution**:
    ```bash
+   # Run Playwright Refund E2E suite
    npx playwright test e2e/pos-refund-restock.spec.ts --project=chromium
+
+   # Run API refund integration suite
+   npm test tests/api/pos-refund.test.ts
+
+   # Run automated secret scan
+   powershell.exe -ExecutionPolicy Bypass -File .\scripts\qa\security\scan-local-secrets.ps1
    ```
 
-2. **Run Refund API Integration Suite**:
-   ```powershell
-   npm test tests/api/pos-refunds.test.ts
-   ```
+2. **Pre-Freeze Verification Gate**:
+   Executed immediately prior to branch cut for `rc/client01-v1.0` on **03 Oct 2026**.
 
 ---
 
-## 6. Verification Commands & Expected Pass/Fail Thresholds
+## 5. Acceptance Criteria Reconciliation
 
-| Test Case | Scenario | Expected Outcome | Pass Threshold |
-| :--- | :--- | :--- | :--- |
-| **TC-REF-01** | Full Cash Refund + Restock | Order status `refunded`; cash ledger record created; stock restored | Stock restored; 0 Stripe API calls |
-| **TC-REF-02** | Return Damaged (No Restock) | Order status `refunded`; cash refunded; stock unchanged | Stock count identical before & after |
-| **TC-REF-03** | Partial Refund | 1 of 2 items returned; order status `partially_refunded`; partial restock | Proportional stock restore |
-| **TC-REF-04** | Over-Refund Protection | Attempt to refund $50 on a $40 order | HTTP 400 / `REFUND_NOT_ALLOWED` |
-| **TC-REF-05** | Receipt Credit Note Model | Receipt read model renders negative line items and credit slip number | Valid receipt object with `isRefund: true` |
-
----
-
-## 7. Required Verifiable Evidence
-
-1. **Playwright Execution Summary**:
-   HTML report confirming 100% pass for `e2e/pos-refund-restock.spec.ts`.
-2. **Database Ledger State Snapshot**:
-   SQL query output demonstrating initial sale payment entry paired with compensating refund entry.
-3. **Receipt Credit Note JSON Output**:
-   Serialized read model demonstrating compliance with `DR-REC-001`.
+Matches canonical pack `docs/engineering/client-01/execution/CCP-34.md`:
+- [ ] Unauthorized users cannot access or submit POS sales or refunds.
+- [ ] Cash and card-reference transactions NEVER create fake or real Stripe IDs.
+- [ ] Duplicate POS retries do not duplicate order, payment, or inventory effects.
+- [ ] Concurrent inventory races never produce negative SellableUnit stock ($S \ge 0$).
+- [ ] Refund restitution references exact SellableUnits from order items and increments stock once.
+- [ ] Existing Stripe refund behavior is not reused for non-Stripe payments.
+- [ ] Secret scanner `scripts/qa/security/scan-local-secrets.ps1` passes with 0 findings.
+- [ ] Automated suites `e2e/pos-refund-restock.spec.ts` and `tests/api/pos-refund.test.ts` pass 100%.
 
 ---
 
-## 8. Definition of Done (DoD) & Escalation
+## 6. Definition of Done & Escalation
 
-### Definition of Done:
-- [ ] Automated browser and API refund suites pass with 100% reliability.
-- [ ] Strict channel separation proven (cash refunds never hit Stripe).
-- [ ] Restock toggle accurately controls inventory incrementation.
-- [ ] Double-refund and over-refund attacks completely prevented.
-- [ ] Receipt credit note renders cleanly across desktop and tablet viewports.
-
-### Escalation Pathway:
-- If a cash refund inadvertently invokes Stripe API, immediately escalate as a **Sev-1 Security / Financial Defect** to Rogelio (Backend Lead).
+- **Definition of Done**: All pre-freeze scenarios validated without defects, approved by QA Automation Lead and Technical Authority.
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Joaquin (proceed to CCP-35 Feature Freeze & RC Tag Cut).

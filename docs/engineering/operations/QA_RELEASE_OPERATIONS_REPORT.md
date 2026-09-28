@@ -48,8 +48,8 @@ Located in `docs/engineering/operations/execution/`:
 1. `CCP-16.md`: CI Quality Gate & Automated Testing Infrastructure (three-stage pipeline, local fast/release validation scripts, secret scanner, PL20 evidence manifest).
 2. `CCP-30.md`: Observability & Structured Logging Integration (Pino JSON format, request correlation middleware, Sentry capture, deep readiness probe).
 3. `CCP-31.md`: Database Backup, Point-in-Time Recovery & Migration Verification (idempotent additive DDL, RLS verification, critical function `search_path` and `anon` execution locks, PITR retention).
-4. `CCP-33.md`: POS Sales End-to-End Test Suite (Playwright browser tests, cash tendering change calculation, external card reference, server-authoritative pricing, role authorization).
-5. `CCP-34.md`: POS Refund, Restock & Receipt E2E Test Suite (channel-specific refund execution, cash isolation from Stripe, atomic restock, over-refund prevention, receipt read models).
+4. `CCP-33.md`: POS Sales End-to-End Test Suite (Operational Runbook Supplement to canonical pack `client-01/execution/CCP-33.md`; Playwright browser tests, cash tendering change calculation, external card reference, server-authoritative pricing, role authorization).
+5. `CCP-34.md`: POS Refund, Restock & Receipt E2E Test Suite (Operational Runbook Supplement to canonical pack `client-01/execution/CCP-34.md`; channel-specific refund execution, cash isolation from Stripe, atomic restock, over-refund prevention, receipt read models).
 6. `CCP-35.md`: Staging Deployment, Smoke Testing & Parity Verification (Railway staging service, database migration testing, automated smoke scripts, environment parity validation).
 7. `CCP-36.md`: Load Testing, Concurrency Benchmarks & Bottleneck Audit (row-level locking on `sellable_units`, oversell prevention with 50 concurrent requests, POS multi-register sustained throughput, sub-800ms p95 latency).
 8. `CCP-37.md`: Release Gate Sign-off & Production Readiness Review (seven-pillar PRR audit, unanimous Go/No-Go vote, formal sign-off certificate).
