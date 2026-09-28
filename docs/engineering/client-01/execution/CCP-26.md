@@ -1,126 +1,130 @@
-# Execution Pack: CCP-26 — Admin Orders & Payments Ledger UI
+# Execution Pack: CCP-26 — Admin Dashboard — Multi-Channel Sales Metrics & Customer Overview Adaptation
 
 ## 1. Responsibility
-- **Lead Domain**: Frontend Engineering
-- **Assignee Lead**: Rogelio (Frontend Lead)
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: Frontend Engineering / Admin Command Center
+- **Assignee Lead**: Julian (Frontend / Admin Lead)
+- **Secondary Reviewer**: Rogelio (Backend / Database Lead)
 
 ## 2. Objective
-Upgrade the existing `/admin/orders` interface in React to display omnichannel sales channels (`web_storefront` vs `pos_register`), operating cashiers, and a dedicated Payment Ledger drawer detailing individual tenders from `order_payments`.
+Adapt the existing Admin Dashboard (`AdminDashboard.tsx`) and Customer Management view (`AdminCustomersPage.tsx`) so that revenue metric cards and recent order tables clearly display omnichannel sales breakdowns by channel (`online` vs `pos`), indicate payment channel tags on recent orders, and list registered customer profiles with accurate lifetime order counts and spend figures performantly.
 
 ## 3. Why
-Fulfills **DR-PAY-001** visibility requirements. Administrators and store managers need complete visibility into in-store cash transactions, card reference codes, and Stripe payments, along with cashier accountability for daily cash drawer reconciliation.
+Fulfills **DR-PAY-001** and omnichannel reporting requirements. With the launch of Client 01 Web POS, physical retail sales coexist with online ecommerce. Business owners and store operators need instant visibility into daily revenue split between online card purchases, in-store cash transactions, and in-store card terminal payments, allowing accurate end-of-day register reconciliation and retail performance tracking.
 
 ## 4. Owner Profile
-Frontend React Engineer skilled in data visualization, administrative tables, filtering controls, and financial detail drawers.
+Senior React / Frontend Engineer with expertise in dashboard data visualization, metric KPI card design, performant data aggregation, and responsive administrative layouts.
 
 ## 5. Preconditions
-- CCP-13 (Canonical Orders & Payment Ledger Schema) completed.
-- Existing order management pages in `src/pages/admin/AdminOrders.tsx` inspected.
+- `AdminDashboard.tsx` (177 lines) and `AdminCustomersPage.tsx` operational in repository.
+- CCP-13 (Canonical Orders & Payment Ledger Schema with `channel` column) completed.
+- Staff authentication context verifying admin access.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-13.
-- **Downstream Blocking**: Operational sign-off for financial auditing.
+- **Preceding Tickets**: CCP-13 (Canonical Orders Schema).
+- **Downstream Blocking**: Blocks CCP-35 (Feature Freeze Enforcement) and CCP-37 (Client UAT).
 
 ## 7. Authoritative Contracts
-- **DR-PAY-001 (Payment Ledger)**
-- **DR-AUTH-001 (Authorization Model)**
+- **DR-PAY-001 (Payment Ledger & Multi-Channel Tender)**
 - `docs/engineering/client-01/04_ORDER_CONTRACT.md`
-- `docs/engineering/client-01/05_PAYMENT_CONTRACT.md`
 
 ## 8. Scope IN
-- Enhancements to `src/pages/admin/AdminOrders.tsx` and order detail modals.
-- Filter orders by sales channel (`Todos`, `Tienda en Línea`, `Punto de Venta Web POS`).
-- Sales channel badge on each order row (`Web` vs `POS`).
-- Cashier column displaying the staff member who executed the sale.
-- "Libro de Pagos (Payment Ledger)" section in order details displaying:
-  - Payment channel (`Stripe`, `Efectivo`, `Tarjeta / Terminal`).
-  - Payment status badge (`captured`, `pending`, `refunded`).
-  - Tender details: Cash tendered, change given, or card terminal approval code.
-  - Idempotency key and timestamp.
-- End-of-day register summary report modal showing cash collected vs card reference total.
+- Adapting KPI cards in `src/pages/admin/AdminDashboard.tsx`:
+  - Daily Total Revenue card displaying total, with sub-metrics: `Online ($...)` and `POS In-Store ($...)`.
+  - Cash Tendered subtotal display to aid cash drawer reconciliation.
+- Adapting Recent Orders table in `AdminDashboard.tsx`:
+  - Adding a "Canal" tag column/badge (`Online` blue badge vs `POS` emerald badge).
+  - Adding tender indicator (e.g. `Tarjeta`, `Efectivo`, `Terminal POS`).
+- Enhancing `src/pages/admin/AdminCustomersPage.tsx`:
+  - Listing registered customer accounts with aggregated lifetime order count and lifetime spend.
+- Query optimization: ensuring dashboard statistics queries execute in under 300ms without blocking UI rendering.
+- Component and unit tests in `tests/frontend/admin-dashboard-multichannel.test.tsx`.
 
 ## 9. Scope OUT
-- Direct accounting ERP integrations (QuickBooks/SAP).
-- Mexican CFDI invoice generation.
-- Stripe balance payout transfers.
+- Rebuilding `AdminDashboard.tsx` from scratch.
+- Complex third-party BI / analytics export engine (Client 02 scope).
+- Live WebSocket telemetry streams (polling / react-query standard for Client 01).
 
 ## 10. Required Behavior
-1. Require `owner` or `admin` role to access order details and payment records.
-2. Clearly distinguish Web orders from POS orders in the main table.
-3. In order detail view, render all records from `order_payments` associated with the order.
-4. If payment was cash, display: "Monto recibido: $X.XX | Cambio: $Y.YY".
-5. If payment was card reference, display: "Ref / Auth: XXXX | Terminal: YYYY".
+1. Opening `/admin` loads the dashboard metrics card row.
+2. The primary revenue card renders Total Sales, accompanied by two clear sub-counters:
+   - "Online: $X,XXX.XX (N pedidos)"
+   - "POS Tienda: $X,XXX.XX (N ventas)"
+3. The recent orders table shows the latest 10 transactions across all channels with channel badges.
+4. Clicking on a POS order opens the order details modal displaying cashier name and tender type.
+5. In `AdminCustomersPage.tsx`, each customer row displays their email, name, join date, total completed orders count, and total lifetime spend.
+6. If no orders exist in a channel for the day, display `$0.00` cleanly without errors.
 
 ## 11. Inputs
-- Filter parameters (channel, date range, status, cashier).
-- Order data fetched from `GET /api/admin/orders`.
+- Aggregated order statistics payload from `GET /api/admin/metrics/daily` or Supabase views.
+- Orders list payload from `GET /api/admin/orders`.
+- Customers list payload from `GET /api/admin/customers`.
 
 ## 12. Outputs
-- Filtered table view and payment ledger detail drawer.
+- Rendered multi-channel KPI metrics and order cards.
+- Customer directory table.
 
 ## 13. Allowed Implementation Freedom
-- Drawer vs modal presentation for order detail view.
-- Color coding of channel badges using existing design system tokens.
+- Card visual layout (stacked vs side-by-side sub-metrics).
+- Lucide icon selection for channel badges (e.g. `Globe` for online, `Store` for POS).
 
 ## 14. Forbidden Changes
-- DO NOT display full credit card numbers or unmasked sensitive data.
-- DO NOT allow editing historical payment amounts directly from the UI.
-- DO NOT expose customer passwords or internal tokens.
+- DO NOT rewrite existing chart components or table pagination logic from scratch.
+- DO NOT hardcode channel names; use canonical enums `'online'` and `'pos'`.
+- DO NOT perform expensive unindexed joins on the client side.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/pages/admin/AdminOrders.tsx`
-  - `src/components/admin/orders/*`
-  - `src/components/admin/payments/*`
-  - `tests/unit/components/admin-orders.test.tsx`
+  - `src/pages/admin/AdminDashboard.tsx`
+  - `src/pages/admin/AdminCustomersPage.tsx`
+  - `src/components/admin/ChannelBadge.tsx`
+  - `tests/frontend/admin-dashboard-multichannel.test.tsx`
 - **Strictly Prohibited**:
-  - Public customer order tracking pages (`src/pages/track/*`).
+  - Express server routes or database DDL (Rogelio domain).
 
 ## 16. Data Impact
-- Read queries joining `orders`, `order_payments`, and `users`.
+- Read-only aggregation queries; zero database mutations.
 
 ## 17. API Impact
-- Consumes `GET /api/admin/orders` and `GET /api/admin/orders/:id/payments`.
+- Consumes `GET /api/admin/metrics/daily` and `GET /api/admin/customers`.
 
 ## 18. Security
-- Staff role enforcement (`owner` or `admin`).
-- Read-only financial ledger presentation protects audit integrity.
+- Protected by `requireAdmin` route guards; only accessible to staff.
 
 ## 19. Concurrency & Idempotency
-- Read-only operational views.
+- Safe idempotent read queries.
 
 ## 20. Migration Considerations
-- Displays historical orders cleanly with "Stripe (Histórico)" badge for backfilled rows.
+- Historical orders without explicit `channel` field default to `'online'`.
 
 ## 21. Edge Cases
-- Order with multiple payment entries: correctly sums total captured and highlights any discrepancy.
-- Walk-in sale without customer email: displays "Venta Mostrador".
+- All sales in a day are POS cash: online displays `$0.00`, POS displays full total.
+- Customer placed orders both online and at POS: customer record aggregates transactions from both channels correctly.
 
 ## 22. Observability
-- Staff navigation and filter events logged in browser telemetry.
+- Emits dashboard view performance telemetry: duration of query load in milliseconds.
 
 ## 23. Acceptance Criteria
-- [ ] Channel filter cleanly separates Web orders from POS sales.
-- [ ] POS orders display operating cashier name.
-- [ ] Payment Ledger drawer renders tender details (cash change / terminal ref code).
-- [ ] Summary total accurately calculates total in-store cash collected for a selected date.
+- [ ] AdminDashboard displays daily total revenue with clear subtotal breakdown by Online vs POS.
+- [ ] Recent orders list displays channel badge (`Online` / `POS`) for each transaction.
+- [ ] Customer directory lists registered accounts with lifetime order count.
+- [ ] Queries execute performantly without UI lag (< 500ms).
+- [ ] Component tests in `tests/frontend/admin-dashboard-multichannel.test.tsx` pass 100%.
 
 ## 24. Test Strategy
-- React Testing Library unit tests verifying channel filtering, cashier badge rendering, and payment ledger breakdown.
+- Vitest + React Testing Library tests verifying channel breakdown calculation, badge rendering, and zero-state handling.
 
 ## 25. Staging Validation
-- Filter staging orders by POS channel, open a completed cash sale, verify cash tendered and change due match test inputs.
+- Open Admin Dashboard on Railway staging, verify that both online orders and test POS orders are reflected in distinct metric sub-totals.
 
 ## 26. Evidence Requirements
-- Passing React Testing Library test log.
-- Screenshots of Admin Orders list with channel badges and the Payment Ledger drawer.
+- Component test execution transcript showing 100% assertions green.
+- Screenshot of Admin Dashboard displaying multi-channel breakdown cards.
 
 ## 27. Definition of Done
-- Admin UI fully functional, verified on staging dataset.
-- Zero TypeScript diagnostics.
-- Approved by Frontend Lead.
+- Multi-channel dashboard metrics integrated and verified.
+- Code reviewed and approved by Backend Lead (Rogelio) and Technical Authority (Joaquin).
+- Ready for inclusion in Feature Freeze candidate (CCP-35).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Operations and Accounting staff.
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: QA Lead (CCP-35 Feature Freeze & CCP-37 Client UAT).

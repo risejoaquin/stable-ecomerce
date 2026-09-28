@@ -2,8 +2,8 @@
 
 ## 1. Responsibility
 - **Lead Domain**: Backend API Engineering
-- **Assignee Lead**: Julian (Backend Lead)
-- **Secondary Reviewer**: Rogelio (Frontend Lead)
+- **Assignee Lead**: Rogelio (Backend Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
 Implement the authoritative `POST /api/pos/sales` endpoint in Express, fulfilling the 11-step transaction sequence: authenticating staff, validating payloads, resolving server-authoritative pricing, executing atomic stock decrements, persisting canonical orders and payments, and returning the receipt read model.
@@ -133,8 +133,8 @@ Senior Node.js / Express Backend Engineer with deep expertise in transactional A
 ## 27. Definition of Done
 - All acceptance criteria verified by tests.
 - Code reviewed by Architecture Lead.
-- Ready for integration with Web POS UI (CCP-22).
+- Ready for integration with Web POS Register UI (CCP-43).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Rogelio (consume endpoint in Web POS Terminal UI CCP-22).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Julian (consume endpoint in Web POS Register UI CCP-43).

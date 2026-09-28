@@ -1,123 +1,148 @@
-# Execution Pack: CCP-34 — POS Refund & Restock E2E Suite
+# Execution Pack: CCP-34 — Pre-Freeze System Validation — Compensating Workflow, Role Isolation & Payment Edge Cases
 
 ## 1. Responsibility
-- **Lead Domain**: QA Automation & Backend Verification
-- **Assignee Lead**: QA Automation Lead
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: QA Engineering & Pre-Freeze Validation
+- **Assignee Lead**: QA Automation Lead / System Validation Engineer
+- **Secondary Reviewers**: Rogelio (Backend / Database Lead) & Julian (Frontend Lead)
+- **Technical & Release Authority**: Joaquin (@risejoaquin)
 
 ## 2. Objective
-Author and verify automated Playwright and API integration test suites validating the complete refund, restock, idempotency conflict, and payment reconciliation lifecycles across cash, card reference, and Stripe sales.
+Execute the comprehensive pre-freeze system validation suite validating role isolation, POS payment-channel integrity (cash and card reference), idempotency guards, concurrent inventory exhaustion boundaries, the online `inventory_exception` compensating workflow, and channel-specific refund restock restitution, verifying that zero invariant violations or secret leaks exist prior to declaring Feature Freeze (`CCP-35`).
 
 ## 3. Why
-Fulfills **DR-REF-001** and **DR-IDEM-001** verification standards. Refunds and stock returns involve complex financial and inventory state transitions. Automated E2E verification ensures that restocking restores inventory to the exact `SellableUnit` and that cash/card transactions never attempt external Stripe calls.
+Fulfills **DR-INV-001**, **DR-PAY-001**, **DR-IDEM-001**, **DR-AUTH-001**, and **DR-ERR-001**. Before freezing the codebase on **03 Oct 2026**, the platform must undergo rigorous adversarial and edge-case testing. Validating that cash sales never generate fake Stripe IDs, that refund restitution restores exact discrete SellableUnits without touching Stripe, and that unauthorized roles cannot bypass security guards ensures commercial stability and financial integrity.
 
 ## 4. Owner Profile
-Senior QA Automation / Backend Test Engineer with deep knowledge of Stripe mock fixtures, PostgreSQL data assertions, and edge-case testing.
+Lead System Validation / QA Engineer with expertise in edge-case testing, financial transaction validation, adversarial security testing, and automated Playwright execution.
 
 ## 5. Preconditions
-- CCP-21 (POS Refund & Restock API) completed.
-- CCP-24 (Receipt View & Print Action) completed.
-- `docs/engineering/client-01/10_REFUND_CONTRACT.md` reviewed and frozen.
+- Critical Path E2E Automation (CCP-33) passing.
+- POS Refund & Restock API (CCP-28) operational.
+- Security hardening tickets CCP-17, CCP-18, CCP-19 verified.
+- Frozen contracts `DR-INV-001` through `DR-REC-001` active.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-21, CCP-24, CCP-33.
-- **Downstream Blocking**: Blocks CCP-35 (Staging Verification Gate) and CCP-37 (Production Readiness Gate).
+- **Preceding Tickets**: CCP-19, CCP-22, CCP-28, CCP-33.
+- **Downstream Blocking**: Blocks CCP-35 (Feature Freeze Enforcement) and CCP-36 (Hardening Window).
 
 ## 7. Authoritative Contracts
-- **DR-REF-001 (Refund & Restock Rules)**
-- **DR-INV-001 (Inventory Authority)**
-- **DR-PAY-001 (Payment Ledger)**
-- **DR-IDEM-001 (Idempotency Engine)**
-- `docs/engineering/client-01/10_REFUND_CONTRACT.md`
-- `docs/engineering/client-01/14_TEST_STRATEGY.md`
+- **DR-PAY-001 (Channel-Aware Payment & Refund Invariants)**
+- **DR-INV-001 (Canonical Inventory Authority — Exact Unit Restock)**
+- **DR-IDEM-001 (PostgreSQL Durable Idempotency)**
+- **DR-AUTH-001 (Web POS Operator RBAC & Route Protection)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- `docs/engineering/operations/CI_QUALITY_GATES.md`
 
 ## 8. Scope IN
-- Test suite `tests/e2e/pos/pos-refund-restock.spec.ts`.
-- Scenarios:
-  1. Cash Order Full Return: refund 100% of cash sale, verify order transitions to `'refunded'`, verify exact items restocked in `sellable_units`, verify audit log created.
-  2. Cash Order Partial Return: return 1 of 2 items, verify order transitions to `'partially_refunded'`, verify only returned item restocked, verify remaining balance unchanged.
-  3. Card Reference Return: return card sale, verify manual reference recorded, verify no Stripe API calls made.
-  4. Idempotency Conflict & Replay: replay identical refund payload (cached result returned); replay with modified amount (HTTP 409 conflict returned).
-  5. Excessive Refund Attempt: attempt refunding more than captured order total, verify HTTP `422 REFUND_NOT_ALLOWED`.
+- Automated E2E test suite under `e2e/pos-refund-restock.spec.ts` (Playwright).
+- Automated API test suite under `tests/api/pos-refund.test.ts` (Supertest).
+- Mandatory Validation Matrix:
+  1. **POS Role Boundaries**: Verifies users with role `user` and `support` cannot access `/pos` or submit sales/refunds.
+  2. **Payment Channel Correctness**: Verifies cash and card-reference sales never create dummy or synthetic Stripe IDs in `order_payments`.
+  3. **Duplicate Submission Idempotency**: Verifies that retrying sale or refund requests with identical `clientRequestId` returns cached response without duplicate inventory decrement or double refund.
+  4. **Inventory Race Boundary**: Verifies that 10 simultaneous requests for the last remaining SellableUnit result in exactly 1 success and 9 clean rejections with zero negative inventory.
+  5. **Compensating Workflow**: Verifies that an online payment encountering an inventory race transitions to `inventory_exception` without silent errors.
+  6. **Refund Restitution**: Verifies that refunding a POS order restores the exact discrete `sellable_units` sold and records a cash reversal in `order_payments` without calling Stripe.
+  7. **Repository Secret Scan**: Execution of `scan-local-secrets.ps1` confirming zero exposed credentials.
 
 ## 9. Scope OUT
-- Stripe physical chargeback / dispute disputes testing.
-- Hardware cash drawer auto-kick triggers.
+- Redesigning or mutating frozen contracts (this issue is a validation gate, not a redesign).
+- Production deployment (handled in CCP-38).
+- Performance load testing at scale (handled in CCP-36).
 
 ## 10. Required Behavior
-1. Run in CI automation pipeline.
-2. Directly assert database state before and after each refund scenario.
-3. Intercept and monitor external HTTP requests to guarantee **zero calls to Stripe API** during cash and card reference refund tests.
-4. Clean up seeded data after execution.
+1. All automated checks must execute in headless CI environment.
+2. If any test scenario detects an unexpected call to the Stripe SDK during a cash transaction or cash refund, the test suite must immediately fail with a critical financial invariant error.
+3. If an inventory decrement results in `stock < 0`, the test suite fails immediately.
+4. Secret scan must verify zero uncommitted or committed private keys, JWT secrets, or production tokens.
+5. All findings must reference the authoritative frozen contracts.
 
 ## 11. Inputs
-- HTTP requests to `/api/pos/orders/:id/refund`.
-- Database fixtures for completed sales.
+- Automated Playwright and Supertest test fixtures.
+- Test database seeded with multi-channel order and refund scenarios.
 
 ## 12. Outputs
-- Verifiable test execution report.
-- Trace logs detailing database row states.
+- Validation test report and JUnit XML test artifacts.
+- Playwright trace recordings for any encountered discrepancies.
+- Formal Pre-Freeze System Validation Certificate.
 
 ## 13. Allowed Implementation Freedom
-- Test data builder pattern in `tests/helpers/order-builders.ts`.
-- Helper utilities for verifying stock and payment reconciliation.
+- Internal test assertion structuring and synthetic data generators.
+- Custom assertions for database ledger consistency.
 
 ## 14. Forbidden Changes
-- DO NOT allow any test scenario to call live Stripe API keys.
-- DO NOT bypass the PostgreSQL `execute_order_refund` stored procedure.
+- DO NOT weaken test assertions or skip edge cases to achieve a pass.
+- DO NOT alter frozen architectural contracts during validation.
+- DO NOT permit retry loops that mask transient concurrency race conditions.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `tests/e2e/pos/pos-refund-restock.spec.ts`
-  - `tests/helpers/order-builders.ts`
-  - `tests/helpers/reconciliation-helpers.ts`
+  - `e2e/pos-refund-restock.spec.ts`
+  - `tests/api/pos-refund.test.ts`
+  - `tests/fixtures/refund-fixtures.ts`
 - **Strictly Prohibited**:
-  - Production code under `src/*`.
+  - Modifying product source code in `src/` or backend handlers in `server.ts`.
 
 ## 16. Data Impact
-- Creates, mutates, and deletes test orders in test database.
+- Creates and purges test orders and payment records in test database.
 
 ## 17. API Impact
-- Exercises `POST /api/pos/orders/:id/refund` and `GET /api/pos/orders/:id/receipt`.
+- Validates `POST /api/pos/orders/:id/refund`, `POST /api/pos/sales`, and `/api/checkout`.
 
 ## 18. Security
-- Verifies authorization: unprivileged user attempts to refund must receive `403 FORBIDDEN`.
+- Validates role boundaries (`DR-AUTH-001`).
+- Runs automated local secret scanner against entire repository.
 
 ## 19. Concurrency & Idempotency
-- Validates that concurrent refund requests for the same order do not exceed captured payment amount.
+- Stresses concurrency row locks under race condition tests.
+- Proves idempotency keys prevent duplicate side-effects.
 
 ## 20. Migration Considerations
-- Tests both orders created via POS and orders created via online storefront.
+- Validates backward compatibility of existing orders with new refund handlers.
 
 ## 21. Edge Cases
-- Item returned with `restock: false`: financial refund recorded, stock remains unchanged.
-- Re-refunding already fully refunded order: returns `409 ORDER_STATE_CONFLICT`.
+- Order with multiple different SellableUnits: refunding 1 unit restores only that specific SKU.
+- Refunding an already refunded order: returns HTTP 409 or cached refund receipt with zero stock mutation.
 
 ## 22. Observability
-- Asserts that every refund creates an entry in `audit_logs` with actor user ID and refund reason.
+- Emits detailed test run evidence logs and records all assertion states.
 
 ## 23. Acceptance Criteria
-- [ ] 100% of refund test scenarios pass cleanly.
-- [ ] Direct database query proves `sellable_units.stock` accurately incremented.
-- [ ] Assertion confirms zero outbound HTTP requests made to Stripe API for cash/card returns.
-- [ ] Idempotency tests prove duplicate replays are safe and payload tampering is rejected.
-- [ ] Excessive refund requests fail with 422.
+- [ ] Unauthorized users cannot access or submit POS sales or refunds.
+- [ ] Cash and card-reference transactions NEVER create fake or real Stripe IDs.
+- [ ] Duplicate POS retries do not duplicate order, payment, or inventory effects.
+- [ ] Concurrent inventory races never produce negative SellableUnit stock ($S \ge 0$).
+- [ ] Refund restitution references exact SellableUnits from order items and increments stock once.
+- [ ] Existing Stripe refund behavior is not reused for non-Stripe payments.
+- [ ] Secret scanner `scripts/qa/security/scan-local-secrets.ps1` passes with 0 findings.
+- [ ] Automated suites `e2e/pos-refund-restock.spec.ts` and `tests/api/pos-refund.test.ts` pass 100%.
 
 ## 24. Test Strategy
-- Integration and E2E test execution with Supertest and Playwright.
+- Execute local Playwright refund and restock suite:
+  ```bash
+  npx playwright test e2e/pos-refund-restock.spec.ts --project=chromium
+  ```
+- Execute API refund integration suite:
+  ```bash
+  npm test tests/api/pos-refund.test.ts
+  ```
+- Run secret scanner:
+  ```powershell
+  .\scripts\qa\security\scan-local-secrets.ps1
+  ```
 
 ## 25. Staging Validation
-- Execute the refund test suite against staging database before release sign-off.
+- Execute the full pre-freeze validation checklist against Railway staging; assert 100% compliance across all 7 test categories.
 
 ## 26. Evidence Requirements
-- Passing test runner log output (`npm test tests/e2e/pos/pos-refund-restock.spec.ts`).
-- Detailed SQL state assertion logs.
+- Playwright and Vitest terminal transcripts showing 100% green assertions.
+- Secret scanner log showing 0 exposed credentials.
 
 ## 27. Definition of Done
-- Test suite passing in CI.
-- Code reviewed and approved by QA Lead and Backend Lead.
-- Ready for CCP-35 Staging Verification.
+- All pre-freeze scenarios validated without defects.
+- Review signed off by Lead QA Engineer, Backend Lead (Rogelio), and Technical Authority (Joaquin).
+- Pre-Freeze gate closed, unblocking Feature Freeze (`CCP-35`).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Release Manager (proceed to CCP-35 for Staging Deployment).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Joaquin (proceed to CCP-35 Feature Freeze & RC Tag Cut).

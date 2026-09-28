@@ -1,126 +1,158 @@
-# Execution Pack: CCP-22 — Web POS Frontend Sale Terminal UI
+# Execution Pack: CCP-22 — POS Operator Authorization & Admin Portal Protection
 
 ## 1. Responsibility
-- **Lead Domain**: Frontend Engineering
-- **Assignee Lead**: Rogelio (Frontend Lead)
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: Security, Authentication & Backend Architecture
+- **Assignee Lead**: Rogelio (Backend / Security Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
-Build the responsive, touchscreen-friendly, high-contrast Web POS cashier register interface in React 19 / Vite, featuring quick-search catalog selection, live cart staging, cashier state, and checkout action triggers.
+Implement and enforce the authoritative Role-Based Access Control (RBAC) middleware `requirePosOperator` across all Web POS endpoints, strictly restricting cashier operations to authenticated users with roles `owner` or `admin`, preserving existing admin portal protections, and ensuring that unauthorized roles (`user`, `support`, or unauthenticated requests) are deterministically rejected with standard HTTP 401/403 responses conforming to `DR-ERR-001`. Do NOT introduce a `cashier` role.
 
 ## 3. Why
-Physical store cashiers need an intuitive, fast, web-based register terminal accessible via staff tablets or desktop computers. The UI must provide rapid item selection, keyboard/scanner inputs, and smooth transitions into tender collection.
+Fulfills **DR-AUTH-001** and closes security vulnerabilities around in-store point of sale. Without strict server-side authorization guards, regular ecommerce customers or support personnel could access POS endpoints, trigger cash sales, decrement inventory without payment, or view customer order histories. Route hiding in the frontend is insufficient; backend enforcement is mandatory.
 
 ## 4. Owner Profile
-Senior React / Frontend Engineer with expertise in React 19, Tailwind CSS, touch interactions, accessibility standards, and state management via Zustand.
+Senior Backend / Security Engineer with expertise in Express middleware pipelines, JWT/session token authentication, RBAC permission matrices, and automated security test harnesses.
 
 ## 5. Preconditions
-- CCP-14 (POS Sales Backend API) and CCP-15 (POS Search & Catalog Read) completed.
-- Design tokens and theme guidelines from `docs/design/UIX04_ADMIN_THEME_GUIDE.md` reviewed.
+- Contract Freeze gate (CCP-44) approved.
+- `docs/engineering/client-01/07_AUTHORIZATION_CONTRACT.md` (DR-AUTH-001) reviewed and frozen.
+- Supabase Auth session token verification operational.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-14, CCP-15.
-- **Downstream Blocking**: Blocks CCP-23 (POS Cash & Card Tender) and CCP-33 (POS Sales E2E Suite).
+- **Preceding Tickets**: CCP-44 (Contract Freeze Gate).
+- **Downstream Blocking**: Blocks CCP-14 (Web POS Sale API), CCP-34 (Pre-Freeze System Validation), and CCP-43 (Web POS Register UI).
 
 ## 7. Authoritative Contracts
-- **DR-INV-001 (Inventory Authority)**
-- **DR-AUTH-001 (Authorization Model)**
-- `docs/engineering/client-01/09_POS_API_CONTRACT.md`
+- **DR-AUTH-001 (Web POS Operator RBAC & Route Protection)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- `docs/engineering/client-01/07_AUTHORIZATION_CONTRACT.md`
+- `docs/engineering/client-01/12_SECURITY_INVARIANTS.md`
 
 ## 8. Scope IN
-- Page route `/admin/pos` and register layout `src/pages/admin/pos/PosRegisterPage.tsx`.
-- Fast search bar component with barcode scanner listener (`keydown` event listener).
-- Cart panel displaying staged line items, quantity adjustment (+/-), and item deletion.
-- Cashier session header displaying active user name and store identifier.
-- Cart totals display (advisory subtotal and total calculated locally for immediate feedback).
-- "Cobrar / Tender" primary action button triggering tender modals.
-- Route protection checking staff role (`owner` or `admin`).
+- Middleware function `requirePosOperator` in `src/server/middleware/auth.ts`:
+  - Validates active user session token via Supabase Auth or session cookie.
+  - Queries user role from authenticated context / `users` table.
+  - Permits request if role is strictly `'admin'` or `'owner'`.
+  - Rejects unauthenticated request with HTTP 401 `UNAUTHORIZED`.
+  - Rejects authenticated user with role `'user'` or `'support'` with HTTP 403 `FORBIDDEN`.
+- Applying `requirePosOperator` across all `/api/pos/*` endpoints:
+  - `POST /api/pos/sales`
+  - `GET /api/pos/orders`
+  - `GET /api/pos/orders/:id`
+  - `POST /api/pos/orders/:id/refund`
+- Client-side route guard integration for `/pos/*` in `src/routes/` matching backend policy.
+- Automated test coverage in `tests/api/pos-auth-rbac.test.ts`.
 
 ## 9. Scope OUT
-- Tender modals implementation (handled in CCP-23).
-- Thermal receipt view and printing modal (handled in CCP-24).
-- Offline SQLite storage (explicitly excluded).
+- Introducing a new `cashier` role in database or schema (explicitly forbidden for Client 01).
+- Modifying customer storefront authentication or password recovery.
+- Altering existing admin portal permission scopes.
 
 ## 10. Required Behavior
-1. Protect route: redirect unauthorized users (`user`, `support`) to `/admin` or home with warning.
-2. Fast product search: as cashier types, query `GET /api/pos/catalog/search?q=...` with debounce (150ms).
-3. Barcode support: capture rapid keystrokes followed by Enter key to auto-add item to cart.
-4. Cart state: persist in Zustand memory store (`src/stores/pos-cart-store.ts`).
-5. Disallow adding items beyond advisory available stock.
-6. Display currency in Mexican Pesos (`$XX.XX MXN`).
+1. Unauthenticated request to `/api/pos/sales` or `/api/pos/orders` returns:
+   ```json
+   {
+     "error": {
+       "code": "UNAUTHORIZED",
+       "message": "Authentication required to access Web POS endpoints."
+     }
+   }
+   ```
+2. Request from authenticated user with role `user` or `support` returns:
+   ```json
+   {
+     "error": {
+       "code": "FORBIDDEN",
+       "message": "Insufficient permissions. Web POS access is restricted to store administrators and owners."
+     }
+   }
+   ```
+3. Request from authenticated user with role `admin` or `owner` passes middleware and attaches `req.user = { id, email, role, name }`.
+4. Route guards in frontend redirect unauthorized users away from `/pos` to `/login` or `/unauthorized`.
 
 ## 11. Inputs
-- Cashier keyboard / barcode scanner keystrokes, touch clicks.
-- Catalog items fetched from `GET /api/pos/catalog/search`.
+- HTTP request with Authorization bearer token or Supabase session cookie.
 
 ## 12. Outputs
-- Staged cart state in Zustand store.
-- Event emitted to open Tender Modal (CCP-23) with cart items payload.
+- `next()` invocation for authorized staff (`owner` / `admin`).
+- HTTP 401 / 403 JSON error response for unauthorized callers.
 
 ## 13. Allowed Implementation Freedom
-- Internal component factoring within `src/components/pos/`.
-- Keyboard shortcuts configuration (e.g. `F2` to focus search, `Space` to open tender).
+- Internal caching of user role lookups (e.g. short-lived in-memory LRU cache) to optimize high-frequency POS requests.
+- Custom middleware naming for combined guards.
 
 ## 14. Forbidden Changes
-- DO NOT rely on client-side cart prices as authoritative for final transaction settlement.
-- DO NOT allow access to POS page if user is not `owner` or `admin`.
-- DO NOT implement external native hardware drivers.
+- DO NOT introduce a `cashier` role in this release; only `owner` and `admin` are authorized.
+- DO NOT rely on client-side route hiding as the sole protection mechanism.
+- DO NOT expand POS operator privileges to arbitrary database management tasks.
+- DO NOT bypass authentication in local development mode without explicit test environment flags.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/pages/admin/pos/*`
-  - `src/components/pos/*`
-  - `src/stores/pos-cart-store.ts`
-  - `src/routes/lazy-routes.tsx`
-  - `tests/unit/components/pos-register.test.tsx`
+  - `src/server/middleware/auth.ts`
+  - `server.ts` (middleware attachment to `/api/pos/*`)
+  - `src/routes/` (client-side route protection)
+  - `tests/api/pos-auth-rbac.test.ts`
 - **Strictly Prohibited**:
-  - Backend API handlers or database migrations.
+  - Database schema alterations to add roles.
 
 ## 16. Data Impact
-- Client-side in-memory Zustand state. No direct database writes from this component.
+- Zero database migrations or schema alterations.
 
 ## 17. API Impact
-- Consumes `GET /api/pos/catalog/search` and `GET /api/pos/units/:id`.
+- Secures all `/api/pos/*` routes behind `requirePosOperator`.
+- Conforms to standard error envelope `DR-ERR-001`.
 
 ## 18. Security
-- Route guard validates user role from auth token before rendering.
-- Input sanitization on search queries.
+- Enforces Principle of Least Privilege and mitigates CWE-285 (Improper Authorization) and CWE-862 (Missing Authorization).
+- Ensures non-staff accounts cannot interact with physical retail checkout APIs.
 
 ## 19. Concurrency & Idempotency
-- Generates a new `clientRequestId` (UUIDv4) upon initiating a new checkout session.
+- Stateless token verification executes safely across high concurrency without lock contention.
 
 ## 20. Migration Considerations
-- Feature flagged under `ENABLE_WEB_POS`. Route hidden when flag is false.
+- None. Applies to new and existing `/api/pos/*` endpoints directly.
 
 ## 21. Edge Cases
-- Rapid double-scanning of same barcode: increments item quantity rather than duplicating row.
-- Search with network latency: shows loading skeleton, ignores out-of-order search responses.
+- Expired JWT token: cleanly returns HTTP 401 with `TOKEN_EXPIRED`.
+- Tampered JWT token: cleanly returns HTTP 401 `INVALID_TOKEN`.
+- User deleted from database while holding active token: database validation check rejects request.
 
 ## 22. Observability
-- Client-side performance markers tracking time from search input to result render.
+- Emits security warning log on forbidden access attempts: `{ "event": "pos_unauthorized_access", "ip": req.ip, "userId": req.user?.id, "role": req.user?.role }`.
 
 ## 23. Acceptance Criteria
-- [ ] Non-staff users cannot access `/admin/pos`.
-- [ ] Product search displays results in under 150ms on standard network.
-- [ ] Barcode scanning automatically adds matching unit to cart.
-- [ ] Quantity adjustments update totals dynamically.
-- [ ] Clicking "Cobrar" opens tender modal with correct item summary.
+- [ ] Unauthenticated requests to `/api/pos/*` receive HTTP 401 Unauthorized.
+- [ ] Authenticated users with role `user` receive HTTP 403 Forbidden.
+- [ ] Authenticated users with role `support` receive HTTP 403 Forbidden.
+- [ ] Authenticated users with role `admin` successfully execute POS endpoints.
+- [ ] Authenticated users with role `owner` successfully execute POS endpoints.
+- [ ] No `cashier` role is created in the database or authorization checks.
+- [ ] Automated tests in `tests/api/pos-auth-rbac.test.ts` pass with 100% assertions green.
 
 ## 24. Test Strategy
-- Vitest + React Testing Library tests for search debounce, cart increment/decrement, and barcode capture.
+- Vitest + Supertest automated suite verifying authorization matrix:
+  | Role | Endpoint | Expected Status |
+  | :--- | :--- | :---: |
+  | Anonymous | `/api/pos/sales` | 401 |
+  | `user` | `/api/pos/sales` | 403 |
+  | `support` | `/api/pos/sales` | 403 |
+  | `admin` | `/api/pos/sales` | 200/400 (Authorized) |
+  | `owner` | `/api/pos/sales` | 200/400 (Authorized) |
 
 ## 25. Staging Validation
-- Test terminal on desktop and iPad viewport in staging. Scan mock barcodes.
+- Attempt curl request with customer token to Railway staging `/api/pos/sales`; assert HTTP 403 response.
+- Repeat with store admin token; assert authorized execution.
 
 ## 26. Evidence Requirements
-- Passing React Testing Library test execution output.
-- Screenshots of the POS register UI in desktop and tablet viewports.
+- Terminal execution output of `npm test tests/api/pos-auth-rbac.test.ts` showing all 5 authorization roles validated.
 
 ## 27. Definition of Done
-- Components built with zero TypeScript diagnostics.
-- Responsive layout verified on mobile, tablet, and desktop breakpoints.
-- Ready for CCP-23 tender integration.
+- Middleware implemented, attached, and verified.
+- Code reviewed and approved by Frontend Lead (Julian) and Technical Authority (Joaquin).
+- Ready for integration with Web POS Sale API (CCP-14) and Register UI (CCP-43).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Rogelio (proceed to CCP-23 for Tender UI).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Rogelio (consume middleware on CCP-14 Web POS Sale API) and Julian (integrate with CCP-43 Web POS Register UI).

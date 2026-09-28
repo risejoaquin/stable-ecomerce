@@ -1,133 +1,131 @@
-# Execution Pack: CCP-21 — POS Refund & Restock API
+# Execution Pack: CCP-21 — Admin Catalog UI — Stock Adjustment & Sellable Unit Inventory Management
 
 ## 1. Responsibility
-- **Lead Domain**: Backend API Engineering
-- **Assignee Lead**: Julian (Backend Lead)
-- **Secondary Reviewer**: Rogelio (Frontend Lead)
+- **Lead Domain**: Frontend Engineering / Admin Command Center
+- **Assignee Lead**: Julian (Frontend Lead)
+- **Secondary Reviewer**: Rogelio (Backend / Database Lead)
 
 ## 2. Objective
-Implement the backend endpoint `POST /api/pos/orders/:id/refund` and associated business services to execute channel-specific refunds, restock physical units to `sellable_units`, update order statuses, and record immutable audit trail entries.
+Enhance the existing Admin Catalog interface (`ProductTable.tsx`, `ProductsPage.tsx`) by integrating a dedicated "Ajustar Stock" modal connected to the backend inventory adjustment API (`POST /api/inventory/adjustments`), requiring signed quantity adjustments, mandatory reason code selection, and immediate stock view refresh without page reload, while preserving existing product CRUD workflows intact.
 
 ## 3. Why
-Physical store operations require returns and refund processing. To prevent revenue leakage and inventory skew, returns must automatically restore inventory to the exact `SellableUnit` and process refunds according to the original payment channel (Stripe API vs cash/card reference).
+Fulfills **DR-INV-001** and backoffice operational requirements. Store managers and warehouse staff need a fast, intuitive UI to record manual inventory changes (restocking shipments, defective product write-offs, physical inventory count reconciliation) without having to manually edit product records or directly query the database.
 
 ## 4. Owner Profile
-Senior Node.js / Express Backend Engineer with deep knowledge of Stripe refund APIs, PostgreSQL transactions, and stock movement auditing.
+Senior React / TypeScript Frontend Engineer with expertise in modal dialog workflows, form validation via React Hook Form / Zod, optimistic UI updates, and Tailwind UI design systems.
 
 ## 5. Preconditions
-- CCP-12 (Inventory & SKU Schema Migrations) completed.
-- CCP-13 (Canonical Orders & Payment Ledger) completed.
-- `docs/engineering/client-01/10_REFUND_CONTRACT.md` reviewed and frozen.
+- Products catalog view (`ProductsPage.tsx`, `ProductTable.tsx`, `useProducts.ts`) operational in repository.
+- CCP-20 (`POST /api/inventory/adjustments`) API contract frozen and available.
+- Staff authentication context (`useAuth`) verifying admin permissions.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-12, CCP-13, CCP-28, CCP-29.
-- **Downstream Blocking**: Blocks CCP-34 (POS Refund & Restock E2E Suite).
+- **Preceding Tickets**: CCP-20 (Stock Adjustment API), CCP-39 (SellableUnit Foundation).
+- **Downstream Blocking**: Blocks CCP-35 (Feature Freeze Enforcement) and CCP-37 (Client UAT).
 
 ## 7. Authoritative Contracts
-- **DR-REF-001 (Refund & Restock Rules)**
-- **DR-INV-001 (Inventory Authority)**
-- **DR-PAY-001 (Payment Ledger)**
-- **DR-IDEM-001 (Idempotency Engine)**
-- **DR-AUTH-001 (Authorization Model)**
-- `docs/engineering/client-01/10_REFUND_CONTRACT.md`
+- **DR-INV-001 (Inventory Authority & Movement Ledger)**
+- **DR-AUTH-001 (Admin Access Protection)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- `docs/engineering/client-01/03_INVENTORY_CONTRACT.md`
 
 ## 8. Scope IN
-- Endpoint `POST /api/pos/orders/:id/refund`.
-- Input validation schema using Zod.
-- Transactional invocation of PostgreSQL `execute_order_refund` stored procedure.
-- Conditional Stripe Refund API invocation for orders originally paid via Stripe.
-- Restocking physical items via `restock_sellable_unit`.
-- Inserting refund audit events into `audit_logs`.
+- Adding an "Ajustar Stock" action button to product rows in `src/components/admin/ProductTable.tsx`.
+- Authoring `src/components/admin/StockAdjustmentModal.tsx` containing:
+  - Product name and current stock display.
+  - SellableUnit selection dropdown (if product has multiple SKU variants).
+  - Quantity delta input field (signed integer, positive for restock, negative for deduction).
+  - Reason code selector dropdown (`restock`, `damage`, `shrinkage`, `audit`).
+  - Optional notes textarea.
+  - Submitting state spinner and disabled submit button during flight.
+- Invoking `POST /api/inventory/adjustments` with sanitized payload.
+- Triggering react-query / cache invalidation or local state update to refresh stock numbers seamlessly without page reload.
+- Unit and component tests under `tests/frontend/admin-stock-adjustment-modal.test.tsx`.
 
 ## 9. Scope OUT
-- Web POS frontend refund UI (handled in a future UI ticket or admin console).
-- Automatic bank chargeback dispute workflows.
-- Customer return shipping label generation.
+- Rebuilding product creation, editing, or deletion forms (already existing in `ProductFormModal.tsx`).
+- Modifying backend adjustment transaction logic (handled in CCP-20).
+- Building POS terminal UI (handled in CCP-43).
 
 ## 10. Required Behavior
-1. Require `owner` or `admin` role via `requirePosOperator`.
-2. Enforce durable idempotency via `clientRequestId`.
-3. Check original payment channel in `order_payments`:
-   - If `stripe`: Call `stripe.refunds.create({ payment_intent: refCode, amount: cents })`.
-   - If `cash` or `card_reference`: **DO NOT CALL STRIPE**. Record internal refund ledger entry.
-4. Call `execute_order_refund` stored procedure to atomically restock items and update order status to `'refunded'` or `'partially_refunded'`.
-5. Return HTTP 200 with refund summary DTO.
+1. In `ProductTable.tsx`, each product row renders an "Ajustar Stock" button accessible strictly to staff with `owner` or `admin` roles.
+2. Clicking "Ajustar Stock" opens `StockAdjustmentModal.tsx` focused on the selected product.
+3. Form validation prevents submission if delta is 0 or non-numeric, or if reason is unselected.
+4. If negative delta exceeds current stock, display client warning: "El ajuste no puede dejar el stock en números negativos."
+5. On successful submission, close modal, display success toast ("Stock ajustado correctamente"), and update product row stock count.
+6. On error, display standard backend error message from `DR-ERR-001` envelope.
 
 ## 11. Inputs
-- HTTP POST params: `id` (Order UUID).
-- HTTP Body: `clientRequestId`, `amount`, `items` (array of `{ orderItemId, quantity, restock }`), `reason`, `cardTerminalApproval`.
+- Selected product and associated `SellableUnit` records.
+- User input: delta integer, reason code, notes.
 
 ## 12. Outputs
-- HTTP 200 OK: JSON object `{ orderId, status, refundedAmount, restockedUnits, payment }`.
-- Database mutations: `orders.status`, `order_payments.status`, `sellable_units.stock`, `inventory_movements`, `audit_logs`.
+- HTTP POST request to `/api/inventory/adjustments`.
+- Updated product inventory view in admin table.
 
 ## 13. Allowed Implementation Freedom
-- Internal service helper factoring in `src/services/refund-service.ts`.
-- Mocking strategy for Stripe Refund API in unit tests.
+- Modal positioning, button icon choice (e.g. Lucide `Boxes` or `Sliders`), and toast styling.
+- Quick preset buttons for adjustments (+1, +5, +10, -1).
 
 ## 14. Forbidden Changes
-- NEVER call Stripe API for cash or card reference refunds.
-- DO NOT allow refund amounts greater than the remaining captured payment amount.
-- DO NOT restock items to parent `products` without updating `sellable_units`.
+- DO NOT rebuild or refactor existing working CRUD code in `ProductFormModal.tsx` or `ProductsPage.tsx`.
+- DO NOT allow submitting adjustments without a selected reason code.
+- DO NOT execute direct database updates or bypass the backend API.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/controllers/pos-refund-controller.ts`
-  - `src/services/refund-service.ts`
-  - `src/schemas/refund-schemas.ts`
-  - `src/routes/pos-routes.ts`
-  - `tests/api/pos-refund.test.ts`
+  - `src/components/admin/ProductTable.tsx`
+  - `src/components/admin/StockAdjustmentModal.tsx`
+  - `src/hooks/useProducts.ts` (adding adjustment mutation)
+  - `tests/frontend/admin-stock-adjustment-modal.test.tsx`
 - **Strictly Prohibited**:
-  - Public customer storefront checkout routes.
+  - Express server routes or database migration files (Rogelio domain).
 
 ## 16. Data Impact
-- Increments `sellable_units.stock`.
-- Updates `orders` and `order_payments` status and timestamps.
-- Inserts new movement rows in `inventory_movements`.
+- Dispatches mutation to `POST /api/inventory/adjustments`.
+- No local database schema changes.
 
 ## 17. API Impact
-- Exposes `POST /api/pos/orders/:id/refund`.
+- Consumes `POST /api/inventory/adjustments`.
 
 ## 18. Security
-- Role authorization (`requirePosOperator`).
-- Protects against negative refund amounts or double-refund exploits.
+- Modal rendering and action buttons protected by staff authorization checks (`admin` or `owner` role).
 
 ## 19. Concurrency & Idempotency
-- Replaying identical `clientRequestId` returns the recorded refund without double-refunding or double-restocking.
-- Uses `FOR UPDATE` row locks inside PostgreSQL procedure.
+- Multiple simultaneous adjustments by different admins are serialized and handled by backend row locks; UI reflects final committed state upon re-fetch.
 
 ## 20. Migration Considerations
-- Operates on orders created under either legacy or new omnichannel schemas.
+- Supports both single-unit products and multi-variant SellableUnits seamlessly.
 
 ## 21. Edge Cases
-- Partial return where customer only returns 1 of 3 items: order becomes `partially_refunded`.
-- Item marked damaged and not restocked (`restock: false`): financial refund executes without incrementing `sellable_units.stock`.
+- Admin opens adjustment modal, but another user adjusts stock concurrently: backend returns conflict or new stock; UI refreshes on completion.
+- Network disconnection during submission: clean retry prompt displayed without corrupting table state.
 
 ## 22. Observability
-- Emits structured log event `order.refund.processed` with metadata (`orderId`, `amount`, `channel`, `actorUserId`).
+- Emits user action event `admin_stock_adjustment_submitted` with product ID and reason code.
 
 ## 23. Acceptance Criteria
-- [ ] Returns 403 `FORBIDDEN` for unprivileged users.
-- [ ] Successfully refunds cash sale without triggering Stripe API.
-- [ ] Successfully refunds Stripe sale and captures Stripe refund ID.
-- [ ] Restocks units in `sellable_units` table when `restock: true`.
-- [ ] Fails cleanly with `422 REFUND_NOT_ALLOWED` if requested amount exceeds captured total.
+- [ ] `ProductTable.tsx` renders 'Ajustar Stock' button on each product row for authorized staff.
+- [ ] Clicking button opens adjustment modal showing current stock and requiring quantity delta and reason code.
+- [ ] Form validation prevents blank reasons or non-numeric quantities.
+- [ ] Submitting modal invokes `POST /api/inventory/adjustments` and updates displayed stock without page reload.
+- [ ] Automated tests in `tests/frontend/admin-stock-adjustment-modal.test.tsx` pass 100%.
 
 ## 24. Test Strategy
-- Supertest contract tests verifying cash refund, Stripe mock refund, partial refund, and error handling.
+- Vitest + React Testing Library tests verifying modal open/close, input validation, reason selection, API mutation call, and table cache refresh.
 
 ## 25. Staging Validation
-- Perform test sale on staging, execute refund endpoint, assert stock increment in database.
+- Open Admin Portal on Railway staging, locate product, click "Ajustar Stock", add +5 units with reason `restock`, verify stock increases by 5 without browser reload.
 
 ## 26. Evidence Requirements
-- Passing Supertest log output (`npm test tests/api/pos-refund.test.ts`).
-- Database row snapshots before and after refund.
+- Component test execution logs with 100% assertions green.
+- Screenshot or recording of adjustment modal submission on staging.
 
 ## 27. Definition of Done
-- All test suites passing.
-- Code reviewed and approved by Architecture Lead.
-- Ready for integration with E2E suite CCP-34.
+- Modal integrated and all acceptance criteria verified.
+- Code reviewed and approved by Backend Lead (Rogelio) and Technical Authority (Joaquin).
+- Ready for inclusion in Feature Freeze candidate (CCP-35).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: QA Lead (proceed to CCP-34 for E2E validation).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: QA Lead (CCP-35 Staging Verification & CCP-37 Client UAT).

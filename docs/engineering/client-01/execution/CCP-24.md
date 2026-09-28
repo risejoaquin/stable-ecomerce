@@ -1,123 +1,130 @@
-# Execution Pack: CCP-24 — Web POS Frontend Receipt View & Print Action
+# Execution Pack: CCP-24 — Order Confirmation & Status Tracking — Customer Presentation & Lookup Hardening
 
 ## 1. Responsibility
-- **Lead Domain**: Frontend Engineering
-- **Assignee Lead**: Rogelio (Frontend Lead)
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: Frontend Engineering / Storefront Experience
+- **Assignee Lead**: Julian (Frontend Lead)
+- **Secondary Reviewer**: Rogelio (Backend / Database Lead)
 
 ## 2. Objective
-Implement the post-sale Receipt View Modal in the Web POS interface, featuring browser-native 80mm thermal receipt printing (`window.print()`), digital email receipt dispatch trigger, and "New Sale" register reset.
+Harden the existing storefront order presentation and tracking pages (`CheckoutSuccessPage.tsx` and `TrackOrderPage.tsx`), verifying that confirmed order details and live fulfillment statuses (`paid`, `processing`, `shipped`, `inventory_exception`) render accurately, preventing customer PII and sensitive payment tokens from leaking on public tracking lookups, and providing clean, reassuring customer feedback on exceptions.
 
 ## 3. Why
-Following a completed transaction, cashiers must provide customers with either an immediate printed paper receipt or an emailed digital receipt. Implementing clean, browser-native print styles guarantees seamless receipt output on standard thermal receipt printers without needing native desktop driver installations.
+Fulfills **DR-ERR-001** and customer security/privacy requirements. Post-purchase transparency builds consumer trust. If an order encounters an inventory contention edge-case (`inventory_exception`), the customer must receive clear, comforting status communication rather than a confusing blank page or raw technical error code. Furthermore, public order tracking endpoints must strictly redact customer addresses, phone numbers, and payment tokens to prevent data scraping.
 
 ## 4. Owner Profile
-Frontend React Engineer experienced in print stylesheet optimization (`@media print`), CSS page break controls, modal dialogs, and asynchronous email action handling.
+Senior React / Frontend Engineer with expertise in secure data rendering, sensitive information masking (PII redaction), accessibility standards, and customer-facing error communication.
 
 ## 5. Preconditions
-- CCP-20 (POS Receipt Read Model) completed.
-- CCP-23 (POS Cash & Card Tender) completed.
-- `docs/engineering/client-01/11_RECEIPT_CONTRACT.md` reviewed and frozen.
+- `CheckoutSuccessPage.tsx` and `TrackOrderPage.tsx` operational in `src/pages/store/`.
+- CCP-15 (Storefront Checkout Flow) completed.
+- CCP-23 (Transactional Email Automation) operational.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-20, CCP-23.
-- **Downstream Blocking**: Blocks CCP-33 (POS Sales E2E Suite) and CCP-34 (Refund & Restock E2E Suite).
+- **Preceding Tickets**: CCP-15, CCP-23.
+- **Downstream Blocking**: Blocks CCP-35 (Feature Freeze Enforcement) and CCP-37 (Client UAT).
 
 ## 7. Authoritative Contracts
-- **DR-REC-001 (Receipt & Read Model)**
-- `docs/engineering/client-01/11_RECEIPT_CONTRACT.md`
+- **DR-ERR-001 (Canonical Error Envelope & Customer Presentation)**
+- **DR-REC-001 (Deterministic Receipt / Order Read Model)**
+- `docs/engineering/client-01/04_ORDER_CONTRACT.md`
 
 ## 8. Scope IN
-- Receipt modal dialog `src/components/pos/ReceiptModal.tsx`.
-- Receipt layout component `src/components/pos/ReceiptPaperLayout.tsx` formatted to 80mm dimensions.
-- Thermal print CSS stylesheet (`src/styles/receipt-print.css` or Tailwind `@media print` utility classes) conforming to `11_RECEIPT_CONTRACT.md`.
-- "Imprimir Recibo (Print Receipt)" button triggering native `window.print()`.
-- "Enviar por Correo (Email Receipt)" form input with async mutation calling `POST /api/pos/orders/:id/email-receipt`.
-- "Nueva Venta (New Sale)" button closing the modal and resetting POS register state.
+- Hardening `src/pages/store/CheckoutSuccessPage.tsx`:
+  - Renders confirmed canonical order number.
+  - Displays itemized product names, SellableUnit options, quantities, and totals.
+  - Displays masked delivery address.
+  - Provides CTA to track order or return to store.
+- Hardening `src/pages/store/TrackOrderPage.tsx`:
+  - Public order lookup form accepting Order Number + Customer Email (two-factor query validation to prevent enumeration).
+  - Sanitized response rendering: fulfillment status, carrier name, tracking link.
+  - Redaction: masks customer email (`j***@example.com`), hides complete shipping street address, and strips all internal payment tokens/intent IDs.
+  - Dedicated reassuring status banner for `inventory_exception` ("Tu pedido está en revisión prioritaria por nuestro equipo de inventario. Te notificaremos a la brevedad.").
+  - Graceful handling of invalid or non-existent order numbers with user-friendly alerts.
+- Unit and component tests under `tests/frontend/order-tracking-hardening.test.tsx`.
 
 ## 9. Scope OUT
-- Native ESC/POS USB printer hardware drivers.
-- Direct hardware serial port communication.
-- Asynchronous email queue worker implementation (handled in CCP-27).
+- Recreating `CheckoutSuccessPage.tsx` or `TrackOrderPage.tsx` from scratch.
+- Backend order persistence changes (handled in CCP-13).
+- POS cashier receipt thermal printing (handled in CCP-27).
 
 ## 10. Required Behavior
-1. Open automatically upon successful completion of a sale in `TenderModal` (CCP-23).
-2. Display formatted receipt: Store header, receipt number, date/time, cashier name, line items, subtotals, tender details, and barcode/QR string.
-3. Print action: invoking `window.print()` prints **only** the receipt contents, hiding all background POS UI elements via `.no-print` classes.
-4. Email receipt action: accepts optional email address, validates syntax, submits to backend, displays success toast without closing modal.
-5. "Nueva Venta": closes modal, ensures cart is completely empty, focuses catalog search input for next customer.
+1. Navigating to `/store/order-success?order_id=UUID` queries the public order confirmation endpoint and renders full itemized details.
+2. Navigating to `/store/track-order` renders lookup form requiring both Order ID and Email.
+3. The response payload explicitly omits raw Stripe tokens, credit card last4, full customer addresses, and internal user IDs.
+4. If order status is `inventory_exception`, the page displays an amber status badge with clear explanatory guidance and a direct WhatsApp/support contact button.
+5. If order does not exist, display: "No pudimos encontrar un pedido con esos datos. Por favor verifica el número y correo electrónico." without uncaught exceptions.
 
 ## 11. Inputs
-- `ReceiptReadModel` JSON object passed from successful sale or fetched via `GET /api/pos/orders/:id/receipt`.
-- Optional customer email input string.
+- URL query parameter `order_id` on success page.
+- Form inputs `orderNumber` and `email` on tracking page.
 
 ## 12. Outputs
-- Operating system print dialog triggered via `window.print()`.
-- HTTP POST request to `/api/pos/orders/:id/email-receipt`.
-- Register state reset signal to `usePosCartStore`.
+- Sanitized rendered order status view.
+- PII-redacted display components.
 
 ## 13. Allowed Implementation Freedom
-- Receipt visual design details within the constraints of monochrome thermal printing (e.g. dashed separator styles, font selection like Courier New or monospace).
-- Auto-print option toggle in staff settings (e.g. auto-trigger print upon sale completion).
+- Visual layout of tracking timeline steps (e.g. icon stepper with Paid -> Processing -> Shipped -> Delivered).
+- Reassurance copy tone and support contact button styling.
 
 ## 14. Forbidden Changes
-- DO NOT rely on external PDF rendering services.
-- DO NOT block or delay the "Nueva Venta" flow if an email receipt request is pending.
-- DO NOT render color graphics or heavy imagery that degrades thermal print quality.
+- DO NOT expose full customer PII, phone numbers, or complete billing addresses in public lookup responses.
+- DO NOT expose internal Stripe PaymentIntent IDs or raw database foreign keys.
+- DO NOT rewrite existing page scaffolding from scratch.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/components/pos/ReceiptModal.tsx`
-  - `src/components/pos/ReceiptPaperLayout.tsx`
-  - `src/styles/receipt-print.css`
-  - `tests/unit/components/receipt-modal.test.tsx`
+  - `src/pages/store/CheckoutSuccessPage.tsx`
+  - `src/pages/store/TrackOrderPage.tsx`
+  - `src/components/store/OrderStatusBadge.tsx`
+  - `tests/frontend/order-tracking-hardening.test.tsx`
 - **Strictly Prohibited**:
-  - Backend API code or database schema files.
+  - Backend payment ledger migrations (CCP-13 / Rogelio domain).
 
 ## 16. Data Impact
-- Client-side presentation state only.
+- Read-only queries against order tracking endpoints. Zero database writes.
 
 ## 17. API Impact
-- Consumes `GET /api/pos/orders/:id/receipt` and `POST /api/pos/orders/:id/email-receipt`.
+- Consumes `GET /api/orders/public/:id` or `POST /api/orders/track`.
 
 ## 18. Security
-- Sanitizes email input before submitting.
-- Displays only sanitized customer and payment data.
+- Mitigates OWASP Top 10 A01:2021 (Broken Access Control) and PII data harvesting.
+- Requires dual parameter matching (Order ID + Email) for order detail retrieval.
 
 ## 19. Concurrency & Idempotency
-- Pure read presentation. Multiple print clicks generate identical output without backend mutations.
+- Pure read queries; idempotent and safe under high concurrent lookups.
 
 ## 20. Migration Considerations
-- None. Fully compatible with new receipt contract.
+- Supports both historical orders and newly created omnichannel orders.
 
 ## 21. Edge Cases
-- Cashier clicks "Nueva Venta" without printing: modal warns or allows quick dismiss.
-- Cashier enters invalid email: client-side validation displays inline error without submitting.
+- Order number entered with leading/trailing spaces or lowercase: client trims and standardizes casing before lookup.
+- Order in `cancelled` or `refunded` state: displays clean cancellation notice without broken UI.
 
 ## 22. Observability
-- Client log recording receipt view and print actions for cashier usage analytics.
+- Failed order lookups log client event `order_lookup_failed` to assist in tracking broken customer links.
 
 ## 23. Acceptance Criteria
-- [ ] Modal displays complete receipt data conforming to DR-REC-001.
-- [ ] Printing isolates receipt to 80mm width and completely hides rest of application UI.
-- [ ] Email input submits to backend and displays confirmation toast.
-- [ ] "Nueva Venta" resets cart and returns focus to search bar.
+- [ ] `CheckoutSuccessPage.tsx` displays confirmed order number, itemized products, and masked shipping address.
+- [ ] `TrackOrderPage.tsx` returns order fulfillment status without leaking customer PII or billing tokens.
+- [ ] Status `inventory_exception` displays clear, comforting status banner with support action.
+- [ ] Non-existent order numbers return clean user alert without uncaught exceptions or page crashes.
+- [ ] Component tests under `tests/frontend/order-tracking-hardening.test.tsx` pass 100%.
 
 ## 24. Test Strategy
-- Vitest / React Testing Library tests for print trigger mock, email form validation, and reset state.
+- Vitest + React Testing Library tests asserting PII redaction, invalid order error boundaries, and `inventory_exception` banner presentation.
 
 ## 25. Staging Validation
-- Complete test sale on staging, verify on-screen receipt matches database record, test print dialog in Chrome/Safari.
+- Complete a test purchase on Railway staging, navigate to tracking page, search with order number and email, verify status display and absence of exposed PII in DOM or network payload.
 
 ## 26. Evidence Requirements
-- Passing React Testing Library test log.
-- Print-preview screenshot demonstrating clean 80mm monochrome layout.
+- Component test execution transcript with 100% assertions green.
+- Screenshot of `inventory_exception` status UI presentation.
 
 ## 27. Definition of Done
-- Component fully integrated with tender modal.
-- Tested across desktop Chrome, Edge, and iPad Safari print dialogs.
-- Ready for CCP-33 E2E test suite.
+- Order presentation and tracking hardened.
+- Code reviewed and approved by Backend Lead (Rogelio) and Technical Authority (Joaquin).
+- Ready for inclusion in Feature Freeze candidate (CCP-35).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: QA Lead (proceed to CCP-33 for E2E validation).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: QA Lead (CCP-35 Feature Freeze & CCP-37 Client UAT).

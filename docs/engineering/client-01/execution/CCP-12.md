@@ -2,8 +2,8 @@
 
 ## 1. Responsibility
 - **Lead Domain**: Database & Migration Engineering
-- **Assignee Lead**: Julian (Backend / Data Lead)
-- **Secondary Reviewer**: Rogelio (Frontend Lead)
+- **Assignee Lead**: Rogelio (Backend / Database Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
 Author and verify idempotent Supabase PostgreSQL database migrations for `sellable_units`, the atomic stock decrement stored procedure `decrement_sellable_unit_stock`, the restock procedure `restock_sellable_unit`, and synchronization triggers back to `products.stock`.
@@ -121,5 +121,5 @@ Senior PostgreSQL / Backend Database Engineer with deep expertise in PL/pgSQL, t
 - Ready for deployment to staging.
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Julian (proceed to CCP-13 for Canonical Orders and Payment Ledger).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Rogelio (proceed to CCP-13 for Canonical Orders and Payment Ledger).

@@ -1,135 +1,130 @@
-# Execution Pack: CCP-23 — Web POS Frontend Cash & Card Reference Tender
+# Execution Pack: CCP-23 — Transactional Email Automation — Order Event Notification Trigger Integration
 
 ## 1. Responsibility
-- **Lead Domain**: Frontend Engineering
-- **Assignee Lead**: Rogelio (Frontend Lead)
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: Backend Architecture & Communications Infrastructure
+- **Assignee Lead**: Rogelio (Backend / Database Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
-Implement the tender settlement dialog modal in the Web POS interface, featuring Cash Tender (with automatic change calculation and quick-cash denomination buttons) and External Card Reference entry (with validation of terminal authorization code).
+Wire order lifecycle events (order payment confirmation, shipping fulfillment updates, and `inventory_exception` fulfillment delay notices) into the existing asynchronous email queue (`src/server/email/email-queue.ts`), ensuring that transactional customer emails are queued without blocking HTTP responses, that delivery failures never rollback checkout transactions, and that stock is never mutated by communication logic.
 
 ## 3. Why
-Completing an in-person retail sale requires fast, accurate tender processing. Cashiers need instant change calculation to prevent human calculation errors, and clear validation for card terminal reference codes to ensure transactions can be matched during daily end-of-day register balancing.
+Fulfills **DR-REC-001** and customer communication requirements. Currently, the Resend email service, queue worker, and templates are implemented in `src/server/email/`, but lifecycle hooks are disconnected. Connecting these triggers ensures customers receive immediate purchase receipts, shipping tracking links, and transparent delay notifications, while maintaining strict architectural decoupling between checkout transactions and third-party network transports.
 
 ## 4. Owner Profile
-Frontend React Engineer proficient in modal design, form validation, focus trapping, financial formatting, and asynchronous API submission state machines.
+Senior Node.js / Backend Engineer with expertise in event-driven systems, asynchronous message queues, Resend API integrations, and resilient error decoupling.
 
 ## 5. Preconditions
-- CCP-14 (POS Sales Backend API) completed.
-- CCP-22 (Web POS Terminal UI) completed.
-- `docs/engineering/client-01/05_PAYMENT_CONTRACT.md` and `09_POS_API_CONTRACT.md` reviewed.
+- Contract Freeze gate (CCP-44) approved.
+- CCP-13 (Canonical Orders & Payment Ledger) completed.
+- CCP-17 (Resend Webhook Security & Verification) verified.
+- Email templates and transport in `src/server/email/` verified intact.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-14, CCP-22.
-- **Downstream Blocking**: Blocks CCP-24 (Receipt View & Print Action) and CCP-33 (POS Sales E2E Suite).
+- **Preceding Tickets**: CCP-13, CCP-17.
+- **Downstream Blocking**: Blocks CCP-24 (Order Confirmation & Tracking UI) and CCP-33 (Critical Path E2E Automation).
 
 ## 7. Authoritative Contracts
-- **DR-PAY-001 (Payment Ledger)**
-- **DR-IDEM-001 (Idempotency Engine)**
-- **DR-ERR-001 (Standard Error Envelope)**
-- `docs/engineering/client-01/05_PAYMENT_CONTRACT.md`
-- `docs/engineering/client-01/09_POS_API_CONTRACT.md`
+- **DR-REC-001 (Deterministic Receipt Read Model & Decoupled Email Queue)**
+- **DR-INV-001 (Canonical Inventory Authority — Sole Mutator)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- `docs/engineering/client-01/11_RECEIPT_CONTRACT.md`
 
 ## 8. Scope IN
-- Tender modal component `src/components/pos/TenderModal.tsx`.
-- Cash tender tab:
-  - Total due display.
-  - Cash tendered input field with currency formatting.
-  - Quick-cash preset buttons (`Exact`, `+$50`, `+$100`, `+$200`, `+$500`).
-  - Real-time "Cambio / Change Due" calculation.
-  - Validation: submit disabled if cash tendered < total due.
-- Card reference tab:
-  - Total due display.
-  - Authorization / Reference code input (minimum 4 characters).
-  - Optional terminal selector and card brand selector.
-- Submission state machine handling loading spinners, API errors (e.g. `INSUFFICIENT_STOCK`), and invoking `POST /api/pos/sales`.
-- On success, pass order and receipt model to Receipt Modal (CCP-24).
+- Implementing event emitter / queue insertion triggers:
+  1. `order:paid`: Queues `sendOrderConfirmationEmail` with itemized products, quantities, subtotal, tax, and order ID.
+  2. `order:shipped`: Queues `sendShippingNotificationEmail` with carrier name and tracking URL.
+  3. `order:inventory_exception`: Queues `sendInventoryExceptionDelayEmail` providing reassuring delay notification and support contact.
+- Ensuring queue insertion is non-blocking (`enqueueEmailJob(...)` resolves asynchronously or inside post-commit hook).
+- Validating that any Resend network timeout or API error is captured in `email_events` with status `'failed'` without rolling back the completed order.
+- Unit and integration tests in `tests/server/email-triggers.test.ts`.
 
 ## 9. Scope OUT
-- Physical integration with card terminal hardware drivers or Bluetooth readers.
-- Browser thermal receipt printing (handled in CCP-24).
-- Offline queuing of uncommitted sales.
+- Rebuilding or refactoring email templates in `email-templates.ts` (already operational).
+- Direct mutation of inventory or order status within email workers.
+- Digital thermal receipt generation for physical Web POS registers (handled in CCP-27).
 
 ## 10. Required Behavior
-1. Focus trap: upon opening, focus shifts immediately to the primary input field.
-2. Quick buttons: clicking `Exact` populates cash tendered with the exact total due; clicking `+$100` adds 100 to the total.
-3. Prevent submission while network request is in-flight (disable submit button, display spinner).
-4. Error banner: if backend returns `409 INSUFFICIENT_STOCK`, display user-friendly message identifying the out-of-stock item and keep cart intact for adjustment.
-5. On 201 Created: clear cart store and trigger receipt modal.
+1. When an order transitions to `paid` status (via Stripe webhook or POS sale completion), call `emailQueue.enqueue('order_confirmation', payload)`.
+2. When an admin updates order fulfillment to `shipped` with tracking metadata, call `emailQueue.enqueue('shipping_update', payload)`.
+3. When an order is placed in `inventory_exception` status due to a concurrent stock race, call `emailQueue.enqueue('inventory_exception', payload)`.
+4. The background queue worker processes jobs sequentially, calls Resend SDK, updates `email_events`, and retries up to 3 times on transient network failures.
+5. If the Resend API is unreachable or returns HTTP 500, the order transaction remains committed and active.
 
 ## 11. Inputs
-- Cart items and calculated total from Zustand cart store.
-- Cashier numerical inputs (amount tendered or terminal reference string).
+- Order event payloads `{ orderId, customerEmail, orderNumber, items, total, carrier, trackingUrl }`.
 
 ## 12. Outputs
-- HTTP POST request to `/api/pos/sales` containing `clientRequestId`, `items`, and `payment`.
-- Emits `onSaleCompleted(orderData, receiptData)` callback.
+- Inserted job records in queue table / memory queue.
+- Dispatched emails via Resend API.
+- Audit rows logged in `email_events`.
 
 ## 13. Allowed Implementation Freedom
-- Visual styling of denomination buttons and tab toggles using Soft Premium Tailwind tokens.
-- Sound effects or haptic feedback triggers upon successful checkout (optional).
+- Worker poll interval and retry backoff schedule (e.g. exponential backoff 5s, 30s, 120s).
+- In-memory event emitter vs database-backed queue table.
 
 ## 14. Forbidden Changes
-- DO NOT allow submitting cash sales where tendered amount is less than total due.
-- DO NOT generate or submit fake Stripe transaction identifiers.
-- DO NOT clear cart before verifying `201 Created` HTTP response.
+- DO NOT execute Resend API calls synchronously within the HTTP checkout request handler.
+- DO NOT rollback or abort database transactions if email queuing or dispatch fails.
+- DO NOT modify inventory tables or trigger stock arithmetic within email handlers.
+- DO NOT hardcode Resend API keys in code or commit them to git.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/components/pos/TenderModal.tsx`
-  - `src/components/pos/CashTenderPanel.tsx`
-  - `src/components/pos/CardReferencePanel.tsx`
-  - `src/hooks/usePosSaleMutation.ts`
-  - `tests/unit/components/tender-modal.test.tsx`
+  - `src/server/email/email-triggers.ts`
+  - `src/server/email/email-queue.ts`
+  - Integration hooks in `src/server/pos/pos-controller.ts` and `src/server/orders/`
+  - `tests/server/email-triggers.test.ts`
 - **Strictly Prohibited**:
-  - Backend API code or database migrations.
+  - Frontend components or client-side email triggers.
 
 ## 16. Data Impact
-- Client-side modal state. Initiates backend transactional persistence via API.
+- Records email delivery status in `email_events` table.
+- Zero modifications to inventory or product tables.
 
 ## 17. API Impact
-- Client consumer of `POST /api/pos/sales`.
+- Internal event triggers only; no external HTTP signature changes.
 
 ## 18. Security
-- Sanitizes reference code inputs.
-- Never accepts raw PAN or CVV input fields.
+- Sanitizes customer names and product descriptions to prevent email header injection (CRLF attacks).
+- Customer email addresses handled strictly according to PII protection standards.
 
 ## 19. Concurrency & Idempotency
-- Uses a unique UUIDv4 `clientRequestId` generated per checkout attempt.
-- Retries with the same `clientRequestId` in case of transient network timeouts to avoid duplicate orders.
+- Queue jobs use deduplication keys `${orderId}_${eventType}` to prevent duplicate email dispatches on re-triggered events.
 
 ## 20. Migration Considerations
-- None. Modal conforms to canonical API contract.
+- None. Integrates with existing database and email queue infrastructure.
 
 ## 21. Edge Cases
-- Exact change: cash tendered equals total due; change due displays `$0.00 MXN`.
-- Customer changes mind during payment: "Cancel" button closes modal, returning to cart without losing staged items.
+- Order placed without customer email (e.g. anonymous cash POS sale): queue silently skips customer email dispatch while logging event.
+- Resend API outage: jobs remain in queue until service recovers; checkout proceeds unimpeded.
 
 ## 22. Observability
-- Emits console log or client telemetry event when sale submission begins and resolves.
+- Emits structured log on email queue insertion and dispatch result: `{ "event": "email_queued", "orderId": "...", "template": "order_confirmation" }`.
 
 ## 23. Acceptance Criteria
-- [ ] Change calculation is exact for decimal values (e.g. Total: 345.50, Tendered: 500.00 -> Change: 154.50).
-- [ ] Submit button remains disabled if cash tendered is less than total.
-- [ ] Card reference tab requires at least 4 characters to enable submit button.
-- [ ] Displays clear error banner on backend 409 `INSUFFICIENT_STOCK`.
-- [ ] Successfully triggers `onSaleCompleted` on 201 response.
+- [ ] Order paid event inserts confirmation job into queue.
+- [ ] Shipping fulfillment update inserts shipping notification with tracking URL into queue.
+- [ ] Order transitioning to `inventory_exception` inserts customer delay notification into queue.
+- [ ] Simulated email dispatch failure does NOT abort or roll back order persistence.
+- [ ] Email dispatch logic does not perform stock deduction or inventory mutation.
+- [ ] Automated tests in `tests/server/email-triggers.test.ts` pass with 100% green assertions.
 
 ## 24. Test Strategy
-- React Testing Library unit tests verifying change calculation math, quick-button clicks, and API error state rendering.
+- Vitest unit tests with mocked Resend client validating event listeners, queue payload validation, retry semantics, and decoupled failure handling.
 
 ## 25. Staging Validation
-- Perform live cash and card reference checkouts on staging Web POS. Verify order persistence in backend.
+- Create test order on Railway staging, verify that mock/sinkhole email record appears in `email_events` table with correct template and payload.
 
 ## 26. Evidence Requirements
-- Passing React Testing Library test execution log.
-- Screenshots of Cash Tender and Card Reference panels with active inputs.
+- Terminal execution output of `npm test tests/server/email-triggers.test.ts`.
+- Query log demonstrating `email_events` entry with status `'sent'` or `'queued'`.
 
 ## 27. Definition of Done
-- Modal fully integrated into POS register page.
-- Zero accessibility violations on modal focus trap.
-- Ready for Receipt UI integration (CCP-24).
+- Event hooks wired and tested.
+- Code reviewed and approved by Frontend Lead (Julian) and Technical Authority (Joaquin).
+- Ready for integration with E2E automation (CCP-33).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Rogelio (wire receipt modal in CCP-24).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Julian (consume in CCP-24 Order Confirmation & Tracking UI) and QA Lead (CCP-33 E2E automation).

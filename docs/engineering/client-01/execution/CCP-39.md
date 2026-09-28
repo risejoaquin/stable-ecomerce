@@ -2,8 +2,8 @@
 
 ## 1. Responsibility
 - **Lead Domain**: Data Architecture & Backend
-- **Assignee Lead**: Julian (Backend / Data Lead)
-- **Secondary Reviewer**: Rogelio (Frontend Lead)
+- **Assignee Lead**: Rogelio (Backend / Database Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
 Establish the foundational TypeScript domain interfaces, data access transfer objects (DTOs), and core repository accessors for `SellableUnit` across the backend codebase, decoupling the catalog product entity from atomic transactional inventory units.
@@ -110,10 +110,10 @@ Senior TypeScript / Backend Engineer with expertise in domain-driven design, SQL
 - `git diff --stat` showing isolated additions under permitted boundaries.
 
 ## 27. Definition of Done
-- Types and validation schemas fully reviewed by Rogelio (Frontend Lead).
+- Types and validation schemas fully reviewed by Julian (Frontend Lead) and Technical Authority (@risejoaquin).
 - Zero TypeScript diagnostics.
-- Branch merged into local integration stream.
+- Branch prepared for integration stream.
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Julian (proceed to CCP-12 for DDL migration).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Rogelio (proceed to CCP-12 for DDL migration).

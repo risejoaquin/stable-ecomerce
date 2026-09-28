@@ -1,122 +1,129 @@
-# Execution Pack: CCP-25 — Admin Inventory Management UI for SellableUnits
+# Execution Pack: CCP-25 — Admin Order Management — Fulfillment Status Updates, Tracking & Exception Recovery
 
 ## 1. Responsibility
-- **Lead Domain**: Frontend Engineering
-- **Assignee Lead**: Rogelio (Frontend Lead)
-- **Secondary Reviewer**: Julian (Backend Lead)
+- **Lead Domain**: Frontend Engineering / Admin Command Center
+- **Assignee Lead**: Julian (Frontend / Admin Lead)
+- **Secondary Reviewer**: Rogelio (Backend / Database Lead)
 
 ## 2. Objective
-Upgrade the existing `/admin/inventory` and `/admin/products` interfaces in React to support managing discrete `SellableUnits` (SKUs, barcodes, price overrides, cost prices, and physical stock counts) under parent catalog products.
+Adapt the existing Admin Order Management view (`AdminOrdersPage.tsx`) so that order fulfillment updates (marking orders as 'shipped' with carrier name and tracking URL) persist cleanly and emit lifecycle events for shipping email dispatch, and integrate a 1-click full Stripe refund action with idempotency guards for orders stranded in `inventory_exception` status.
 
 ## 3. Why
-Following the implementation of **DR-INV-001**, stock authority resides in `sellable_units` rather than monolithic product records. Store administrators must have an intuitive interface to create SKUs, adjust physical inventory, assign barcodes, and inspect real-time stock levels across all product variants.
+Fulfills **DR-PAY-001** and backoffice operational requirements. Store managers currently manage orders in `AdminOrdersPage.tsx`, but lack automated shipping notification triggers and an immediate recovery mechanism when an online order encounters an oversell race condition (`inventory_exception`). Providing a 1-click refund action empowers administrators to immediately remediate affected customers without manual Stripe dashboard intervention.
 
 ## 4. Owner Profile
-Senior React Frontend Engineer experienced in complex data tables, inline editing, modal forms, and TanStack React Query cache invalidation.
+Senior React / Frontend Engineer with expertise in administrative table workflows, asynchronous action confirmation modals, Stripe refund API integration, and optimistic state updates.
 
 ## 5. Preconditions
-- CCP-12 (Inventory & SKU Schema Migrations) completed.
-- Existing admin product screens in `src/pages/admin/` inspected.
+- `AdminOrdersPage.tsx` operational in `src/pages/admin/`.
+- CCP-13 (Canonical Orders & Payment Ledger) completed.
+- CCP-23 (Transactional Email Automation / Shipping Triggers) operational.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-12.
-- **Downstream Blocking**: Operational sign-off for retail store management.
+- **Preceding Tickets**: CCP-13, CCP-23.
+- **Downstream Blocking**: Blocks CCP-35 (Feature Freeze Enforcement) and CCP-37 (Client UAT).
 
 ## 7. Authoritative Contracts
-- **DR-INV-001 (Inventory Authority)**
-- **DR-AUTH-001 (Authorization Model)**
-- `docs/engineering/client-01/03_INVENTORY_CONTRACT.md`
+- **DR-PAY-001 (Payment Ledger & Stripe Refund Integration)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- `docs/engineering/client-01/10_REFUND_CONTRACT.md`
 
 ## 8. Scope IN
-- Enhancements to `src/pages/admin/AdminInventory.tsx` and product detail modals.
-- Table view listing all `SellableUnits` with search, filter by product/status, and stock sorting.
-- Quick stock adjustment dialog allowing increments/decrements with required audit reason (`restock`, `correction`, `manual_adjustment`).
-- SKU and Barcode editing fields in product variant forms.
-- Warning badges for units with low stock ($\le 5$) or out of stock ($= 0$).
-- Backend route integration with `GET /api/admin/sellable-units` and `PATCH /api/admin/sellable-units/:id`.
+- Enhancing `src/pages/admin/AdminOrdersPage.tsx`:
+  - Fulfillment status update modal/inputs: carrier name (`FedEx`, `DHL`, `Estafeta`, `Redpack`, etc.) and tracking URL/number.
+  - Submitting status change to `shipped` writes to database and triggers backend lifecycle event for shipping notification dispatch.
+  - Visual highlighting and filter badge for orders with `status = 'inventory_exception'` (alert banner or colored row).
+  - 1-click action button: `Reembolsar en Stripe` on `inventory_exception` orders.
+  - Confirmation dialog with amount, payment intent ID, and reason input.
+  - Client idempotency lock disabling the button during flight to prevent duplicate refunds.
+  - On refund success, immediately update order status to `refunded` in local table state.
+- Component and unit tests in `tests/frontend/admin-order-management.test.tsx`.
 
 ## 9. Scope OUT
-- Web POS cashier register interface (handled in CCP-22).
-- Automated purchase order generation to suppliers.
-- Multi-warehouse inventory routing.
+- Recreating `AdminOrdersPage.tsx` (397 lines) from scratch.
+- In-store POS cash/card refund actions (handled in CCP-28).
+- Customer storefront order presentation (handled in CCP-24).
 
 ## 10. Required Behavior
-1. Protect page: accessible strictly to `owner` and `admin` roles.
-2. Group units by parent product or display in flat, searchable table.
-3. Allow inline or modal-based stock adjustments. Submitting an adjustment calls backend and invalidates React Query cache.
-4. Require staff to select an adjustment reason whenever modifying stock counts.
-5. Display unit SKU, barcode, title, current stock, and status badge (`active`, `archived`).
+1. In `AdminOrdersPage.tsx`, selecting an order allows updating fulfillment status to `processing`, `shipped`, `delivered`, or `cancelled`.
+2. When transitioning to `shipped`, the UI requires carrier name and tracking code/URL.
+3. Submitting the update dispatches `PATCH /api/orders/:id/fulfillment` which updates the database and queues customer shipping email via CCP-23.
+4. Orders with status `inventory_exception` render a distinct warning badge and display a red `Reembolsar en Stripe` button.
+5. Clicking `Reembolsar en Stripe` opens confirmation modal. Upon confirmation, calls `POST /api/orders/:id/refund` with Stripe payment intent reference and UUID idempotency key.
+6. Successful refund transitions order status badge to `refunded` and displays confirmation toast.
 
 ## 11. Inputs
-- Staff search and filter interactions.
-- Stock adjustment numerical values and reason strings.
+- Admin input: carrier name, tracking URL, refund confirmation.
+- Order record from `orders` table.
 
 ## 12. Outputs
-- HTTP requests: `GET /api/admin/sellable-units`, `PATCH /api/admin/sellable-units/:id`.
-- Updated table view and optimistic UI feedback.
+- HTTP PATCH to `/api/orders/:id/fulfillment`.
+- HTTP POST to `/api/orders/:id/refund`.
+- Updated order status in admin UI.
 
 ## 13. Allowed Implementation Freedom
-- Table styling and pagination vs infinite scroll controls using Soft Premium theme components.
-- Layout of the quick-edit stock drawer or modal.
+- Dropdown vs radio buttons for carrier selection.
+- Visual badge styling (e.g. Tailwind `bg-amber-100 text-amber-800` for `inventory_exception`).
 
 ## 14. Forbidden Changes
-- DO NOT allow negative stock entries.
-- DO NOT bypass audit reason logging when updating stock.
-- DO NOT alter public storefront product catalog views.
+- DO NOT rewrite or discard existing search, filter, and pagination logic in `AdminOrdersPage.tsx`.
+- DO NOT permit calling Stripe refund APIs on cash or card-reference POS orders.
+- DO NOT permit duplicate clicks on the refund action button.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `src/pages/admin/AdminInventory.tsx`
-  - `src/components/admin/inventory/*`
-  - `src/hooks/useAdminInventory.ts`
-  - `tests/unit/components/admin-inventory.test.tsx`
+  - `src/pages/admin/AdminOrdersPage.tsx`
+  - `src/components/admin/OrderFulfillmentModal.tsx`
+  - `src/components/admin/OrderRefundModal.tsx`
+  - `tests/frontend/admin-order-management.test.tsx`
 - **Strictly Prohibited**:
-  - Storefront public components (`src/pages/storefront/*`).
+  - Backend payment RPCs or database DDL (Rogelio domain).
 
 ## 16. Data Impact
-- Triggers backend updates to `sellable_units.stock` and creates rows in `inventory_movements`.
+- Dispatches status update and refund mutations through authenticated APIs.
 
 ## 17. API Impact
-- Consumes `GET /api/admin/sellable-units` and `PATCH /api/admin/sellable-units/:id`.
+- Consumes `PATCH /api/orders/:id/fulfillment` and `POST /api/orders/:id/refund`.
 
 ## 18. Security
-- Admin route guard blocks unauthorized roles.
-- Input validation on SKU formats and stock boundaries.
+- Actions restricted strictly to authenticated administrators (`owner` / `admin`).
 
 ## 19. Concurrency & Idempotency
-- Uses optimistic concurrency control; displays conflict warning if stock was modified concurrently by another operator or sale.
+- Refund requests attach unique UUID `Idempotency-Key` header; duplicate clicks cannot trigger duplicate Stripe refund calls.
 
 ## 20. Migration Considerations
-- Displays both standalone product units and variant units created during CCP-12 backfill.
+- Operates seamlessly on both legacy orders and new omnichannel order records.
 
 ## 21. Edge Cases
-- Rapid edits: debounce updates or use modal confirmation to prevent accidental multi-clicks.
-- High variant counts ($> 50$ SKUs per product): implement efficient table virtualization.
+- Order already refunded in Stripe directly via dashboard: backend handles webhook reconciliation; UI displays status `refunded` and disables refund action.
+- Network interruption during refund call: idempotency key allows safe re-query without double refunding.
 
 ## 22. Observability
-- Staff actions logged to `audit_logs` via backend endpoints.
+- Emits admin audit log event: `{ "event": "admin_order_refunded", "orderId": "...", "adminId": "..." }`.
 
 ## 23. Acceptance Criteria
-- [ ] Displays all active `SellableUnits` with accurate stock levels.
-- [ ] Stock adjustments require selecting a valid audit reason.
-- [ ] Barcodes can be added or updated cleanly without duplicates.
-- [ ] Low-stock indicators highlight items needing replenishment.
+- [ ] Admin can enter carrier name and tracking URL when marking order as `shipped`.
+- [ ] Status update writes to database and triggers shipping email dispatch event.
+- [ ] Orders with status `inventory_exception` are visually highlighted and expose `Reembolsar en Stripe` button.
+- [ ] Refund action verifies payment intent ID, executes Stripe refund, and blocks duplicate attempts.
+- [ ] Updated status immediately reflects on customer TrackOrderPage.
+- [ ] Component tests in `tests/frontend/admin-order-management.test.tsx` pass 100%.
 
 ## 24. Test Strategy
-- React Testing Library tests for stock adjustment form, input validation, and reason selection.
+- Vitest + React Testing Library tests verifying fulfillment form validation, status change dispatch, refund modal confirmation, and button disabling.
 
 ## 25. Staging Validation
-- Navigate to `/admin/inventory` on staging, adjust stock of a test unit, assert changes reflect in both admin table and database.
+- Open Admin Portal on Railway staging, locate test order in `inventory_exception`, execute 1-click refund, verify status transitions to `refunded` and Stripe test dashboard reflects refund.
 
 ## 26. Evidence Requirements
-- Passing unit test execution logs.
-- Screenshot of Admin Inventory table showing SellableUnits and stock badges.
+- Component test execution transcript showing 100% assertions green.
+- Screenshot of `AdminOrdersPage.tsx` displaying `inventory_exception` badge and refund action.
 
 ## 27. Definition of Done
-- Admin UI fully functional and verified on staging.
-- Zero TypeScript diagnostics.
-- Approved by Frontend Lead.
+- Order fulfillment updates and 1-click refund action verified.
+- Code reviewed and approved by Backend Lead (Rogelio) and Technical Authority (Joaquin).
+- Ready for inclusion in Feature Freeze candidate (CCP-35).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Operations team for catalog management.
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: QA Lead (CCP-35 Feature Freeze & CCP-37 Client UAT).

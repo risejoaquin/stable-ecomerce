@@ -2,8 +2,8 @@
 
 ## 1. Responsibility
 - **Lead Domain**: Database & Backend Architecture
-- **Assignee Lead**: Julian (Backend / Data Lead)
-- **Secondary Reviewer**: Rogelio (Frontend Lead)
+- **Assignee Lead**: Rogelio (Backend / Database Lead)
+- **Secondary Reviewer**: Julian (Frontend Lead)
 
 ## 2. Objective
 Author database migrations establishing the canonical `order_payments` ledger table, enhancing the `orders` table with omnichannel identifiers (`client_request_id`, `channel`, `cashier_user_id`, `pos_terminal_id`), and updating `order_items` to link to `sellable_units`.
@@ -123,5 +123,5 @@ Senior PostgreSQL / Backend Database Engineer with experience in financial ledge
 - Ready for CCP-14 implementation.
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: Julian (proceed to CCP-14 for Web POS API implementation).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: Rogelio (proceed to CCP-14 for Web POS API implementation) and Julian (proceed to CCP-15 / CCP-43 for Checkout and Register UI).

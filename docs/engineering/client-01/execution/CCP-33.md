@@ -1,123 +1,146 @@
-# Execution Pack: CCP-33 — POS Sales E2E Integration Suite
+# Execution Pack: CCP-33 — Critical Path E2E Automation — Playwright Suite (Storefront + POS + Inventory Exception Path)
 
 ## 1. Responsibility
-- **Lead Domain**: QA Automation & Fullstack Integration
-- **Assignee Lead**: QA Automation Lead
-- **Secondary Reviewer**: Julian (Backend Lead) / Rogelio (Frontend Lead)
+- **Lead Domain**: QA Automation & Integrated E2E Engineering
+- **Assignee Lead**: QA Automation Lead / Playwright Engineer
+- **Secondary Reviewers**: Rogelio (Backend / Database Lead) & Julian (Frontend Lead)
+- **Technical & Release Authority**: Joaquin (@risejoaquin)
 
 ## 2. Objective
-Author and verify automated Playwright end-to-end (E2E) integration test suites covering the complete Web POS sale lifecycle: cashier authentication, catalog search, barcode scanning, cart adjustments, cash tender change calculation, card reference submission, order persistence, inventory decrement, and receipt modal rendering.
+Design, automate, and continuously execute the authoritative End-to-End (E2E) browser and API test suite covering the critical revenue journeys of Client 01: customer storefront purchase via Stripe, Web POS cash sale with change calculation, Web POS card reference recording, shared inventory deduction, atomic concurrency collision handling, and receipt generation.
 
 ## 3. Why
-Unit and contract tests validate individual components in isolation, but only true browser-driven E2E automation verifies that the complete system functions reliably end-to-end. This test suite serves as the definitive automated release gate for POS sales.
+Unit and contract tests validate individual components in isolation, but only true browser-driven E2E automation verifies that the complete integrated system functions reliably across real user journeys. This Playwright suite serves as the definitive automated release gate for `CCP-35` (Feature Freeze) and `CCP-38` (Production Deployment).
 
 ## 4. Owner Profile
-Senior QA Automation / Fullstack Engineer with expertise in Playwright, browser test fixtures, database seed/cleanup scripts, and CI/CD integration.
+Senior QA Automation / Fullstack Engineer with deep expertise in Playwright browser automation, Page Object Model (POM), synthetic test fixtures, database state assertions, and CI headless runner optimization.
 
 ## 5. Preconditions
-- CCP-14 (POS Sales Backend API), CCP-22 (Web POS Terminal UI), CCP-23 (POS Tender Modal), and CCP-24 (Receipt UI) completed and integrated.
+- Contract Freeze gate (CCP-44) approved.
+- Web POS Sale API (CCP-14) and Web POS Register UI (CCP-43) operational.
+- Storefront Checkout Flow (CCP-15) and Stock Guards (CCP-29) operational.
+- Receipt Read Model (CCP-27) and Transactional Email Queue (CCP-23) operational.
 
 ## 6. Dependencies
-- **Preceding Tickets**: CCP-14, CCP-22, CCP-23, CCP-24.
-- **Downstream Blocking**: Blocks CCP-35 (Staging Deployment & Verification) and CCP-37 (Production Readiness Gate).
+- **Preceding Tickets**: CCP-12, CCP-13, CCP-14, CCP-15, CCP-22, CCP-23, CCP-27, CCP-29, CCP-43.
+- **Downstream Blocking**: Blocks CCP-34 (Pre-Freeze System Validation), CCP-35 (Feature Freeze Enforcement), and CCP-37 (Client UAT Walkthrough).
 
 ## 7. Authoritative Contracts
-- **DR-INV-001 (Inventory Authority)**
-- **DR-PAY-001 (Payment Ledger)**
-- **DR-IDEM-001 (Idempotency Engine)**
-- **DR-AUTH-001 (Authorization Model)**
-- **DR-REC-001 (Receipt Read Model)**
+- **DR-INV-001 (Canonical Inventory Authority — Row Lock Decrements)**
+- **DR-PAY-001 (Order Payments Ledger & Multi-Channel Tender)**
+- **DR-IDEM-001 (PostgreSQL Durable Idempotency)**
+- **DR-AUTH-001 (Web POS Operator RBAC & Route Protection)**
+- **DR-ERR-001 (Canonical Error Envelope)**
+- **DR-REC-001 (Deterministic Receipt Read Model)**
 - `docs/engineering/client-01/14_TEST_STRATEGY.md`
+- `docs/engineering/operations/QA_STRATEGY.md`
 
 ## 8. Scope IN
-- Playwright test suite `tests/e2e/pos/pos-sales-lifecycle.spec.ts`.
-- Database test fixture setup and teardown (`tests/fixtures/pos-fixtures.ts`).
-- Verification scenarios:
-  1. Cash Sale: search item, add to cart, input cash tender > total, verify change calculation, submit, verify receipt rendered, verify stock decremented in DB.
-  2. Card Reference Sale: scan barcode, enter authorization code, submit, verify payment ledger row created with reference code.
-  3. Role Protection: verify customer and unauthenticated sessions cannot reach POS UI.
-  4. Out of Stock UI Handling: attempt sale when stock is 0, verify clean error modal.
+- Authoring canonical Playwright test suite adhering to repository `playwright.config.ts`:
+  - Path: `e2e/pos-sales.spec.ts` (Playwright E2E browser tests).
+  - Path: `tests/api/pos-sales.test.ts` (Supertest API integration suite).
+- Four Mandatory Critical Journeys:
+  1. **Journey 1: Online Storefront Purchase**: Customer selects SellableUnit, completes Stripe test checkout, confirms order row in `orders` and stock decrement in `sellable_units`.
+  2. **Journey 2: Web POS Cash Sale**: Cashier logs in, scans barcode, tenders cash ($500 for $450 sale), verifies change due ($50), finalizes sale, asserts receipt modal renders, and confirms cash ledger row in `order_payments`.
+  3. **Journey 3: Web POS Card Reference Sale**: Cashier scans item, selects card tender, inputs terminal authorization code ("AUTH-4412"), finalizes sale, asserts receipt with card slip reference.
+  4. **Journey 4: Shared Inventory Concurrency Collision**: Online customer and POS cashier simultaneously attempt to purchase the final remaining unit of a SellableUnit; asserts that exactly one transaction succeeds, one transaction receives clean `INSUFFICIENT_STOCK` rejection, and database stock reaches exactly 0 with zero negative inventory.
+- Verification of staff RBAC: unauthenticated and `user` role sessions rejected from `/pos`.
+- Test fixtures setup and teardown (`tests/fixtures/pos-fixtures.ts`).
 
 ## 9. Scope OUT
-- Physical printer hardware testing.
-- Manual exploratory testing (covered in staging acceptance).
-- Refund E2E flows (handled in CCP-34).
+- Physical receipt printer ESC/POS driver integration (browser print dialog mocked).
+- Payment terminal EMV hardware chip-and-pin integration.
+- Refund and compensating return workflows (handled in CCP-34).
 
 ## 10. Required Behavior
-1. Run in headless Chromium, Firefox, and WebKit browsers.
-2. Authenticate automatically via test staff account.
-3. Assert DOM elements, modal appearances, and text labels.
-4. Directly query database post-test to verify row state in `orders`, `order_items`, `sellable_units`, and `order_payments`.
-5. Clean up seeded test records after test execution.
+1. Tests execute in headless Chromium via `npm run test:e2e` matching `playwright.config.ts`.
+2. Tests seed isolated test products and SellableUnits prior to execution and clean up records on teardown.
+3. Assertions verify DOM elements, modal appearances, button states, and direct database rows in PostgreSQL (`orders`, `order_payments`, `sellable_units`, `inventory_movements`).
+4. Concurrency test fires simultaneous requests and asserts that final inventory is non-negative ($S \ge 0$).
+5. Flaky tests or retry-based masking are strictly prohibited; failures must produce actionable trace artifacts.
 
 ## 11. Inputs
-- Playwright browser context, simulated mouse clicks, keyboard input.
-- Test seed data in PostgreSQL.
+- Playwright browser context, simulated mouse clicks, keyboard input, synthetic test user credentials.
+- Test seed data in Supabase PostgreSQL staging/test instance.
 
 ## 12. Outputs
-- Playwright test report, video/trace recordings on failure.
-- Verifiable test evidence artifacts.
+- Playwright HTML test report (`playwright-report/`).
+- Video and trace recordings on test failure (`test-results/`).
+- Verifiable test evidence logs.
 
 ## 13. Allowed Implementation Freedom
-- Page Object Model (POM) architecture under `tests/e2e/pages/PosPage.ts`.
-- Selection of Playwright locator strategies (prefer `data-testid` and accessible role selectors).
+- Page Object Model internal method naming in `e2e/pages/PosPage.ts`.
+- Selection of synthetic test item names and SKU codes.
 
 ## 14. Forbidden Changes
-- DO NOT use flaky sleep timeouts (`page.waitForTimeout`); use deterministic assertions (`page.waitForSelector`, `toBeVisible`).
-- DO NOT disable security checks to make tests pass.
-- DO NOT leave orphaned test data in production databases.
+- DO NOT place Playwright tests in non-standard directories (must reside under `e2e/` per `playwright.config.ts`).
+- DO NOT bypass authentication guards or mock away database row locks.
+- DO NOT allow test suites to leave dirty seed data in the database.
+- DO NOT weaken assertions or use arbitrary `sleep` timeouts instead of explicit locator awaits.
 
 ## 15. Repository Boundaries
 - **Permitted Additions/Modifications**:
-  - `tests/e2e/pos/*`
+  - `e2e/pos-sales.spec.ts`
+  - `e2e/pages/PosPage.ts`
+  - `tests/api/pos-sales.test.ts`
   - `tests/fixtures/pos-fixtures.ts`
-  - `playwright.config.ts`
 - **Strictly Prohibited**:
-  - Production application source code (`src/*`).
+  - Product application code or database schema migrations.
 
 ## 16. Data Impact
-- Creates temporary test records in database, cleaned up via fixture hooks.
+- Creates temporary test records in `orders`, `order_payments`, `sellable_units`, and `inventory_movements`; purged after test suite completion.
 
 ## 17. API Impact
-- Exercises full API suite under `/api/pos/*`.
+- Exercises `POST /api/pos/sales`, `POST /api/checkout`, `GET /api/inventory/availability`, and `GET /api/pos/orders`.
 
 ## 18. Security
-- Test credentials stored securely in environment variables (`E2E_STAFF_EMAIL`, `E2E_STAFF_PASSWORD`).
+- Validates that non-staff credentials cannot access POS routes.
+- Confirms zero exposure of secrets or API keys in test traces.
 
 ## 19. Concurrency & Idempotency
-- Tests run sequentially or in isolated worker databases to avoid cross-test data pollution.
+- Validates that concurrent sale submissions with identical `clientRequestId` return the same order without double-decrementing stock.
+- Validates that concurrent requests for the final unit are safely serialized by `FOR UPDATE` row locks.
 
 ## 20. Migration Considerations
-- Operates on databases with CCP-12 and CCP-13 migrations applied.
+- None. Operates directly on the consolidated Client 01 code baseline.
 
 ## 21. Edge Cases
-- Decimal rounding in tender calculation: asserts exact change matching.
-- Slow network simulation: asserts UI disables submit button to prevent double-submit.
+- Exact tender amount ($450 tendered for $450 total): change due displays $0.00 cleanly.
+- Rapid barcode input simulating 50ms USB scanner: correctly populates cart without dropping characters.
 
 ## 22. Observability
-- Captures browser console logs and network traffic in Playwright trace files.
+- All Playwright runs generate structured traces on failure, enabling visual step-by-step triage.
 
 ## 23. Acceptance Criteria
-- [ ] 100% of tests in `pos-sales-lifecycle.spec.ts` pass consistently (3/3 runs green).
-- [ ] Direct database query proves stock decreased by exact purchased quantity.
-- [ ] Direct database query proves `order_payments` captures correct tender details.
-- [ ] Execution completes within 60 seconds on CI runners.
+- [ ] Automated Playwright suite `e2e/pos-sales.spec.ts` passes with 0 failures in headless CI.
+- [ ] API integration suite `tests/api/pos-sales.test.ts` passes with 0 failures.
+- [ ] Storefront Stripe purchase, POS Cash sale, and POS Card Reference sale validated end-to-end.
+- [ ] Concurrency test proves zero overselling and zero negative stock under race conditions.
+- [ ] Direct database assertions confirm correct records in `orders`, `order_payments`, and `sellable_units`.
+- [ ] Unauthorized roles (`user`, anonymous) verified blocked from accessing POS.
 
 ## 24. Test Strategy
-- Multi-browser Playwright execution in CI pipeline.
+- Execute local Playwright suite:
+  ```bash
+  npx playwright test e2e/pos-sales.spec.ts --project=chromium
+  ```
+- Execute API integration suite:
+  ```bash
+  npm test tests/api/pos-sales.test.ts
+  ```
 
 ## 25. Staging Validation
-- Execute the test suite against isolated staging deployment before promoting to production.
+- Run Playwright test suite against live Railway staging URL (`STAGING_BASE_URL=https://staging.domain.com npx playwright test e2e/pos-sales.spec.ts`).
 
 ## 26. Evidence Requirements
-- Playwright HTML test report summary.
-- Trace file and screenshot artifact from successful run.
+- Playwright summary log showing all tests passing.
+- Database query transcript proving clean cleanup and accurate transactional row creation.
 
 ## 27. Definition of Done
-- Test suite merged into `tests/e2e/`.
-- Integrated into `validate-release.ps1` hard gate.
-- Sign-off by QA Automation Lead.
+- All 4 critical journeys automated and passing.
+- Code reviewed and approved by Backend Lead (Rogelio), Frontend Lead (Julian), and Technical Authority (Joaquin).
+- Mandatory release gate for Feature Freeze (CCP-35).
 
 ## 28. Escalation & Next Consumers
-- **Escalate To**: Architecture Lead (ChatGPT Web).
-- **Next Consumer**: QA Lead (proceed to CCP-34 for Refund E2E Suite).
+- **Escalate To**: Technical & Release Authority (@risejoaquin).
+- **Next Consumer**: QA Lead (proceed to CCP-34 Pre-Freeze System Validation) and Joaquin (CCP-35 Feature Freeze).

@@ -65,40 +65,57 @@ flowchart TD
         CCP42["CCP-42 (Rogelio Team Ready)"] --> CCP44
     end
 
-    subgraph DataTier ["2. Data Tier & Invariants"]
+    subgraph DataTier ["2. Core Inventory & Data Authority"]
         CCP44 --> CCP39["CCP-39 (SellableUnit Foundation)"]
-        CCP44 --> CCP28["CCP-28 (Auth & Security Middleware)"]
-        CCP44 --> CCP29["CCP-29 (Durable Idempotency Engine)"]
-        CCP39 --> CCP12["CCP-12 (SKU Schema Migrations)"]
+        CCP44 --> CCP22["CCP-22 (POS Operator Authorization)"]
+        CCP44 --> CCP17["CCP-17 (Webhook HMAC Security)"]
+        CCP44 --> CCP18["CCP-18 (Upload Route Lockdown)"]
+        CCP44 --> CCP19["CCP-19 (Access & DB Security)"]
+        CCP39 --> CCP12["CCP-12 (Concurrency Stock Decrement & Migrations)"]
+        CCP39 --> CCP20["CCP-20 (Stock Adjustment API & Movement Audit)"]
+        CCP39 --> CCP29["CCP-29 (Storefront Stock Guard)"]
         CCP12 --> CCP13["CCP-13 (Canonical Order & Payment Ledger)"]
     end
 
-    subgraph Services ["3. Backend Endpoints & Read Models"]
-        CCP13 --> CCP14["CCP-14 (POS Sales Backend API)"]
-        CCP13 --> CCP15["CCP-15 (POS Search & Catalog Read)"]
-        CCP13 --> CCP20["CCP-20 (POS Receipt Read Model)"]
-        CCP13 --> CCP21["CCP-21 (POS Refund & Restock API)"]
-        CCP20 --> CCP27["CCP-27 (Transactional Email Dispatch)"]
+    subgraph Services ["3. POS Endpoints & Frontends"]
+        CCP13 --> CCP14["CCP-14 (Web POS Sale API)"]
+        CCP22 --> CCP14
+        CCP44 --> CCP43["CCP-43 (Web POS Register UI)"]
+        CCP12 --> CCP15["CCP-15 (Storefront Checkout Flow)"]
+        CCP13 --> CCP15
+        CCP29 --> CCP15
+        CCP20 --> CCP21["CCP-21 (Admin Catalog Stock Adjustment UI)"]
+        CCP13 --> CCP23["CCP-23 (Transactional Email Queue Automation)"]
+        CCP13 --> CCP25["CCP-25 (Admin Order Management & 1-Click Refund)"]
+        CCP13 --> CCP26["CCP-26 (Admin Dashboard Multi-Channel Metrics)"]
     end
 
-    subgraph UI ["4. Web POS & Admin UI"]
-        CCP14 --> CCP22["CCP-22 (Web POS Terminal UI)"]
-        CCP14 --> CCP23["CCP-23 (POS Cash & Card Tender)"]
-        CCP20 --> CCP24["CCP-24 (POS Receipt View & Print)"]
-        CCP12 --> CCP25["CCP-25 (Admin SellableUnit Inventory)"]
-        CCP13 --> CCP26["CCP-26 (Admin Orders & Payments Ledger)"]
+    subgraph PostSale ["4. Post-Sale, Receipts & Refunds"]
+        CCP15 --> CCP24["CCP-24 (Order Confirm & Tracking Hardening)"]
+        CCP23 --> CCP24
+        CCP14 --> CCP27["CCP-27 (Web POS Receipt View & History)"]
+        CCP43 --> CCP27
+        CCP14 --> CCP28["CCP-28 (POS Cancellation & Restock API)"]
+        CCP12 --> CCP28
     end
 
     subgraph Verification ["5. Verification & Release Gates"]
-        CCP22 --> CCP33["CCP-33 (POS Sales E2E Hardening)"]
+        CCP14 --> CCP33["CCP-33 (Critical Path E2E Playwright Suite)"]
+        CCP15 --> CCP33
+        CCP43 --> CCP33
         CCP23 --> CCP33
-        CCP21 --> CCP34["CCP-34 (POS Refund & Restock Validation)"]
-        CCP24 --> CCP34
-        CCP33 --> CCP35["CCP-35 (Staging Verification)"]
+        CCP19 --> CCP34["CCP-34 (Pre-Freeze System Validation)"]
+        CCP22 --> CCP34
+        CCP28 --> CCP34
+        CCP33 --> CCP34
+        CCP33 --> CCP35["CCP-35 (Feature Freeze / RC Tag — 03 Oct)"]
         CCP34 --> CCP35
-        CCP35 --> CCP36["CCP-36 (Concurrency & Load Testing)"]
-        CCP36 --> CCP37["CCP-37 (Production Readiness Gate)"]
-        CCP37 --> CCP38["CCP-38 (Production Release & Smoke)"]
+        CCP35 --> CCP36["CCP-36 (Hardening & Concurrency — 04 Oct)"]
+        CCP17 --> CCP36
+        CCP18 --> CCP36
+        CCP19 --> CCP36
+        CCP36 --> CCP37["CCP-37 (Client UAT Walkthrough — 04 Oct)"]
+        CCP37 --> CCP38["CCP-38 (Production Deployment & Handoff — 05 Oct)"]
     end
 ```
 
@@ -130,25 +147,29 @@ flowchart TD
 ---
 
 ### Engineer Ticket Execution Packs (`execution/`)
-| Ticket | Primary Domain | Assignee Lead | Deliverable Summary |
-| :--- | :--- | :--- | :--- |
-| [**`CCP-39.md`**](./execution/CCP-39.md) | Data / Architecture | Julian | SellableUnit domain foundation and interface specifications |
-| [**`CCP-12.md`**](./execution/CCP-12.md) | Database / Migration | Julian | `sellable_units` DDL migrations, backfill triggers, stock RPC |
-| [**`CCP-13.md`**](./execution/CCP-13.md) | Database / Backend | Julian | `order_payments` ledger schema, omnichannel orders enhancement |
-| [**`CCP-14.md`**](./execution/CCP-14.md) | Backend API | Julian | `POST /api/pos/sales` endpoint implementation with atomic checkout |
-| [**`CCP-15.md`**](./execution/CCP-15.md) | Backend API | Julian | POS fast catalog search and sellable unit barcode/text lookup |
-| [**`CCP-20.md`**](./execution/CCP-20.md) | Backend / Read Model | Julian | Receipt generation read model and deterministic computation endpoint |
-| [**`CCP-21.md`**](./execution/CCP-21.md) | Backend API | Julian | POS refund and stock restock operations API |
-| [**`CCP-22.md`**](./execution/CCP-22.md) | Frontend UI | Rogelio | Web POS cashier terminal register interface and cart management |
-| [**`CCP-23.md`**](./execution/CCP-23.md) | Frontend UI | Rogelio | POS tender modal: Cash change calculation and Card terminal entry |
-| [**`CCP-24.md`**](./execution/CCP-24.md) | Frontend UI | Rogelio | Receipt modal, browser thermal print CSS styling, email trigger UI |
-| [**`CCP-25.md`**](./execution/CCP-25.md) | Frontend UI | Rogelio | Admin catalog management enhancement for SKU / SellableUnit inventory |
-| [**`CCP-26.md`**](./execution/CCP-26.md) | Frontend UI | Rogelio | Admin orders and payment ledger view with tender drill-down |
-| [**`CCP-27.md`**](./execution/CCP-27.md) | Backend / Email | Julian | Resend queue integration for asynchronous POS digital receipts |
-| [**`CCP-28.md`**](./execution/CCP-28.md) | Security / Backend | Julian | POS role-based access control middleware and route guards |
-| [**`CCP-29.md`**](./execution/CCP-29.md) | Backend / Middleware | Julian | Durable PostgreSQL idempotency engine middleware |
-| [**`CCP-33.md`**](./execution/CCP-33.md) | QA Automation | QA Lead | Playwright end-to-end POS checkout and inventory validation suite |
-| [**`CCP-34.md`**](./execution/CCP-34.md) | QA Automation | QA Lead | POS refund, restock, and idempotency edge-case E2E validation |
+| Ticket | Primary Domain | Assignee Lead | Secondary Reviewer | Deliverable Summary |
+| :--- | :--- | :--- | :--- | :--- |
+| [**`CCP-39.md`**](./execution/CCP-39.md) | Data / Architecture | Rogelio | Julian | SellableUnit domain foundation and interface specifications |
+| [**`CCP-12.md`**](./execution/CCP-12.md) | Database / Migration | Rogelio | Julian | `sellable_units` DDL migrations, backfill triggers, stock RPC |
+| [**`CCP-13.md`**](./execution/CCP-13.md) | Database / Backend | Rogelio | Julian | `order_payments` ledger schema, omnichannel orders enhancement |
+| [**`CCP-14.md`**](./execution/CCP-14.md) | Backend API | Rogelio | Julian | `POST /api/pos/sales` endpoint implementation with atomic checkout |
+| [**`CCP-15.md`**](./execution/CCP-15.md) | Frontend UI | Julian | Rogelio | Storefront checkout flow with advisory stock pre-checks & Stripe |
+| [**`CCP-17.md`**](./execution/CCP-17.md) | Security / Backend | Joaquin / Rogelio | QA Lead | Resend webhook HMAC signature verification & regression preservation |
+| [**`CCP-18.md`**](./execution/CCP-18.md) | Security / Backend | Joaquin / Rogelio | Julian | Product media upload lockdown & MIME whitelist enforcement |
+| [**`CCP-19.md`**](./execution/CCP-19.md) | Security / Database | Rogelio / Joaquin | QA Lead | Login brute-force rate limiting & database function RLS audit |
+| [**`CCP-20.md`**](./execution/CCP-20.md) | Backend API | Rogelio | Julian | Stock adjustment API (`POST /api/inventory/adjustments`) & movement ledger |
+| [**`CCP-21.md`**](./execution/CCP-21.md) | Frontend UI | Julian | Rogelio | Admin catalog stock adjustment modal with reason codes |
+| [**`CCP-22.md`**](./execution/CCP-22.md) | Security / Backend | Rogelio | Julian | POS operator authorization middleware (`requirePosOperator`) & route guards |
+| [**`CCP-23.md`**](./execution/CCP-23.md) | Backend / Email | Rogelio | Julian | Order lifecycle event wiring into asynchronous Resend email queue |
+| [**`CCP-24.md`**](./execution/CCP-24.md) | Frontend UI | Julian | Rogelio | Order confirmation & customer status tracking hardening (PII-safe) |
+| [**`CCP-25.md`**](./execution/CCP-25.md) | Frontend UI | Julian | Rogelio | Admin order management fulfillment status updates & 1-click Stripe refund |
+| [**`CCP-26.md`**](./execution/CCP-26.md) | Frontend UI | Julian | Rogelio | Admin dashboard multi-channel revenue breakdown & customer stats |
+| [**`CCP-27.md`**](./execution/CCP-27.md) | Frontend UI | Julian | Rogelio | Web POS digital receipt modal, thermal print CSS & same-day history |
+| [**`CCP-28.md`**](./execution/CCP-28.md) | Backend API | Rogelio | Julian | Channel-aware POS refund endpoint (`POST /api/pos/orders/:id/refund`) & restock |
+| [**`CCP-29.md`**](./execution/CCP-29.md) | Frontend UI | Julian | Rogelio | Storefront stock guards, out-of-stock badges & quantity selector limits |
+| [**`CCP-33.md`**](./execution/CCP-33.md) | QA Automation | QA Lead | Rogelio / Julian | Canonical Critical Path E2E Playwright suite (`e2e/pos-sales.spec.ts`) |
+| [**`CCP-34.md`**](./execution/CCP-34.md) | QA Automation | QA Lead | Rogelio / Julian | Canonical Pre-Freeze system validation suite (`e2e/pos-refund-restock.spec.ts`) |
+| [**`CCP-43.md`**](./execution/CCP-43.md) | Frontend UI | Julian | Rogelio | Web POS Register UI shell, catalog search, cart & tender modal |
 
 ---
 

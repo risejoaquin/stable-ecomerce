@@ -48,27 +48,31 @@ All 18 required architecture and contract documents have been authored and verif
 
 ## 3. Engineer Ticket Execution Packs Verification
 
-All 17 ticket execution packs have been authored under `docs/engineering/client-01/execution/`. Each pack contains all 28 mandatory sections without omission:
+All 21 ticket execution packs have been authored under `docs/engineering/client-01/execution/`. Each pack contains all 28 mandatory sections without omission:
 
 | Ticket ID | Title | Domain | Assignee Lead | 28 Sections Complete | Status |
 | :--- | :--- | :--- | :--- | :-: | :-: |
-| **CCP-39** | SellableUnit Domain Foundation | Data Architecture | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-12** | Inventory & SKU Schema Migrations | Database / DDL | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-13** | Canonical Orders & Payment Ledger Schema | Database / Backend | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-14** | POS Sales Backend API Implementation | Backend API | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-15** | POS Search & Catalog Read Endpoints | Backend API | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-20** | POS Receipt Generation & Read Model | Backend / Read Model | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-21** | POS Refund & Restock API | Backend API | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-22** | Web POS Frontend Sale Terminal UI | Frontend UI | Rogelio | 28 / 28 | VERIFIED / READY |
-| **CCP-23** | Web POS Frontend Cash & Card Tender | Frontend UI | Rogelio | 28 / 28 | VERIFIED / READY |
-| **CCP-24** | Web POS Frontend Receipt View & Print | Frontend UI | Rogelio | 28 / 28 | VERIFIED / READY |
-| **CCP-25** | Admin Inventory Management for SellableUnits| Frontend UI | Rogelio | 28 / 28 | VERIFIED / READY |
-| **CCP-26** | Admin Orders & Payments Ledger UI | Frontend UI | Rogelio | 28 / 28 | VERIFIED / READY |
-| **CCP-27** | Transactional Email for POS Receipts | Backend / Email | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-28** | POS Authorization & Security Middleware | Security / Backend | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-29** | Durable Idempotency Engine Middleware | Backend / Middleware | Julian | 28 / 28 | VERIFIED / READY |
-| **CCP-33** | POS Sales E2E Integration Suite | QA Automation | QA Lead | 28 / 28 | VERIFIED / READY |
-| **CCP-34** | POS Refund & Restock E2E Suite | QA Automation | QA Lead | 28 / 28 | VERIFIED / READY |
+| **CCP-39** | Canonical SellableUnit Domain Foundation | Data Architecture | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-12** | Shared Concurrency Stock Decrement & SKU Migrations | Database / DDL | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-13** | Unified Order Persistence & Payment Ledger | Database / Backend | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-14** | Web POS Sale API & Transaction Orchestration | Backend API | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-15** | Storefront Checkout Flow & Advisory Pre-Checks | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-17** | Resend Webhook HMAC Signature Verification | Security / Backend | Joaquin / Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-18** | Product Media Upload Lockdown & MIME Whitelist | Security / Backend | Joaquin / Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-19** | Login Rate Limiting & Database RLS Security Audit | Security / Database | Rogelio / Joaquin | 28 / 28 | VERIFIED / READY |
+| **CCP-20** | Controlled Inventory Adjustments & Movement Audit | Backend API | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-21** | Admin Catalog Stock Adjustment Modal | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-22** | POS Operator Authorization & Admin Protection | Security / Backend | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-23** | Transactional Email Automation Queue Integration | Backend / Email | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-24** | Order Confirmation & Tracking Hardening | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-25** | Admin Order Management & 1-Click Stripe Refund | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-26** | Admin Dashboard Multi-Channel Sales Metrics | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-27** | Web POS Digital Receipt View & History | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-28** | POS Sale Cancellation & Restock API | Backend API | Rogelio | 28 / 28 | VERIFIED / READY |
+| **CCP-29** | Storefront Stock Guard & Quantity Selector Limits | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
+| **CCP-33** | Canonical Critical Path E2E Playwright Suite | QA Automation | QA Lead | 28 / 28 | VERIFIED / READY |
+| **CCP-34** | Canonical Pre-Freeze System Validation Suite | QA Automation | QA Lead | 28 / 28 | VERIFIED / READY |
+| **CCP-43** | Web POS Register UI — Search, Cart & Tender | Frontend UI | Julian | 28 / 28 | VERIFIED / READY |
 
 ---
 
@@ -98,31 +102,37 @@ Agent B operated strictly within assigned boundaries:
 
 ## 6. Readiness Assessment & Engineering Handoff
 
-The architecture and execution packs are ready for immediate ingestion by engineering leads Julian and Rogelio upon orchestrator collection and PR review:
+The architecture and execution packs are ready for immediate ingestion by engineering leads Rogelio and Julian upon PR review and merge into `main`:
 
 ```
-[Julian (Backend / Data Lead)]
+[Rogelio (Backend / Database / Orders / API Lead)]
    ├── CCP-39 (SellableUnit Domain Foundation)
-   ├── CCP-12 (Inventory & SKU Schema Migrations)
-   ├── CCP-13 (Canonical Orders & Payment Ledger Schema)
-   ├── CCP-28 (POS Authorization Middleware)
-   ├── CCP-29 (Durable Idempotency Engine Middleware)
-   ├── CCP-14 (POS Sales Backend API)
-   ├── CCP-15 (POS Search & Catalog Read Endpoints)
-   ├── CCP-20 (POS Receipt Read Model)
-   ├── CCP-21 (POS Refund & Restock API)
-   └── CCP-27 (Transactional Email for POS Receipts)
+   ├── CCP-12 (Shared Concurrency Stock Decrement & SKU Migrations)
+   ├── CCP-13 (Unified Order Persistence & Payment Ledger)
+   ├── CCP-14 (Web POS Sale API & Transaction Orchestration)
+   ├── CCP-20 (Controlled Inventory Adjustments & Movement Audit)
+   ├── CCP-22 (POS Operator Authorization & Admin Protection)
+   ├── CCP-23 (Transactional Email Automation Queue Integration)
+   └── CCP-28 (POS Sale Cancellation & Restock API)
 
-[Rogelio (Frontend Lead)]
-   ├── CCP-22 (Web POS Frontend Sale Terminal UI)
-   ├── CCP-23 (Web POS Frontend Cash & Card Tender)
-   ├── CCP-24 (Web POS Frontend Receipt View & Print Action)
-   ├── CCP-25 (Admin Inventory Management UI for SellableUnits)
-   └── CCP-26 (Admin Orders & Payments Ledger UI)
+[Julian (Frontend / UI / Admin / Web POS UI Lead)]
+   ├── CCP-15 (Storefront Checkout Flow & Advisory Pre-Checks)
+   ├── CCP-21 (Admin Catalog Stock Adjustment Modal)
+   ├── CCP-24 (Order Confirmation & Tracking Hardening)
+   ├── CCP-25 (Admin Order Management & 1-Click Stripe Refund)
+   ├── CCP-26 (Admin Dashboard Multi-Channel Sales Metrics)
+   ├── CCP-27 (Web POS Digital Receipt View & History)
+   ├── CCP-29 (Storefront Stock Guard & Quantity Selector Limits)
+   └── CCP-43 (Web POS Register UI — Search, Cart & Tender)
+
+[Joaquin (Technical Authority & Security Lead)]
+   ├── CCP-17 (Resend Webhook HMAC Signature Verification)
+   ├── CCP-18 (Product Media Upload Lockdown & MIME Whitelist)
+   └── CCP-19 (Login Rate Limiting & Database RLS Security Audit)
 
 [QA Automation Lead]
-   ├── CCP-33 (POS Sales E2E Integration Suite)
-   └── CCP-34 (POS Refund & Restock E2E Suite)
+   ├── CCP-33 (Critical Path E2E Playwright Automation Suite)
+   └── CCP-34 (Pre-Freeze System Validation Suite)
 ```
 
 The system design achieves complete mathematical and transactional rigor, paving the way for flawless execution across the critical path.
