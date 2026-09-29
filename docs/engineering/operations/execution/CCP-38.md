@@ -1,10 +1,10 @@
 # Execution Pack: CCP-38 — Production Release Execution & Post-Deploy Handoff
 
-**Ticket ID**: `CCP-38`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: Release Coordinator / DevOps Lead / Engineering Lead  
-**Target Delivery**: **05 Oct 2026** (Production Release Day)  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-38`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: Release Coordinator / DevOps Lead / Engineering Lead
+**Target Delivery**: **05 Oct 2026** (Production Release Day)
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 
@@ -42,7 +42,7 @@ CCP-38 is the operational capstone of the Client 01 initiative. It translates al
 ## 3. Scope Boundaries
 
 - **IN SCOPE**:
-  - Merging `rc/client01-v1.0` into `main` and pushing tag `v1.0.0`.
+  - Promoting `rc/client01-v1.0` into `main` via protected PR, verifying required checks and peer approval, authorizing release integration, and tagging the integrated SHA (`v1.0.0`).
   - Executing additive database migrations against production Supabase.
   - Deploying service `stable-ecomerce` on Railway (`heroic-solace`).
   - Executing `scripts/qa/validate-production.ps1` against `https://selfcaresinners.com`.
@@ -62,6 +62,7 @@ CCP-38 is the operational capstone of the Client 01 initiative. It translates al
   - Unanimous GO decision recorded in `CCP-37`.
   - Production Supabase PITR backup snapshot verified.
   - All 11 required production secrets active in Railway environment.
+  - Approved Client 01 database migration executor ratified and tested (BLOCKING PREREQUISITE: `scripts/qa/database/apply-remediation-ddl.mjs` is strictly prohibited).
 
 ---
 
@@ -72,11 +73,12 @@ CCP-38 is the operational capstone of the Client 01 initiative. It translates al
                                  │
                                  ▼
 [Stage 1: 10:00 UTC - Production Database Migration]
- Apply scripts/qa/database/apply-remediation-ddl.mjs to live Supabase DB
+ Apply additive migrations via approved Client 01 executor
+ (BLOCKING PREREQUISITE: apply-remediation-ddl.mjs strictly prohibited)
                                  │
                                  ▼
-[Stage 2: 10:15 UTC - Git Merge & Production Tag Cut]
- Fast-forward merge rc/client01-v1.0 -> main; tag v1.0.0; push to origin
+[Stage 2: 10:15 UTC - Protected Promotion to Main & Production Tag Cut]
+ RC -> PR to main -> Required checks -> Peer approval -> Authorized merge -> Tag integrated SHA
                                  │
                                  ▼
 [Stage 3: 10:20 UTC - Railway Service Deployment]
@@ -101,18 +103,34 @@ CCP-38 is the operational capstone of the Client 01 initiative. It translates al
 ### Execution Commands:
 
 1. **Apply Production Database Migrations**:
+   > **MIGRATION EXECUTOR INVARIANT**:
+   > `scripts/qa/database/apply-remediation-ddl.mjs` is a historical single-purpose Block C remediation script hardcoded for 2026-09-17 candidate DDL. It **MUST NEVER** be used as a migration executor for Client 01.
+   > Because no approved Client 01 migration executor currently exists in the repository, the specification, review, and approval of an authoritative Client 01 migration executor is a **MANDATORY BLOCKING PREREQUISITE** prior to production release execution. Engineering must not invent ad-hoc runner scripts without formal governance review.
+   > Once the approved executor is ratified and tested, execute:
    ```bash
-   railway run -- powershell -NoProfile -Command '$env:DATABASE_URL = $env:SUPABASE_DB_URL; .\scripts\qa\database\apply-remediation-ddl.mjs'
+   # Run approved Client 01 migration executor (BLOCKING PREREQUISITE)
+   railway run -- <approved-client01-migration-executor-command>
    ```
 
-2. **Merge & Tag Production Release**:
+2. **Protected Promotion to Main & Tagging**:
+   > **PROTECTED PROMOTION INVARIANT**: Direct pushes and unreviewed local merges to `main` are strictly forbidden by branch protection rules. Promotion must proceed via:
+   > **`rc/client01-v1.0` -> Pull Request -> Required CI Checks -> Required Peer Approval -> Authorized Release Integration -> Tag Integrated SHA**.
    ```powershell
+   # 1. Fetch latest integrated commit from origin/main after PR merge
+   git fetch origin main
+
+   # 2. Update local main cleanly
    git checkout main
-   git merge --ff-only rc/client01-v1.0
-   git tag -a v1.0.0 -m "release: Client 01 v1.0 production release"
-   git push origin main
+   git pull --ff-only origin main
+
+   # 3. Capture the exact SHA integrated into main
+   $INTEGRATED_SHA = $(git rev-parse HEAD)
+
+   # 4. Tag the exact integrated commit SHA and push tag to origin
+   git tag -a v1.0.0 $INTEGRATED_SHA -m "release: Client 01 v1.0 production release"
    git push origin v1.0.0
    ```
+   > **NOTE**: Direct push to `main` (`git push origin main`) is strictly prohibited. Tag the SHA actually integrated.
 
 3. **Verify Production Liveness & Commit**:
    ```bash
@@ -161,7 +179,7 @@ CCP-38 is the operational capstone of the Client 01 initiative. It translates al
 ## 8. Definition of Done (DoD) & Escalation
 
 ### Definition of Done:
-- [ ] Database migrations applied and verified on production Supabase.
+- [ ] Database migrations applied via approved Client 01 migration executor and verified on production Supabase.
 - [ ] Railway service `stable-ecomerce` running active with `v1.0.0` commit.
 - [ ] 100% of automated production smoke assertions pass.
 - [ ] 60-minute telemetry observation window concludes with zero Sev-1 or Sev-2 incidents.

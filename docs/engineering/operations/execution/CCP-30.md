@@ -1,10 +1,10 @@
 # Execution Pack: CCP-30 — Observability & Structured Logging Integration
 
-**Ticket ID**: `CCP-30`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: Backend / Site Reliability Engineer (SRE)  
-**Target Delivery**: Pre-Hardening  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-30`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: Backend / Site Reliability Engineer (SRE)
+**Target Delivery**: Pre-Hardening
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 

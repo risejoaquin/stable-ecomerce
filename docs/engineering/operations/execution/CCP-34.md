@@ -4,13 +4,13 @@
 > **Canonical Implementation Authority**: This document serves as the operational QA and CI runbook supplement. The single authoritative implementation execution pack for this Jira ticket is:
 > [`docs/engineering/client-01/execution/CCP-34.md`](../../client-01/execution/CCP-34.md)
 
-**Ticket ID**: `CCP-34`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: QA Automation Lead / System Validation Engineer  
-**Secondary Reviewers**: Rogelio (Backend Lead) & Julian (Frontend Lead)  
-**Technical & Release Authority**: Joaquin (@risejoaquin)  
-**Target Delivery**: Pre-Hardening / RC Hardening (03 Oct 2026)  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-34`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: QA Automation Lead / System Validation Engineer
+**Secondary Reviewers**: Rogelio (Backend Lead) & Julian (Frontend Lead)
+**Technical & Release Authority**: Joaquin (@risejoaquin)
+**Target Delivery**: Pre-Hardening / RC Hardening (03 Oct 2026)
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 

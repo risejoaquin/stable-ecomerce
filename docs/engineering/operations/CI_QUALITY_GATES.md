@@ -1,10 +1,10 @@
 # CI Quality Gates & Pull Request Governance Model
 
-**Document ID**: `CI-GATE-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Continuous Integration Standard  
-**Target Release**: Client 01 v1.0  
-**Parent Epic**: `CCP-16` / `CCP-44`  
+**Document ID**: `CI-GATE-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Continuous Integration Standard
+**Target Release**: Client 01 v1.0
+**Parent Epic**: `CCP-16` / `CCP-44`
 
 ---
 
@@ -12,7 +12,7 @@
 
 The Continuous Integration (CI) pipeline serves as the authoritative, non-negotiable verification gate for all code merged into the `main` branch and candidate release branches.
 
-> **PRIMARY INVARIANT**:  
+> **PRIMARY INVARIANT**:
 > **NO MERGE WHEN REQUIRED CI FAILS. NO DONE WITHOUT VERIFIABLE EVIDENCE. NO WEAKENING CONTROLS TO MAKE A GATE GREEN.**
 
 Under no circumstances may tests be disabled (`.skip`), type checks silenced (`@ts-ignore`), lint rules relaxed, or coverage thresholds lowered to force a green pipeline.

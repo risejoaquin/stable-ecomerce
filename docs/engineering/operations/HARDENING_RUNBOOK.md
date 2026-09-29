@@ -1,10 +1,10 @@
 # Release Hardening & Regression Sweep Runbook
 
-**Document ID**: `RB-HARD-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Operational Runbook for Release Hardening  
-**Execution Date**: **04 Oct 2026** (Mandatory & Frozen)  
-**Parent Epic**: `CCP-44`  
+**Document ID**: `RB-HARD-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Operational Runbook for Release Hardening
+**Execution Date**: **04 Oct 2026** (Mandatory & Frozen)
+**Parent Epic**: `CCP-44`
 
 ---
 
@@ -18,7 +18,7 @@ Hardening is a focused period dedicated to:
 - Defect triage and remediation of Sev-1/Sev-2 issues only.
 - Final code stabilization prior to production deployment on **05 Oct 2026**.
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:  
+> **CRITICAL CALENDAR RULE (FROZEN)**:
 > **04 Oct 2026 is strictly Hardening + UAT.** Production deployment occurs on **05 Oct 2026**. Stale language referencing 03 Oct or 04 Oct production deployment is prohibited.
 
 ---

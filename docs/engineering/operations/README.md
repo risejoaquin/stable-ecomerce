@@ -1,8 +1,8 @@
 # Quality Assurance, Reliability & Release Operations Directory
 
-**Engineering Area**: Operations & QA Governance (`CCP-44`)  
-**Lead Agent**: Agent C (QA / Reliability / Release Designer)  
-**Target Release**: Client 01 v1.0 (Production Release: 05 Oct 2026)  
+**Engineering Area**: Operations & QA Governance (`CCP-44`)
+**Lead Agent**: Agent C (QA / Reliability / Release Designer)
+**Target Release**: Client 01 v1.0 (Production Release: 05 Oct 2026)
 
 ---
 
@@ -22,7 +22,7 @@ docs/engineering/operations/
 ├── HARDENING_RUNBOOK.md              # 04 Oct 2026: Defect triage, regression sweeps
 ├── UAT_RUNBOOK.md                    # 04 Oct 2026: Stakeholder acceptance testing scripts
 ├── PRODUCTION_RELEASE_RUNBOOK.md     # 05 Oct 2026: Production deploy sequence, migrations
-├── HOTFIX_RUNBOOK.md                 # Emergency production fixes, expedited review, cherry-picking
+├── HOTFIX_RUNBOOK.md                 # Emergency production fixes, expedited review, protected promotion
 ├── POST_RELEASE_VALIDATION.md        # 05 Oct 2026: Synthetic smoke, telemetry, handoff
 ├── QA_RELEASE_OPERATIONS_REPORT.md   # Final Agent C completion report
 └── execution/                        # Ticket-level QA & Operations execution packs

@@ -1,10 +1,10 @@
 # Staging Environment Validation & Regression Protocol
 
-**Document ID**: `STG-VAL-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Staging Verification Specification  
-**Target Release**: Client 01 v1.0  
-**Parent Epic**: `CCP-35` / `CCP-44`  
+**Document ID**: `STG-VAL-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Staging Verification Specification
+**Target Release**: Client 01 v1.0
+**Parent Epic**: `CCP-35` / `CCP-44`
 
 ---
 
@@ -12,7 +12,7 @@
 
 The purpose of the Staging Validation Protocol is to execute rigorous, cross-boundary end-to-end verification in an environment that maintains strict configuration, data model, and behavioral parity with production.
 
-> **PRIMARY INVARIANT**:  
+> **PRIMARY INVARIANT**:
 > **NO PRODUCTION TESTING AS A SUBSTITUTE FOR STAGING. ZERO UNVERIFIED MIGRATIONS OR ENDPOINTS DEPLOYED TO PRODUCTION.**
 
 ---
@@ -57,6 +57,13 @@ To ensure that tests executed on staging accurately predict production behavior,
 ---
 
 ## 4. Staging Regression Execution Suite
+
+> **PLAYWRIGHT STAGING PREREQUISITE & EVIDENCE STANDARD**:
+> Root `playwright.config.ts` currently hardcodes `baseURL: 'http://localhost:3000'` and does not evaluate `process.env.BASE_URL` (and launches a local `webServer`).
+> Therefore, remote staging Playwright browser execution via `BASE_URL` is currently **UNSUPPORTED** and represents a **BLOCKING PREREQUISITE**. Staging verification must not claim unsupported `BASE_URL` Playwright coverage.
+> Whenever Playwright is executed against staging, the evidence artifact **MUST** capture:
+> 1. The **effective tested URL** (verifiable proof in logs that requests reached the remote staging host, not `localhost:3000`).
+> 2. The **deployed SHA** of the staging target (retrieved from `GET /api/health`).
 
 Before declaring staging verification complete for any release candidate (specifically on **04 Oct 2026** during Hardening), the following test suites must be executed in sequence:
 
@@ -179,7 +186,8 @@ Before declaring staging verification complete for any release candidate (specif
 ## 6. Staging Sign-Off Criteria
 
 Staging validation is formally signed off as **PASS** when:
-1. 100% of automated staging regression scripts pass without error.
+1. 100% of automated staging regression scripts pass without error against the staging endpoint.
 2. Zero Sev-1 or Sev-2 defects remain open.
-3. Database migration scripts execute idempotently on staging with zero data loss.
-4. The Staging Verification Evidence artifact is persisted under `artifacts/staging/` and reviewed by QA Lead.
+3. Database migration scripts execute idempotently on staging via the approved Client 01 migration executor with zero data loss (`apply-remediation-ddl.mjs` is strictly prohibited).
+4. Staging validation evidence records the effective tested URL (`https://staging.selfcaresinners.com`) and deployed Git commit SHA.
+5. The Staging Verification Evidence artifact is persisted under `artifacts/staging/` and reviewed by QA Lead.

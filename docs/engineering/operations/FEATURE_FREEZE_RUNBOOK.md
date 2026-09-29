@@ -1,10 +1,10 @@
 # Feature Freeze & Release Candidate Cut Runbook
 
-**Document ID**: `RB-FF-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Operational Runbook for Feature Freeze  
-**Execution Date**: **03 Oct 2026** (Mandatory & Frozen)  
-**Parent Epic**: `CCP-44`  
+**Document ID**: `RB-FF-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Operational Runbook for Feature Freeze
+**Execution Date**: **03 Oct 2026** (Mandatory & Frozen)
+**Parent Epic**: `CCP-44`
 
 ---
 
@@ -12,10 +12,10 @@
 
 This runbook defines the exact operational procedure for executing **Feature Freeze** and cutting the **Release Candidate (RC)** for the Client 01 milestone on **03 Oct 2026**.
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:  
-> - **03 Oct 2026**: Feature Freeze / Release Candidate (RC cut, code freeze, branch hardening).  
-> - **04 Oct 2026**: Hardening + User Acceptance Testing (UAT, staging stress testing, regression sweep).  
-> - **05 Oct 2026**: Production Release + Handoff (canary rollout, smoke tests, post-deploy monitoring).  
+> **CRITICAL CALENDAR RULE (FROZEN)**:
+> - **03 Oct 2026**: Feature Freeze / Release Candidate (RC cut, code freeze, branch hardening).
+> - **04 Oct 2026**: Hardening + User Acceptance Testing (UAT, staging stress testing, regression sweep).
+> - **05 Oct 2026**: Production Release + Handoff (canary rollout, smoke tests, post-deploy monitoring).
 > *DO NOT use stale "03 Oct production handoff" language. 03 Oct is strictly for Feature Freeze and RC cut.*
 
 ---

@@ -1,10 +1,10 @@
 # Observability, Structured Logging & Operational Metrics Baseline
 
-**Document ID**: `OBS-BASE-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Observability Standard for Client 01  
-**Target Release**: Client 01 v1.0  
-**Parent Epic**: `CCP-30` / `CCP-44`  
+**Document ID**: `OBS-BASE-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Observability Standard for Client 01
+**Target Release**: Client 01 v1.0
+**Parent Epic**: `CCP-30` / `CCP-44`
 
 ---
 

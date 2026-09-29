@@ -1,10 +1,10 @@
 # Execution Pack: CCP-35 — Staging Deployment, Smoke Testing & Parity Verification
 
-**Ticket ID**: `CCP-35`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: DevOps Engineer / Release Engineer / QA Lead  
-**Target Delivery**: 04 Oct 2026 (Hardening & Staging Verification)  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-35`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: DevOps Engineer / Release Engineer / QA Lead
+**Target Delivery**: 04 Oct 2026 (Hardening & Staging Verification)
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 
@@ -23,7 +23,7 @@ Production is never the place for first-time integration testing. Deploying to a
 1. **FROZEN REQUIREMENT**:
    - Staging must be fully isolated from live production data and production Stripe keys.
    - Release Candidate must pass 100% of automated smoke tests on Staging before production release sign-off.
-   - Database migrations must be applied to Staging first and proven non-destructive.
+   - Database migrations must be applied to Staging first and proven non-destructive (via approved Client 01 migration executor; `apply-remediation-ddl.mjs` strictly prohibited).
 
 2. **FROZEN CONTRACT**:
    - `DR-INV-001`, `DR-PAY-001`, `DR-IDEM-001`, `DR-AUTH-001`, `DR-ERR-001`, `DR-REC-001` enforced on Staging.
@@ -41,13 +41,14 @@ Production is never the place for first-time integration testing. Deploying to a
 
 - **IN SCOPE**:
   - Deploying `rc/client01-v1.0` to Railway isolated Staging service.
-  - Applying additive schema migrations to Supabase Staging database.
+  - Applying additive schema migrations to Supabase Staging database via approved Client 01 executor.
   - Running `/api/health` and `/api/readiness` verification.
-  - Running automated production smoke script against Staging.
-  - Running Playwright E2E suite against Staging URL.
+  - Running automated production smoke script against Staging (`validate-production.ps1 -BaseUrl`).
+  - Auditing Playwright staging configuration and documenting the remote staging execution prerequisite.
 - **EXPLICITLY OUT OF SCOPE**:
   - Deploying to production environment.
   - Running tests against live production customer data.
+  - Claiming unsupported Playwright `BASE_URL` staging coverage under current configuration.
 
 ---
 
@@ -59,6 +60,8 @@ Production is never the place for first-time integration testing. Deploying to a
   - Railway staging service active with matching resource allocation.
   - Supabase staging database provisioned with RLS enabled.
   - Stripe Test mode webhook configured.
+  - Approved Client 01 database migration executor ratified and tested (BLOCKING PREREQUISITE: `scripts/qa/database/apply-remediation-ddl.mjs` is strictly prohibited).
+  - Playwright Remote Staging Configuration Prerequisite: Current root `playwright.config.ts` hardcodes `baseURL: 'http://localhost:3000'` and does not evaluate `process.env.BASE_URL` (and launches a local `webServer`). Remote Playwright browser execution against staging is therefore UNSUPPORTED and represents a BLOCKING PREREQUISITE pending configuration enhancements.
 
 ---
 
@@ -69,7 +72,8 @@ Production is never the place for first-time integration testing. Deploying to a
                        │
                        ▼
 [Step 1: Staging Database Migration Execution]
-         Apply scripts/qa/database/apply-remediation-ddl.mjs to Staging DB
+         Apply additive migrations via approved Client 01 executor
+         (BLOCKING PREREQUISITE: apply-remediation-ddl.mjs strictly prohibited)
                        │
                        ▼
 [Step 2: Deploy RC to Railway Staging Service]
@@ -84,8 +88,9 @@ Production is never the place for first-time integration testing. Deploying to a
          Run scripts/qa/validate-production.ps1 -BaseUrl "https://staging.selfcaresinners.com"
                        │
                        ▼
-[Step 5: Full E2E Browser Suite Targeted at Staging]
-         BASE_URL=https://staging.selfcaresinners.com npm run test:e2e
+[Step 5: Remote Staging Validation & Playwright Configuration Audit]
+         Automated smoke/API suites target Staging (-BaseUrl);
+         Playwright remote execution blocked pending config enhancement
                        │
                        ▼
 [Step 6: Staging Parity Evidence Artifact Persistence]
@@ -111,10 +116,15 @@ Production is never the place for first-time integration testing. Deploying to a
      -ExpectedCommit "$RC_COMMIT_SHA"
    ```
 
-4. **Execute Full E2E Browser Regression Against Staging**:
-   ```bash
-   BASE_URL="https://staging.selfcaresinners.com" npx playwright test
-   ```
+4. **Remote Staging Regression & Playwright Configuration Audit**:
+   > **PLAYWRIGHT STAGING CONFIGURATION BLOCKER**:
+   > Inspection of `playwright.config.ts` confirms that `baseURL: 'http://localhost:3000'` is statically hardcoded, `webServer` is hardcoded to spin up a local server, and `process.env.BASE_URL` is **NOT** evaluated.
+   > Running `BASE_URL="https://staging.selfcaresinners.com" npx playwright test` does **NOT** target the staging environment.
+   > **Do not claim BASE_URL staging coverage** under current repository configuration. Dynamic `BASE_URL` support and conditional `webServer` disabling in `playwright.config.ts` represent a **BLOCKING PREREQUISITE** for remote Playwright execution.
+   > Remote staging validation is achieved via automated HTTP smoke and API regression suites (`.\scripts\qa\validate-production.ps1 -BaseUrl "https://staging.selfcaresinners.com"`).
+   > Whenever remote Playwright staging execution is performed, test evidence **MUST** record:
+   > 1. The **effective tested URL** (verifiable proof in logs that requests reached the remote staging domain, not `localhost:3000`).
+   > 2. The **deployed SHA** of the staging service under test (retrieved from `GET /api/health`).
 
 ---
 
@@ -124,8 +134,8 @@ Production is never the place for first-time integration testing. Deploying to a
 | :--- | :--- | :--- | :--- |
 | **Commit SHA Match** | `/api/health` | Returns exact Git SHA of `v1.0.0-rc.1` | Mismatched SHA or `local` |
 | **Readiness Status** | `/api/readiness` | `status: "ready"`; DB latency < 200ms | `degraded` or missing env var |
-| **Smoke Suite** | `validate-production.ps1`| 100% of assertions pass | Any failed assertion |
-| **E2E Suite** | Playwright on Staging | 100% pass on Chromium | Any broken flow or locator failure |
+| **Smoke Suite** | `validate-production.ps1`| 100% of assertions pass against staging URL | Any failed assertion |
+| **E2E Browser Suite** | Playwright on Staging | BLOCKED: Unsupported by current `playwright.config.ts` (hardcoded `localhost:3000`) | Claiming remote staging coverage without config support |
 | **Parity Check** | CSP & Security Headers | Strict CSP, HSTS, CORS active | Weakened headers or CORS errors |
 
 ---
@@ -135,9 +145,12 @@ Production is never the place for first-time integration testing. Deploying to a
 1. **Staging Readiness Response**:
    JSON snapshot saved to `artifacts/staging/readiness-report.json`.
 2. **Staging Smoke Execution Output**:
-   Persisted log showing all smoke assertions green.
-3. **Playwright Staging E2E Report**:
-   Complete HTML/JSON execution report stored in `artifacts/staging/e2e-report/`.
+   Persisted log showing all smoke assertions green against staging URL.
+3. **Remote Validation Evidence & Playwright Audit Record**:
+   - Remote smoke validation log (`artifacts/staging/staging-smoke.log`) proving all assertions pass against `https://staging.selfcaresinners.com`.
+   - Playwright Staging Prerequisite Audit: Documents the configuration gap in `playwright.config.ts`. When Playwright staging execution is performed, evidence **MUST** record:
+     - **Effective Tested URL**: Verifiable terminal log capturing the actual target host (`https://staging.selfcaresinners.com`) rather than `localhost:3000`.
+     - **Deployed SHA**: Exact Git SHA retrieved from `https://staging.selfcaresinners.com/api/health` before and after test execution.
 
 ---
 
@@ -145,9 +158,10 @@ Production is never the place for first-time integration testing. Deploying to a
 
 ### Definition of Done:
 - [ ] `rc/client01-v1.0` successfully deployed to Staging on 04 Oct 2026.
-- [ ] Database migrations applied cleanly without manual intervention.
+- [ ] Database migrations applied via approved Client 01 migration executor (BLOCKING PREREQUISITE: `apply-remediation-ddl.mjs` strictly prohibited).
 - [ ] Staging readiness probe returns `ready` with sub-200ms DB latency.
-- [ ] 100% of automated smoke and E2E browser tests pass on Staging.
+- [ ] 100% of automated smoke and API regression tests pass against Staging URL.
+- [ ] Playwright remote staging config prerequisite and evidence standard (effective tested URL + deployed SHA) formally documented.
 - [ ] Staging Parity Evidence Artifact archived for the Production Readiness Review (`CCP-37`).
 
 ### Escalation Pathway:

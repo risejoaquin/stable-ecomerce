@@ -1,10 +1,10 @@
 # Execution Pack: CCP-36 — Load Testing, Concurrency Benchmarks & Bottleneck Audit
 
-**Ticket ID**: `CCP-36`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: Performance Engineer / SRE / Senior Backend Engineer  
-**Target Delivery**: 04 Oct 2026 (Hardening Day)  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-36`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: Performance Engineer / SRE / Senior Backend Engineer
+**Target Delivery**: 04 Oct 2026 (Hardening Day)
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 

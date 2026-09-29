@@ -1,10 +1,10 @@
 # Rollback, Disaster Recovery & Transaction Reconciliation Runbook
 
-**Document ID**: `ROLL-REC-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Operational Rollback & Recovery Procedure  
-**Target Release**: Client 01 v1.0  
-**Parent Epic**: `CCP-31` / `CCP-44`  
+**Document ID**: `ROLL-REC-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Operational Rollback & Recovery Procedure
+**Target Release**: Client 01 v1.0
+**Parent Epic**: `CCP-31` / `CCP-44`
 
 ---
 
@@ -12,8 +12,8 @@
 
 This runbook defines the technical procedures for rolling back application services on Railway, reverting database schema changes on Supabase, and executing Point-in-Time Recovery (PITR) with financial transaction reconciliation.
 
-> **CORE ROLLBACK INVARIANTS**:  
-> 1. **DATABASE BACKWARD COMPATIBILITY**: All database migrations for Client 01 must be non-destructive and additive (expand-contract pattern) so that rolling back the application code never breaks existing database queries.  
+> **CORE ROLLBACK INVARIANTS**:
+> 1. **DATABASE BACKWARD COMPATIBILITY**: All database migrations for Client 01 must be non-destructive and additive (expand-contract pattern) so that rolling back the application code never breaks existing database queries.
 > 2. **FINANCIAL LEDGER PRESERVATION**: Rolling back application code or database state must never delete recorded payments. Stripe and cash ledger transactions must be reconciled to the penny.
 
 ---
@@ -160,8 +160,8 @@ Any time application or database state is reverted, there is a risk of in-flight
 
 2. **Query Database Order Payments**:
    ```sql
-   SELECT payment_reference, amount_cents, status, created_at 
-   FROM order_payments 
+   SELECT payment_reference, amount_cents, status, created_at
+   FROM order_payments
    WHERE channel = 'stripe' AND created_at >= '$INCIDENT_START_ISO';
    ```
 

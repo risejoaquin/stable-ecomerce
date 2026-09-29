@@ -1,10 +1,10 @@
 # Production Release Execution Runbook
 
-**Document ID**: `RB-PROD-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Authoritative Operational Protocol for Production Deployment  
-**Execution Date**: **05 Oct 2026** (Mandatory & Frozen)  
-**Parent Epic**: `CCP-38` / `CCP-44`  
+**Document ID**: `RB-PROD-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Authoritative Operational Protocol for Production Deployment
+**Execution Date**: **05 Oct 2026** (Mandatory & Frozen)
+**Parent Epic**: `CCP-38` / `CCP-44`
 
 ---
 
@@ -18,7 +18,7 @@ This runbook specifies the precise step-by-step procedure for executing the **Pr
 05 Oct 2026: Production Deployment, Database Migrations, Smoke Verification & Handoff
 ```
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:  
+> **CRITICAL CALENDAR RULE (FROZEN)**:
 > **05 Oct 2026 is the sole authorized Production Release Day.** Under no circumstances may production deployment occur on 03 Oct or 04 Oct.
 
 ---
@@ -56,6 +56,7 @@ Before any production command is issued, all gate criteria must be checked:
 | **G-04: DB Backup** | Fresh Supabase PITR recovery point verified | DBA / Tech Lead (Rogelio)| [ ] PASS |
 | **G-05: Secret Verification** | All 11 required production environment variables present | Operations Lead | [ ] PASS |
 | **G-06: Rollback Primed** | Previous stable deployment ID noted in Railway | Incident Commander | [ ] PASS |
+| **G-07: Migration Executor** | Approved Client 01 migration executor verified (`apply-remediation-ddl.mjs` strictly prohibited) | DBA / Tech Lead (Rogelio)| [ ] PASS |
 
 ---
 
@@ -75,10 +76,11 @@ Before any production command is issued, all gate criteria must be checked:
      │
      ▼
 [10:00 UTC] STAGE 1: Database Migration Execution
-     │       Apply additive DDL (SellableUnit, OrderPayments, Indices)
+     │       Apply additive DDL via approved Client 01 migration executor
+     │       (BLOCKING PREREQUISITE: apply-remediation-ddl.mjs strictly prohibited)
      ▼
-[10:15 UTC] STAGE 2: Merge RC to Main & Tag Production Release
-     │       Fast-forward merge rc/client01-v1.0 -> main -> Tag v1.0.0
+[10:15 UTC] STAGE 2: Protected Promotion to Main & Production Tagging
+     │       RC branch -> PR -> required checks -> peer approval -> authorized merge -> Tag integrated SHA
      ▼
 [10:20 UTC] STAGE 3: Railway Deployment Execution
      │       Deploy stable-ecomerce container on Railway
@@ -93,30 +95,52 @@ Before any production command is issued, all gate criteria must be checked:
 ```
 
 ### 5.1 Stage 1: Database Schema Migration Execution (10:00 UTC)
-1. **Operator**: Rogelio
-2. **Action**: Apply non-destructive additive migrations to production Supabase:
+1. **Operator**: Rogelio (DBA / Engineering Lead)
+2. **Blocking Prerequisite & Executor Policy**:
+   > **MIGRATION EXECUTOR INVARIANT**:
+   > `scripts/qa/database/apply-remediation-ddl.mjs` is a historical single-purpose Block C remediation script hardcoded for 2026-09-17 candidate DDL. It **MUST NEVER** be used as a migration executor for Client 01.
+   > Because no approved Client 01 migration executor currently exists in the repository, the specification, review, and approval of an authoritative Client 01 migration executor (e.g., Supabase CLI runner or reviewed migration harness) is a **MANDATORY BLOCKING PREREQUISITE** prior to production release execution. Engineering must not invent ad-hoc runner scripts without formal governance review.
+3. **Action**: Once the approved Client 01 migration executor is ratified and tested, apply non-destructive additive migrations to production Supabase:
    ```bash
-   railway run -- powershell -NoProfile -Command '$env:DATABASE_URL = $env:SUPABASE_DB_URL; .\scripts\qa\database\apply-remediation-ddl.mjs'
+   # Execute via the ratified Client 01 migration executor (BLOCKING PREREQUISITE)
+   railway run -- <approved-client01-migration-executor-command>
    ```
-3. **Verify Integrity**:
+4. **Verify Integrity**:
    ```bash
    railway run -- powershell -NoProfile -Command '$env:DATABASE_URL = $env:SUPABASE_DB_URL; .\scripts\qa\database\validate-database-security.ps1'
    ```
    **Threshold**: All tables have RLS enabled; critical functions secured; 0 errors.
 
-### 5.2 Stage 2: Merge RC to Main & Production Tagging (10:15 UTC)
-1. **Operator**: Release Coordinator
-2. **Commands**:
+### 5.2 Stage 2: Protected Promotion to Main & Production Tagging (10:15 UTC)
+1. **Operator**: Release Coordinator / Repository Administrator
+2. **Protected Promotion Protocol**:
+   > **BRANCH PROTECTION RULE**: Direct push or unreviewed local merge to `main` is strictly prohibited. Production releases must follow protected promotion:
+   > **`rc/client01-v1.0` -> Pull Request -> Required Status Checks -> Required Peer Approvals -> Authorized Release Integration -> Tag Actually Integrated SHA**.
+3. **Step-by-Step Promotion Workflow**:
+   - **Open Promotion PR**: Create a Pull Request targeting `main` from branch `rc/client01-v1.0` (title: `release: Client 01 v1.0 production release`).
+   - **Required Status Checks**: Verify 100% green status on all mandatory CI checks (`quality`, `e2e`, `aggregate`).
+   - **Required Peer Approval**: Ensure mandatory written peer approvals are recorded (QA Lead, Tech Lead, Product Owner).
+   - **Authorized Release Integration**: Authorized Repository Administrator merges the PR into `main` via the GitHub interface (preserving linear history per branch policy).
+   - **Tag the Integrated SHA**: Checkout and pull the newly integrated `main`, capture the exact SHA that was integrated, and push the release tag only:
    ```powershell
+   # 1. Fetch latest integrated commit from origin/main
+   git fetch origin main
+
+   # 2. Update local main cleanly
    git checkout main
-   git merge --ff-only rc/client01-v1.0
-   git tag -a v1.0.0 -m "release: Client 01 v1.0 production release"
-   git push origin main
+   git pull --ff-only origin main
+
+   # 3. Capture the exact SHA integrated into main
+   $INTEGRATED_SHA = $(git rev-parse HEAD)
+
+   # 4. Tag the exact integrated commit SHA and push tag to origin
+   git tag -a v1.0.0 $INTEGRATED_SHA -m "release: Client 01 v1.0 production release"
    git push origin v1.0.0
    ```
+   > **NOTE**: No direct push to `main` (`git push origin main`) is permitted or required.
 
 ### 5.3 Stage 3: Railway Deployment Execution (10:20 UTC)
-1. **Action**: Railway automatically triggers a deployment from push to `main` (or trigger via CLI):
+1. **Action**: Railway automatically triggers a deployment from the authorized PR merge to `main` (or trigger via CLI):
    ```bash
    railway up --service stable-ecomerce
    ```

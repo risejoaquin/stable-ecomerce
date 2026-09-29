@@ -1,10 +1,10 @@
 # Incident Response, Escalation & Root Cause Analysis Framework
 
-**Document ID**: `INC-RESP-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Authoritative Operational Incident Management Policy  
-**Target Release**: Client 01 v1.0  
-**Parent Epic**: `CCP-44`  
+**Document ID**: `INC-RESP-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Authoritative Operational Incident Management Policy
+**Target Release**: Client 01 v1.0
+**Parent Epic**: `CCP-44`
 
 ---
 

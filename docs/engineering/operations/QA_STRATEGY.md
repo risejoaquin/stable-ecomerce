@@ -1,10 +1,10 @@
 # Quality Assurance Strategy: Client 01 Platform Hardening & Web POS
 
-**Document ID**: `QA-STRAT-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Authoritative QA Strategy for Client 01 Delivery  
-**Target Release**: Client 01 v1.0 (Production: 05 Oct 2026)  
-**Parent Epic**: `CCP-40` / `CCP-44`  
+**Document ID**: `QA-STRAT-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Authoritative QA Strategy for Client 01 Delivery
+**Target Release**: Client 01 v1.0 (Production: 05 Oct 2026)
+**Parent Epic**: `CCP-40` / `CCP-44`
 
 ---
 

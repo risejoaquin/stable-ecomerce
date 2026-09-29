@@ -1,10 +1,10 @@
 # User Acceptance Testing (UAT) Execution Runbook
 
-**Document ID**: `RB-UAT-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Authoritative Operational Protocol for User Acceptance Testing  
-**Execution Date**: **04 Oct 2026** (Mandatory & Frozen)  
-**Parent Epic**: `CCP-44`  
+**Document ID**: `RB-UAT-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Authoritative Operational Protocol for User Acceptance Testing
+**Execution Date**: **04 Oct 2026** (Mandatory & Frozen)
+**Parent Epic**: `CCP-44`
 
 ---
 
@@ -14,7 +14,7 @@ This runbook defines the structured protocol, test scripts, and sign-off criteri
 
 UAT verifies that the Client 01 platform meets real-world retail workflows, cashier ergonomics, and business operational requirements prior to production release on **05 Oct 2026**.
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:  
+> **CRITICAL CALENDAR RULE (FROZEN)**:
 > **UAT executes on 04 Oct 2026.** Production Release and operational handoff occur on **05 Oct 2026**. Stale references to 03 Oct production handoff are strictly superseded.
 
 ---

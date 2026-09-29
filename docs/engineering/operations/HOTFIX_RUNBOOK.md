@@ -1,10 +1,10 @@
 # Emergency Production Hotfix Runbook
 
-**Document ID**: `RB-HOT-001`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Authority**: Mandatory Operational Protocol for Emergency Hotfixes  
-**Target Release**: Post-v1.0 Operations (Post-05 Oct 2026)  
-**Parent Epic**: `CCP-44`  
+**Document ID**: `RB-HOT-001`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Authority**: Mandatory Operational Protocol for Emergency Hotfixes
+**Target Release**: Post-v1.0 Operations (Post-05 Oct 2026)
+**Parent Epic**: `CCP-44`
 
 ---
 
@@ -12,7 +12,7 @@
 
 The Emergency Hotfix Runbook governs the accelerated lifecycle for resolving **Sev-1 (Critical)** and **Sev-2 (Major)** defects that emerge in the live production environment and cannot wait for the standard weekly release cycle.
 
-> **NON-NEGOTIABLE SAFETY INVARIANT**:  
+> **NON-NEGOTIABLE SAFETY INVARIANT**:
 > While the review process is expedited, **NO UNTESTED CODE ENTERS PRODUCTION**. Every hotfix must include an automated regression test, pass type verification, pass secret scanning, and be verified on Staging prior to live deployment.
 
 ---
@@ -22,7 +22,7 @@ The Emergency Hotfix Runbook governs the accelerated lifecycle for resolving **S
 1. **FROZEN REQUIREMENT**:
    - Hotfixes are reserved exclusively for verified Sev-1 and Sev-2 production incidents.
    - Every hotfix must be based directly on the currently deployed production commit.
-   - All hotfixes must be cherry-picked back into `main` immediately to prevent regression in future releases.
+   - All hotfixes must be promoted back into `main` via protected PR immediately to prevent regression in future releases.
 
 2. **FROZEN CONTRACT**:
    - Hotfixes must not alter or violate frozen contracts (`DR-INV-001`, `DR-PAY-001`, etc.) without formal architecture review.
@@ -63,12 +63,12 @@ The Emergency Hotfix Runbook governs the accelerated lifecycle for resolving **S
          Verify fix and ensure zero collateral regression
                      │
                      ▼
-[Step 6: Production Deployment & Tagging]
-         Deploy to Railway -> Verify /api/health -> Tag v1.0.1
+[Step 6: Production Deployment]
+         Deploy to Railway -> Verify /api/health
                      │
                      ▼
-[Step 7: Upstream Cherry-Pick to Main]
-         git checkout main -> git cherry-pick <hotfix-commit> -> git push
+[Step 7: Upstream Protected Promotion to Main & Tagging]
+         Branch/PR to main -> Required checks -> Peer approval -> Authorized merge -> Tag integrated SHA
 ```
 
 ---
@@ -116,29 +116,40 @@ git checkout -b hotfix/v1.0.1-payment-rounding v1.0.0
    .\scripts\qa\validate-production.ps1 -BaseUrl "https://staging.selfcaresinners.com"
    ```
 
-### Step 4: Production Deployment & Tagging
+### Step 4: Production Deployment & Verification
 1. Deploy hotfix commit to Railway production:
    ```bash
    railway up --service stable-ecomerce
    ```
-2. Verify production health:
+2. Verify production health and deployed commit:
    ```bash
    curl -s "https://selfcaresinners.com/api/health" | jq '{status, version}'
    ```
-3. Tag the hotfix release:
+
+### Step 5: Upstream Protected Promotion to Main & Release Tagging
+To ensure the fix is preserved on `main` without violating branch protections:
+
+> **BRANCH PROTECTION RULE**: Direct push to `main` is strictly forbidden. The hotfix must be promoted into `main` via a protected pull request:
+
+1. Create a promotion branch containing the hotfix commit:
    ```powershell
-   git tag -a v1.0.1 -m "hotfix: resolve payment rounding precision in POS checkout"
+   git checkout -b reconcile/hotfix-v1.0.1-to-main <HOTFIX_COMMIT_SHA>
+   git push origin reconcile/hotfix-v1.0.1-to-main
+   ```
+2. Open a Pull Request targeting `main`.
+3. Ensure required status checks pass (100% green CI).
+4. Obtain required peer approval (Tech Lead or QA Lead).
+5. Authorized release integration: Merge PR into `main` via GitHub interface.
+6. Tag the exact SHA actually integrated into `main`:
+   ```powershell
+   git fetch origin main
+   git checkout main
+   git pull --ff-only origin main
+   $INTEGRATED_SHA = $(git rev-parse HEAD)
+   git tag -a v1.0.1 $INTEGRATED_SHA -m "hotfix: resolve payment rounding precision in POS checkout"
    git push origin v1.0.1
    ```
-
-### Step 5: Upstream Cherry-Pick to Main
-To ensure the fix is not overwritten by the next regular release:
-```powershell
-git checkout main
-git pull origin main
-git cherry-pick <HOTFIX_COMMIT_SHA>
-git push origin main
-```
+   > **NOTE**: Direct push to `main` (`git push origin main`) is strictly prohibited. Tag the SHA actually integrated into `main`.
 
 ---
 

@@ -1,10 +1,10 @@
 # Execution Pack: CCP-31 — Database Backup, Point-in-Time Recovery & Migration Verification
 
-**Ticket ID**: `CCP-31`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: Database Reliability Engineer (DBRE) / Senior Backend Engineer  
-**Target Delivery**: Pre-Hardening / Release Readiness  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-31`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: Database Reliability Engineer (DBRE) / Senior Backend Engineer
+**Target Delivery**: Pre-Hardening / Release Readiness
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 
@@ -30,7 +30,7 @@ Client 01 introduces critical new database tables (`sellable_units`, `order_paym
    - `DR-PAY-001`: `order_payments` ledger schema must enforce immutable channel types (`stripe`, `cash`, `card_reference`).
 
 3. **DERIVED ENGINEERING DESIGN**:
-   - Migration idempotency verification harness (`apply-remediation-ddl.mjs`).
+   - Approved Client 01 migration idempotency verification harness (BLOCKING PREREQUISITE: `apply-remediation-ddl.mjs` is strictly prohibited).
    - Automated database security and function scanner (`validate-database-security.ps1`).
    - Backup restoration drill procedure to an isolated branch/staging instance.
 
@@ -59,17 +59,19 @@ Client 01 introduces critical new database tables (`sellable_units`, `order_paym
 - **Preconditions**:
   - `SUPABASE_DB_URL` configured with administrative permissions in staging/testing environment.
   - Node.js PostgreSQL driver (`pg`) installed.
+  - Approved Client 01 database migration executor ratified and tested (BLOCKING PREREQUISITE: `scripts/qa/database/apply-remediation-ddl.mjs` is strictly prohibited).
 
 ---
 
 ## 5. Step-by-Step Implementation & Verification Guide
 
 ```
-[Migration DDL Authored in scripts/qa/database/]
+[Migration DDL Authored in Version-Controlled Scripts]
                      │
                      ▼
-[Step 1: Idempotency Dry-Run on Local DB]
+[Step 1: Idempotency Dry-Run via Approved Client 01 Executor]
          Run migration twice -> Verify zero syntax or constraint errors
+         (BLOCKING PREREQUISITE: apply-remediation-ddl.mjs prohibited)
                      │
                      ▼
 [Step 2: Database Security & RLS Audit]
@@ -116,7 +118,7 @@ Client 01 introduces critical new database tables (`sellable_units`, `order_paym
 | Check | Command | Pass Criteria | Fail Criteria |
 | :--- | :--- | :--- | :--- |
 | **RLS Coverage** | `validate-database-security.ps1` | 100% of public tables have `rowsecurity: true` | Any table with `rowsecurity: false` |
-| **Migration Idempotency** | Re-run `apply-remediation-ddl.mjs` | Exit code 0; 0 errors on repeated execution | Migration errors on duplicate columns/tables |
+| **Migration Idempotency** | Re-run approved Client 01 migration executor (BLOCKING PREREQUISITE) | Exit code 0; 0 errors on repeated execution | Migration errors on duplicate columns/tables |
 | **Function Security** | `inspect-critical-functions.mjs` | Critical functions have explicit `search_path: "public"` | Empty `search_path ""` (SEC-018 finding) |
 | **Anon Execution** | `test-anon-function-access.mjs` | Returns HTTP 403 / DB Permission Denied for anon role | Function executes successfully for unauthenticated user |
 | **PITR Status** | Supabase Project Settings | PITR enabled; continuous archiving active | PITR disabled or snapshot age > 24h |

@@ -1,10 +1,10 @@
 # Execution Pack: CCP-37 — Release Gate Sign-off & Production Readiness Review
 
-**Ticket ID**: `CCP-37`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: QA Lead / Release Manager / Product Owner  
-**Target Delivery**: 04 Oct 2026 (21:00 UTC — Hardening Exit)  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-37`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: QA Lead / Release Manager / Product Owner
+**Target Delivery**: 04 Oct 2026 (21:00 UTC — Hardening Exit)
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 

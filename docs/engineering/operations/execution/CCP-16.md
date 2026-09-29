@@ -1,10 +1,10 @@
 # Execution Pack: CCP-16 — CI Quality Gate & Automated Testing Infrastructure
 
-**Ticket ID**: `CCP-16`  
-**Classification**: `DERIVED ENGINEERING DESIGN`  
-**Role / Owner Profile**: QA / CI Release Engineer  
-**Target Delivery**: Pre-Freeze / Continuous  
-**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)  
+**Ticket ID**: `CCP-16`
+**Classification**: `DERIVED ENGINEERING DESIGN`
+**Role / Owner Profile**: QA / CI Release Engineer
+**Target Delivery**: Pre-Freeze / Continuous
+**Parent Epic**: `CCP-40` (Engineering Foundation & Integration)
 
 ---
 
