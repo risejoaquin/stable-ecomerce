@@ -60,7 +60,7 @@ Production deployment is an irreversible operational transition. Launching witho
   - `CCP-31` (DB Backup & PITR PASS)
   - `CCP-33` (POS Sales E2E Suite PASS)
   - `CCP-34` (POS Refund & Restock Suite PASS)
-  - `CCP-35` (Staging Verification PASS)
+  - `CCP-35` (Staging Verification PASS - requires staging smoke AND remote browser E2E with effective URL and deployed SHA)
   - `CCP-36` (Concurrency Benchmark PASS)
 - **Downstream Dependents**: `CCP-38` (Production Release Execution).
 - **Preconditions**:
@@ -81,7 +81,7 @@ During the PRR meeting at 21:00 UTC on 04 Oct 2026, the review panel audits the 
 | Pillar 2: Functional E2E Suites  -> POS sales, cash, card, refunds 100% pass|
 | Pillar 3: Concurrency & Locks    -> Zero oversell; zero deadlocks (CCP-36)  |
 | Pillar 4: Database & Security    -> 280 tables RLS enabled; PITR active     |
-| Pillar 5: Staging Parity         -> Staging smoke green; parity verified    |
+| Pillar 5: Staging Parity         -> Staging smoke & remote browser E2E pass |
 | Pillar 6: Stakeholder UAT        -> Signed UAT Certificate; 0 Sev-1/2 open  |
 | Pillar 7: Operational Runbooks   -> Rollback, Hotfix, Incident runbooks ready|
 +-----------------------------------------------------------------------------+

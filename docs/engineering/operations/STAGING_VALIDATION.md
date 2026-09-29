@@ -61,6 +61,7 @@ To ensure that tests executed on staging accurately predict production behavior,
 > **PLAYWRIGHT STAGING PREREQUISITE & EVIDENCE STANDARD**:
 > Root `playwright.config.ts` currently hardcodes `baseURL: 'http://localhost:3000'` and does not evaluate `process.env.BASE_URL` (and launches a local `webServer`).
 > Therefore, remote staging Playwright browser execution via `BASE_URL` is currently **UNSUPPORTED** and represents a **BLOCKING PREREQUISITE**. Staging verification must not claim unsupported `BASE_URL` Playwright coverage.
+> **HARD GATE INVARIANT**: Missing staging Playwright support is an active blocker to staging sign-off, NOT a substitute for the gate. Staging validation and CCP-35 remain **BLOCKED / PARTIAL** until an approved staging-capable config/procedure exists AND remote browser E2E is actually executed successfully against staging.
 > Whenever Playwright is executed against staging, the evidence artifact **MUST** capture:
 > 1. The **effective tested URL** (verifiable proof in logs that requests reached the remote staging host, not `localhost:3000`).
 > 2. The **deployed SHA** of the staging target (retrieved from `GET /api/health`).
@@ -187,7 +188,8 @@ Before declaring staging verification complete for any release candidate (specif
 
 Staging validation is formally signed off as **PASS** when:
 1. 100% of automated staging regression scripts pass without error against the staging endpoint.
-2. Zero Sev-1 or Sev-2 defects remain open.
-3. Database migration scripts execute idempotently on staging via the approved Client 01 migration executor with zero data loss (`apply-remediation-ddl.mjs` is strictly prohibited).
-4. Staging validation evidence records the effective tested URL (`https://staging.selfcaresinners.com`) and deployed Git commit SHA.
-5. The Staging Verification Evidence artifact is persisted under `artifacts/staging/` and reviewed by QA Lead.
+2. 100% of automated Playwright browser E2E test suites pass against the remote staging environment (MANDATORY COMPLETION GATE: missing staging Playwright support is an active blocker to sign-off, NOT a substitute for the gate; sign-off remains strictly BLOCKED until an approved staging-capable config exists AND browser E2E passes against staging).
+3. Zero Sev-1 or Sev-2 defects remain open.
+4. Database migration scripts execute idempotently on staging via the approved Client 01 migration executor with zero data loss (`apply-remediation-ddl.mjs` is strictly prohibited).
+5. Staging validation evidence records the effective tested URL (`https://staging.selfcaresinners.com`) and deployed Git commit SHA.
+6. The Staging Verification Evidence artifact is persisted under `artifacts/staging/` and reviewed by QA Lead.
