@@ -61,6 +61,7 @@ tmp/
 
 # misc
 *.local
+docs/context/
 
 # QA / release local artifacts
 lighthouse-report*.html

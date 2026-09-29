@@ -8,7 +8,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true }); try { fs.unlinkSync('server.js'); } catch {}\"",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,6 +19,10 @@
     "qa:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-release.ps1",
     "qa:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-all.ps1",
     "qa:security": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/security/validate-security-baseline.ps1 -Mode Report"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
