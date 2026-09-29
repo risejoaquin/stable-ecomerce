@@ -14,15 +14,15 @@ Welcome to the engineering repository. All contributors and team members must ad
 ```
 
 ### 1. Jira Ticket Intake & Assignment
-- Every code change—whether a feature, bug fix, refactor, or chore—must originate from an assigned Jira ticket in `solidbit.atlassian.net` under the active project backlog (e.g., `COMM-101`, `POS-102`, `SEC-005`).
+- Every code change—whether a feature, bug fix, refactor, or chore—must originate from an assigned Jira ticket in `solidbit.atlassian.net` under the active project backlog (e.g., `CCP-101`, `CCP-102`, `CCP-103`).
 - No pull request will be merged without an associated Jira issue reference.
 
 ### 2. Branching Strategy
 - **No Direct Development on `main`**: Direct pushes to `main` are **prohibited by team development policy**. All changes must land via peer-reviewed Pull Requests.
 - Branch off the latest `main` commit using structured naming conventions:
-  - `feat/<jira-key>-short-description` (e.g., `feat/pos-101-cashier-sale`)
-  - `fix/<jira-key>-short-description` (e.g., `fix/sec-002-upload-auth`)
-  - `chore/<jira-key>-short-description` (e.g., `chore/rg-01-governance`)
+  - `feat/<jira-key>-short-description` (e.g., `feat/ccp-101-cart-sync`)
+  - `fix/<jira-key>-short-description` (e.g., `fix/ccp-102-checkout-session`)
+  - `chore/<jira-key>-short-description` (e.g., `chore/ccp-103-governance`)
   - `refactor/<jira-key>-short-description`
 
 ### 3. Implementation Standards
@@ -52,7 +52,7 @@ npm run qa:fast
 # Full release validation suite (includes security baseline & regression checks)
 npm run qa:release
 
-# End-to-end customer journey testing (requires local server running)
+# End-to-end customer journey testing (automatically spins up server via Playwright webServer; requires npm run build)
 npm run test:e2e
 
 # Targeted security baseline audit

@@ -178,7 +178,7 @@ Live metadata retrieved from `pg_proc` on project `dporfgsbwsyqzmlnqrug`:
 - **Classification:** **`USED_BUT_MISSING`**
 - **Evidence:**
   - `server.ts` line 2319 explicitly calls `supabase.rpc('restock_refunded_item', ...)`.
-  - The function is present in [`database_schema.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/database_schema.sql#L363), [`scripts/db/001_selfcare_sinners_production_schema.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/db/001_selfcare_sinners_production_schema.sql#L363), and [`scripts/db/002_payment_order_integrity.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/db/002_payment_order_integrity.sql#L141).
+  - The function is present in [`database_schema.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/docs/database/reference/database_schema.sql#L363), [`scripts/db/001_selfcare_sinners_production_schema.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/db/001_selfcare_sinners_production_schema.sql#L363), and [`scripts/db/002_payment_order_integrity.sql`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/db/002_payment_order_integrity.sql#L141).
   - It was omitted or lost during remote database provisioning (possibly when `003_webhook_finalization_resilience.sql` was applied, which recreated `finalize_paid_order` but did not touch `restock_refunded_item`).
   - No trigger or alternative mechanism performs restock upon refund.
 - **Action taken:** Function was NOT created. Evidence captured for ChatGPT Web migration design.

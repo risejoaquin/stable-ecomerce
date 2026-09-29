@@ -1,22 +1,15 @@
-# QA / RELEASE E — READ FIRST
+# CLIENT 01 DELIVERY — READ FIRST
 
 Proyecto: Stable Ecommerce / Selfcare Sinners  
 Repositorio: `risejoaquin/stable-ecomerce`  
 Rama objetivo: `main`  
-Fase activa: `QA / RELEASE E`  
-Modelo de ejecución: bloques paralelos A / B / C
+Fase activa: `Client 01 Delivery Scope` (`PLANNING_AND_DESIGN = CLOSED_FOR_CLIENT_01`)
+Modelo de ejecución: orquestación de agentes con gobernanza formal
 
 ## Regla principal
 
-Este paquete NO autoriza avanzar el roadmap.
-
-Los agentes pueden ejecutar, modificar, probar, desplegar y recopilar evidencia.
-
-Sólo ChatGPT Web puede determinar:
-
-- `ROADMAP FAIL`
-- `QA / RELEASE E = ROADMAP PASS`
-- autorización para iniciar `POST-LAUNCH 20`
+Este paquete NO autoriza modificar comportamiento funcional sin aprobación formal (`FUNCTIONAL_DEVELOPMENT = NOT_AUTHORIZABLE`).
+Fases históricas QA/RELEASE E y POST-LAUNCH 20 se encuentran formalmente cerradas (`CLOSED / ROADMAP PASS`).
 
 ## No reabrir macrofases cerradas
 

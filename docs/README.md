@@ -36,6 +36,11 @@ Production launch sign-offs, accessibility verifications, and operational runboo
 - **Final Project Status Report**: [`docs/release/FINAL_PROJECT_STATUS_REPORT.md`](release/FINAL_PROJECT_STATUS_REPORT.md) (Roadmap 1.0 closure & production sign-off).
 - **Accessibility & Responsive Checklist**: [`docs/release/ACCESSIBILITY_RESPONSIVE_FINAL_CHECKLIST.md`](release/ACCESSIBILITY_RESPONSIVE_FINAL_CHECKLIST.md) (Production compliance).
 - **QA Automation Foundation**: [`docs/qa/QA_AUTOMATION_FOUNDATION.md`](qa/QA_AUTOMATION_FOUNDATION.md) (Automated test suites & gating).
+- **Operational Runbooks**:
+  - Production Runbook: [`docs/operations/runbooks/PRODUCTION_RUNBOOK.md`](operations/runbooks/PRODUCTION_RUNBOOK.md)
+  - Rollback Runbook: [`docs/operations/runbooks/ROLLBACK_RUNBOOK.md`](operations/runbooks/ROLLBACK_RUNBOOK.md)
+  - Incident Response: [`docs/operations/runbooks/INCIDENT_RESPONSE.md`](operations/runbooks/INCIDENT_RESPONSE.md)
+  - Backup & Restore Checklist: [`docs/operations/runbooks/BACKUP_RESTORE_CHECKLIST.md`](operations/runbooks/BACKUP_RESTORE_CHECKLIST.md)
 - **Operational Verification Scripts**:
   - Fast Gate: [`scripts/qa/validate-fast.ps1`](../scripts/qa/validate-fast.ps1)
   - Release Gate: [`scripts/qa/validate-release.ps1`](../scripts/qa/validate-release.ps1)

@@ -51,7 +51,7 @@ This document defines the architectural reality of the platform **as it exists t
 ### 1.1 Frontend Presentation Tier
 - **Framework**: React 19.0.1 running on Vite 6.2.3.
 - **Styling**: Tailwind CSS v4.1.14 with `@tailwindcss/vite` and Motion (Framer Motion v12) animations.
-- **State Management**: Zustand lightweight store and TanStack React Query v5 for server-state caching and synchronization.
+- **State Management**: React Context API (`CartContext`, `AuthContext`) and TanStack React Query v5 for server-state caching and synchronization.
 - **Routing**: React Router v7 (`/src/routes/lazy-routes.tsx`) with lazy-loaded route boundaries:
   - Storefront routes: `/`, `/product/:id`, `/checkout/success`, `/profile`, `/track`, `/wishlist`, etc.
   - Admin routes: `/admin/dashboard`, `/admin/orders`, `/admin/products`, `/admin/commercial`, `/admin/email-center`, etc.
