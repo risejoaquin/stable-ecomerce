@@ -1,6 +1,6 @@
 # DO NOT TOUCH / Scope Guard
 
-No convertir QA E en reescritura del producto.
+No convertir remediaciones o entregas de Client 01 en reescritura del producto.
 
 Evitar salvo necesidad directa de regresión:
 
@@ -17,7 +17,7 @@ Evitar salvo necesidad directa de regresión:
 Si aparece un defecto en una fase cerrada:
 
 ```text
-QA / RELEASE E HOTFIX N
+CLIENT 01 HOTFIX N
 ```
 
 No reabrir la macrofase histórica.

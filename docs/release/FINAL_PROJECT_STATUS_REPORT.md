@@ -18,15 +18,12 @@ Selfcare Sinners queda en etapa avanzada de cierre de producción después de co
 - UIX SYSTEM B — Admin command center architecture: PASS.
 - UIX SYSTEM C — Storefront/admin/profile consistency polish: PASS.
 - PERFORMANCE/FRONTEND D — Bundle optimization + route splitting: PASS.
+- QA/RELEASE E — Final regression, accessibility and production closure: PASS (CLOSED / 100% complete).
 
-## Cierre pendiente
-
-- QA/RELEASE E — Final regression, accessibility and production closure.
-
-## Porcentaje estimado al cerrar QA/RELEASE E
+## Cierre de etapa
 
 ```txt
-100% de la etapa actual cerrada
+100% de la etapa Roadmap 1.0 cerrada
 ```
 
 Este porcentaje no significa que el producto ya no pueda evolucionar. Significa que el roadmap actual queda cerrado y que nuevos cambios deben entrar como backlog v2, growth iteration o maintenance releases.

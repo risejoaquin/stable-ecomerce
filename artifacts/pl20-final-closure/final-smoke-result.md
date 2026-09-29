@@ -2,7 +2,7 @@
 # Final Smoke Validation Result
 
 - **Date:** 2026-09-22
-- **Validation Script:** [`scripts/qa/smoke-final-scale-report.ps1`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/qa/smoke-final-scale-report.ps1)
+- **Validation Script:** [`scripts/qa/smoke-final-scale-report.ps1`](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/scripts/archive/qa-smokes/smoke-final-scale-report.ps1)
 - **Execution Mode:** **READ ONLY** (strictly non-destructive; `-IncludeMutations` omitted)
 - **Exit Code:** **`0`**
 - **Validated Commit SHA:** `711d816b329dafbc8d05440029870174477b37a4`

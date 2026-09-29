@@ -7,7 +7,7 @@ Production e-commerce platform powering the Selfcare Sinners brand, built with a
 ## 1. Quick Start & Development
 
 ### Prerequisites
-- **Node.js**: v22.x LTS (Recommended)
+- **Node.js**: >= 22.0.0 (Node 22 LTS recommended)
 - **Package Manager**: npm 10+
 - **Shell**: PowerShell 7+ / Windows Terminal (for QA scripts)
 
@@ -53,7 +53,7 @@ npm run qa:fast
 # Full release candidate validation (security baseline, regression contracts, build)
 npm run qa:release
 
-# End-to-end customer journey testing (requires server running)
+# End-to-end customer journey testing (automatically spins up server via Playwright webServer; requires npm run build)
 npm run test:e2e
 
 # Targeted security baseline audit
@@ -64,7 +64,7 @@ npm run qa:security
 
 ## 3. Technology Stack & Architecture
 
-- **Frontend Tier**: React 19.0.1, Vite 6.2.3, Tailwind CSS v4, Motion, Lucide Icons, TanStack Query v5, Zustand.
+- **Frontend Tier**: React 19.0.1, Vite 6.2.3, Tailwind CSS v4, Motion, Lucide Icons, TanStack Query v5.
 - **Backend Tier**: Node.js 22 LTS, Express 4.21.2 (`server.ts` bundled with esbuild to `dist/server.cjs`), Helmet, CORS, Pino logging, Sentry error monitoring.
 - **Database & Storage**: Managed PostgreSQL on Supabase Cloud with Row Level Security (RLS) policies and Supabase Storage buckets.
 - **Payment Processing**: Stripe Checkout Sessions and cryptographically verified webhooks (`STRIPE_WEBHOOK_SECRET`).

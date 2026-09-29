@@ -22,7 +22,7 @@ If you identify a potential security vulnerability, credential exposure, or auth
 
 1. **Do NOT disclose the issue publicly** through GitHub Issues, public discussions, or social media.
 2. Use GitHub Private Vulnerability Reporting if enabled for this repository.
-3. If GitHub Private Vulnerability Reporting is not enabled or unavailable, coordinate disclosure directly with the designated repository maintainers via approved private communication channels.
+3. If GitHub Private Vulnerability Reporting is not enabled or unavailable, send an email to `security@selfcaresinners.com`.
 
 ### What to Include
 To help us triage and remediate the issue effectively, please include:
@@ -33,7 +33,7 @@ To help us triage and remediate the issue effectively, please include:
 
 ### Team Expectations
 We operate as an agile, 3-person engineering team. We commit to:
-- Provide **best-effort acknowledgement** of private vulnerability reports without a guaranteed turnaround timeframe.
+- Acknowledge receipt of private vulnerability reports within **48 hours**.
 - Validate the vulnerability and coordinate remediation across scheduled sprint intervals.
 - Ensure fixes are deployed to production before details are made public.
 - Credit researchers who adhere to responsible disclosure principles.

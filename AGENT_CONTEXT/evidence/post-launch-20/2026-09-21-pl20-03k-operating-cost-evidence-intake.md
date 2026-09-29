@@ -19,7 +19,7 @@
 In strict compliance with **PL20-03K** directives, the operating cost evidence intake package was prepared and normalized without fabricating costs, without inferring provider charges, and without persisting any database rows (`cost_snapshots` or `final_scale_reports`).
 
 - **Target Common Period:** Completed calendar month `2026-08-01` to `2026-08-31`. All four providers (Railway, Supabase, Stripe, Resend) are evaluated against this exact common period (`period_match: true`).
-- **Validator Execution:** Evaluated via `scripts/pl20/validate-cost-evidence.mjs` using the real candidate intake package [pl20-03k-provider-cost-intake.json](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/AGENT_CONTEXT/evidence/post-launch-20/pl20-03k-provider-cost-intake.json).
+- **Validator Execution:** Evaluated via `scripts/pl20/validate-cost-evidence.mjs` using the real candidate intake package [pl20-03l-multi-currency-cost-intake.json](file:///C:/Users/Lucilfer/Documents/Stable-Ecommerce/AGENT_CONTEXT/evidence/post-launch-20/pl20-03l-multi-currency-cost-intake.json).
 - **Core Governance Outcome:**
   - `railway`: **PARTIAL** (`amount: null`, `shared_unallocated`).
   - `supabase`: **MEASURED** (`amount: 0.00 MXN`, Free Tier provenance).
@@ -109,7 +109,7 @@ In strict compliance with **PL20-03K** directives, the operating cost evidence i
 
 ## 4. Validator Execution Results (Task 6)
 
-Executed `scripts/pl20/validate-cost-evidence.mjs` against `AGENT_CONTEXT/evidence/post-launch-20/pl20-03k-provider-cost-intake.json`:
+Executed `scripts/pl20/validate-cost-evidence.mjs` against `AGENT_CONTEXT/evidence/post-launch-20/pl20-03l-multi-currency-cost-intake.json`:
 
 ```json
 {
