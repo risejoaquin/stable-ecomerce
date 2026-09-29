@@ -35,6 +35,23 @@ Sentry.init({
 // Setup Pino Logger
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
+  redact: {
+    paths: [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'req.headers["x-guest-cart-token"]',
+      'req.headers["stripe-signature"]',
+      'req.headers["x-resend-signature"]',
+      'req.headers["x-admin-key"]',
+      'req.headers["svix-signature"]',
+      'req.body.password',
+      'req.body.token',
+      'req.body.cardNumber',
+      'req.body.cvc',
+      'res.headers["set-cookie"]'
+    ],
+    censor: '[REDACTED]'
+  },
   ...(process.env.NODE_ENV !== 'production' && {
     transport: {
       target: 'pino-pretty',
