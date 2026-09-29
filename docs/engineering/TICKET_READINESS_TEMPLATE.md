@@ -1,10 +1,10 @@
 # Ticket Readiness Template (Jira Specification Standard)
 
-**Document ID**: `GOV-ENG-004`  
-**Classification**: Authoritative Engineering Governance Template  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: Product Owners, Tech Leads, Architects, Engineers Authoring Jira Tickets  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-004`
+**Classification**: Authoritative Engineering Governance Template
+**Status**: ACTIVE / ENFORCED
+**Applies To**: Product Owners, Tech Leads, Architects, Engineers Authoring Jira Tickets
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 

@@ -1,16 +1,16 @@
 # Engineer Ready Checklist (Definition of Ready - DoR)
 
-**Document ID**: `GOV-ENG-003`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: Product Owners, Technical Leads, Architects, Assigned Engineers  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-003`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: Product Owners, Technical Leads, Architects, Assigned Engineers
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 
 ## 1. Purpose & Gating Policy
 
-The **Definition of Ready (DoR)** is an immutable hard gate separating the planning/design phases from active engineering implementation. 
+The **Definition of Ready (DoR)** is an immutable hard gate separating the planning/design phases from active engineering implementation.
 
 ### Gating Invariant
 > **NO TICKET ENTERS `Ready` OR `In Progress` WITHOUT 100% SATISFACTION OF THIS CHECKLIST.**
@@ -36,7 +36,7 @@ Every Jira ticket must be verified against these 10 criteria before development 
 ### 3. Authoritative Contract & Design References
 - [ ] **Design Artifacts Linked**: UI mockups (Figma), wireframes, or sequence diagrams are finalized and attached.
 - [ ] **Frozen Architecture Decision Records**: Applicable ADRs (under `docs/adr/`) are cited and confirmed in `ACCEPTED` status.
-- [ ] **Interface & Schema Contracts Frozen**: 
+- [ ] **Interface & Schema Contracts Frozen**:
   - REST/RPC endpoints: Path, HTTP method, request headers, query params, request body schema, response DTO schema, error response schemas.
   - TypeScript types: Explicit interface definitions drafted or referenced in `src/types/`.
 

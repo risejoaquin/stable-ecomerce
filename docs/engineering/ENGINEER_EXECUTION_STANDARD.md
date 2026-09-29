@@ -1,10 +1,10 @@
 # Engineer Execution Standard (Human & Autonomous Agents)
 
-**Document ID**: `GOV-ENG-002`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: Human Software Engineers, Autonomous Coding Agents, Pair Programming Systems  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-002`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: Human Software Engineers, Autonomous Coding Agents, Pair Programming Systems
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 

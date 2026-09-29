@@ -1,10 +1,10 @@
 # Team Development Workflow & Lifecycle Governance
 
-**Document ID**: `GOV-ENG-001`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: All human engineers, autonomous agents, technical leads, and release authorities  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-001`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: All human engineers, autonomous agents, technical leads, and release authorities
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 
@@ -15,7 +15,7 @@ This document establishes the canonical development lifecycle, gating mechanisms
 ### The Foundational Axiom
 > **PROMPTS ARE EPHEMERAL. REPOSITORY STATE, DOCUMENTATION, AND CI EVIDENCE ARE AUTHORITATIVE.**
 
-In a hybrid engineering environment comprising human engineers and autonomous agentic contributors, ad-hoc chat sessions, transient prompt instructions, and ephemeral memory are **never** authoritative records of system state, design intent, or completion status. 
+In a hybrid engineering environment comprising human engineers and autonomous agentic contributors, ad-hoc chat sessions, transient prompt instructions, and ephemeral memory are **never** authoritative records of system state, design intent, or completion status.
 
 Every architectural contract, technical specification, and status transition must be explicitly persisted within the repository, Jira, or CI build artifacts.
 

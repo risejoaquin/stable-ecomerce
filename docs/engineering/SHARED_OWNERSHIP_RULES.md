@@ -1,10 +1,10 @@
 # Shared Codebase Ownership & Domain Boundaries
 
-**Document ID**: `GOV-ENG-007`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: All Engineering Teams, Codeowners, Autonomous Agents  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-007`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: All Engineering Teams, Codeowners, Autonomous Agents
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 

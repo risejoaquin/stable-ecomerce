@@ -1,9 +1,9 @@
 # Architecture Decision Records (ADRs)
 
-**Directory**: `docs/adr/`  
-**Classification**: Authoritative Architectural Repository  
-**Status**: ACTIVE / ENFORCED  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Directory**: `docs/adr/`
+**Classification**: Authoritative Architectural Repository
+**Status**: ACTIVE / ENFORCED
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 
@@ -59,14 +59,17 @@ An ADR is **mandatory** whenever an engineering change:
 
 ## 5. Architectural Decision Index
 
+> [!NOTE]
+> The architectural decision records below represent candidate architecture topics identified from existing system documentation and delivery roadmaps. Because formal ADR record files have not yet been materialized or ratified by the Technical Authority, they are classified as `PROPOSED` (unmaterialized candidate entries) without active file links. Once an ADR is drafted from [`ADR-TEMPLATE.md`](ADR-TEMPLATE.md) and formally accepted, its status will transition to `ACCEPTED` and link to the ratified document.
+
 | ADR # | Title | Status | Classification | Date | Author / Deciders |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **ADR-001** | [Unified Express + Vite Monolith Architecture](ADR-001-monolith-architecture.md) | `ACCEPTED` | FROZEN REQUIREMENT | 2026-08-15 | `@risejoaquin` |
-| **ADR-002** | [Supabase Managed PostgreSQL & Strict RLS Baseline](ADR-002-supabase-postgresql-rls.md) | `ACCEPTED` | FROZEN CONTRACT | 2026-08-20 | `@risejoaquin`, `@bonjourrog` |
-| **ADR-003** | [Stripe Checkout Server-Side Webhook Idempotency](ADR-003-stripe-checkout-idempotency.md) | `ACCEPTED` | FROZEN CONTRACT | 2026-08-25 | `@risejoaquin` |
-| **ADR-004** | [Pino Structured JSON Logging & Sentry Boundary](ADR-004-pino-structured-logging.md) | `ACCEPTED` | DERIVED ENGINEERING DESIGN | 2026-09-01 | `@risejoaquin` |
-| **ADR-005** | [AUDIT-01A Data Minimization & Public Projection Whitelist](ADR-005-audit-01a-data-minimization.md) | `ACCEPTED` | FROZEN CONTRACT | 2026-09-10 | `@risejoaquin` |
-| **ADR-006** | [Zod Input Validation Schema Standard](ADR-006-zod-input-validation.md) | `ACCEPTED` | DERIVED ENGINEERING DESIGN | 2026-09-15 | `@bonjourrog` |
-| **ADR-007** | [Atomic Concurrency Stock Decrement via Database RPC](ADR-007-atomic-stock-decrement-rpc.md) | `ACCEPTED` | FROZEN CONTRACT | 2026-09-20 | `@bonjourrog`, `@risejoaquin` |
-| **ADR-008** | [Client 01 In-Browser Web POS Register Architecture](ADR-008-web-pos-register-architecture.md) | `ACCEPTED` | FROZEN REQUIREMENT | 2026-09-22 | `@Julian716`, `@bonjourrog` |
-| **ADR-009** | [CSP Inline Script Elimination & Nonce Enactment](ADR-009-csp-inline-script-elimination.md) | `PROPOSED` | FROZEN CONTRACT | 2026-09-25 | `@risejoaquin` |
+| **ADR-001** | Unified Express + Vite Monolith Architecture | `PROPOSED` | FROZEN REQUIREMENT | 2026-08-15 | `@risejoaquin` |
+| **ADR-002** | Supabase Managed PostgreSQL & Strict RLS Baseline | `PROPOSED` | FROZEN CONTRACT | 2026-08-20 | `@risejoaquin`, `@bonjourrog` |
+| **ADR-003** | Stripe Checkout Server-Side Webhook Idempotency | `PROPOSED` | FROZEN CONTRACT | 2026-08-25 | `@risejoaquin` |
+| **ADR-004** | Pino Structured JSON Logging & Sentry Boundary | `PROPOSED` | DERIVED ENGINEERING DESIGN | 2026-09-01 | `@risejoaquin` |
+| **ADR-005** | AUDIT-01A Data Minimization & Public Projection Whitelist | `PROPOSED` | FROZEN CONTRACT | 2026-09-10 | `@risejoaquin` |
+| **ADR-006** | Zod Input Validation Schema Standard | `PROPOSED` | DERIVED ENGINEERING DESIGN | 2026-09-15 | `@bonjourrog` |
+| **ADR-007** | Atomic Concurrency Stock Decrement via Database RPC | `PROPOSED` | FROZEN CONTRACT | 2026-09-20 | `@bonjourrog`, `@risejoaquin` |
+| **ADR-008** | Client 01 In-Browser Web POS Register Architecture | `PROPOSED` | FROZEN REQUIREMENT | 2026-09-22 | `@Julian716`, `@bonjourrog` |
+| **ADR-009** | CSP Inline Script Elimination & Nonce Enactment | `PROPOSED` | FROZEN CONTRACT | 2026-09-25 | `@risejoaquin` |
