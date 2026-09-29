@@ -33,6 +33,10 @@ Near-term delivery scope, planning contracts, and sprint specifications:
 
 Production launch sign-offs, accessibility verifications, and operational runbooks:
 
+- **Operational Runbooks**:
+  - [**Production Runbook**](operations/runbooks/PRODUCTION_RUNBOOK.md): System health checks, structured log filters, and top 5 failure scenario mitigations.
+  - [**Rollback Runbook**](operations/runbooks/ROLLBACK_RUNBOOK.md): Railway container redeployment, database forward-fix policy, and webhook reconciliation.
+  - [**Incident Response Playbook**](operations/runbooks/INCIDENT_RESPONSE.md): Severity matrix (SEV1-SEV3), incident commander workflow, and post-mortem procedures.
 - **Final Project Status Report**: [`docs/release/FINAL_PROJECT_STATUS_REPORT.md`](release/FINAL_PROJECT_STATUS_REPORT.md) (Roadmap 1.0 closure & production sign-off).
 - **Accessibility & Responsive Checklist**: [`docs/release/ACCESSIBILITY_RESPONSIVE_FINAL_CHECKLIST.md`](release/ACCESSIBILITY_RESPONSIVE_FINAL_CHECKLIST.md) (Production compliance).
 - **QA Automation Foundation**: [`docs/qa/QA_AUTOMATION_FOUNDATION.md`](qa/QA_AUTOMATION_FOUNDATION.md) (Automated test suites & gating).
