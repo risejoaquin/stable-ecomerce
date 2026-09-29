@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document establishes the canonical domain model, entity relationships, and state machines for the Client 01 omnichannel commerce engine. 
+This document establishes the canonical domain model, entity relationships, and state machines for the Client 01 omnichannel commerce engine.
 
 The domain model bridges catalog browsing, POS cashiering, inventory authority, and financial settlement into a cohesive, normalized transactional core.
 
@@ -150,19 +150,19 @@ The architectural separation between **Product** and **SellableUnit** is the fou
 stateDiagram-v2
     [*] --> pendiente : Order Created (Web/Checkout)
     [*] --> pagado : Order Created & Paid (POS Instant Sale)
-    
+
     pendiente --> pagado : Payment Confirmed (Stripe Webhook)
     pendiente --> payment_failed : Payment Intent Fails
     pendiente --> inventory_exception : Paid but Out of Stock
     pendiente --> cancelado : Abandoned / Expired
-    
+
     pagado --> empacado : Warehouse Fulfillment Started
     empacado --> enviado : Carrier Dispatched
     enviado --> entregado : Customer Delivery Confirmed
-    
+
     pagado --> partially_refunded : Partial Item Return
     pagado --> refunded : Full Order Return
-    
+
     inventory_exception --> refunded : Resolved via Customer Refund
     inventory_exception --> pagado : Resolved via Manual Restock
 

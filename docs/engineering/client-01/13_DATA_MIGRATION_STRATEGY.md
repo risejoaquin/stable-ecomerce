@@ -42,7 +42,7 @@ flowchart TD
 ```sql
 -- Phase 1 Backfill Script: Standalone Products
 INSERT INTO sellable_units (product_id, sku, title, price_override, stock, status)
-SELECT 
+SELECT
   p.id,
   COALESCE(p.sku, 'SKU-' || UPPER(REPLACE(p.slug, '-', ''))),
   p.name,
@@ -55,7 +55,7 @@ ON CONFLICT (sku) DO NOTHING;
 
 -- Phase 1 Backfill Script: Products with JSONB Variants
 INSERT INTO sellable_units (product_id, sku, title, price_override, stock, status, attributes)
-SELECT 
+SELECT
   p.id,
   COALESCE(v->>'sku', p.sku || '-' || UPPER(COALESCE(v->>'title', 'VAR'))),
   p.name || ' (' || COALESCE(v->>'title', 'Standard') || ')',
@@ -96,7 +96,7 @@ INSERT INTO order_payments (
   reference_code,
   created_at
 )
-SELECT 
+SELECT
   o.id,
   'stripe',
   o.total,
@@ -142,10 +142,10 @@ WHERE su.id IS NULL;
 -- EXPECTED RESULT: 0 rows
 
 -- Verification Query 2: Stock mismatch between products and sum of sellable_units
-SELECT 
-  p.id, 
-  p.name, 
-  p.stock AS product_stock, 
+SELECT
+  p.id,
+  p.name,
+  p.stock AS product_stock,
   SUM(su.stock) AS units_stock_sum,
   (p.stock - SUM(su.stock)) AS discrepancy
 FROM products p

@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document specifies the testing strategy, test pyramid tiers, automated test suites, and concurrency verification protocols for the Client 01 platform. 
+This document specifies the testing strategy, test pyramid tiers, automated test suites, and concurrency verification protocols for the Client 01 platform.
 
 A central requirement of Client 01 is proving zero overselling under heavy simultaneous contention between online web shoppers and in-person POS sales.
 

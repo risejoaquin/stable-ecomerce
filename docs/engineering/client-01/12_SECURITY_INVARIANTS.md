@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document specifies the mandatory security invariants and defensive programming rules governing the Client 01 implementation. 
+This document specifies the mandatory security invariants and defensive programming rules governing the Client 01 implementation.
 
 All engineers must adhere strictly to these principles. No pull request violating these invariants may be approved or merged.
 
@@ -62,7 +62,7 @@ CREATE POLICY "Staff manage sellable units" ON sellable_units
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users 
+      SELECT 1 FROM users
       WHERE users.id = auth.uid() AND users.role IN ('owner', 'admin')
     )
   );
@@ -75,7 +75,7 @@ CREATE POLICY "Customers view own payments" ON order_payments
   FOR SELECT TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM orders 
+      SELECT 1 FROM orders
       WHERE orders.id = order_payments.order_id AND orders.customer_user_id = auth.uid()
     )
   );
@@ -85,7 +85,7 @@ CREATE POLICY "Staff manage order payments" ON order_payments
   FOR ALL TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users 
+      SELECT 1 FROM users
       WHERE users.id = auth.uid() AND users.role IN ('owner', 'admin')
     )
   );
@@ -98,7 +98,7 @@ CREATE POLICY "Staff view audit logs" ON audit_logs
   FOR SELECT TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM users 
+      SELECT 1 FROM users
       WHERE users.id = auth.uid() AND users.role IN ('owner', 'admin')
     )
   );

@@ -14,7 +14,7 @@ This document specifies the integration architecture, connection topologies, res
 ```mermaid
 flowchart TD
     App["Express Monolith Runtime (Railway)"]
-    
+
     subgraph Supabase ["Supabase Cloud"]
         Pooler["PgBouncer Transaction Pooler (Port 6543)"]
         Postgres["PostgreSQL Core DB (Tables, RLS, RPCs)"]
@@ -35,7 +35,7 @@ flowchart TD
     App -->|RPCs & Prepared Queries| Pooler
     Pooler --> Postgres
     App -->|Asset Uploads & Public URLs| Storage
-    
+
     App -->|Create Session| CheckoutAPI
     App -->|Trigger Refund| RefundAPI
     Webhooks -->|POST /api/webhooks/stripe| App

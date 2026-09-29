@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document defines the canonical order model for the Client 01 platform. 
+This document defines the canonical order model for the Client 01 platform.
 
 The order is the authoritative commercial contract representing a customer purchase across all channels (`web_storefront` and `pos_register`). It records immutable financial values, channel origin, cashier metadata, and line items linked directly to `sellable_units`.
 
@@ -169,7 +169,7 @@ export interface OrderRecord {
   storeId: string;
   clientRequestId?: string;
   channel: 'web_storefront' | 'pos_register';
-  status: 
+  status:
     | 'pendiente'
     | 'pagado'
     | 'payment_failed'

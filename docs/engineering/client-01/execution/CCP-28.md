@@ -37,7 +37,7 @@ Senior Backend / Database Engineer with expertise in transactional financial rev
   - `items`: optional array of `{ orderItemId, quantity }` for partial refund, or empty for full refund.
   - `clientRequestId`: UUID v4 idempotency token.
 - Validation checks:
-  1. Target order exists and has `channel = 'pos'`.
+  1. Target order exists and has `channel = 'pos_register'`.
   2. Target order status is `'paid'`; reject orders already `'refunded'` or `'cancelled'`.
   3. Validate caller role is strictly `'admin'` or `'owner'` via `requirePosOperator`.
 - Transactional execution:

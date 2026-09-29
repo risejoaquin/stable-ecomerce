@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document establishes the authoritative boundaries of **Client 01 (Selfcare Sinners)**. It strictly demarcates what is included within the active implementation cycle and what is explicitly excluded. 
+This document establishes the authoritative boundaries of **Client 01 (Selfcare Sinners)**. It strictly demarcates what is included within the active implementation cycle and what is explicitly excluded.
 
 Engineering teams must not expand the boundaries defined herein. Any modification to these boundaries requires a formal architectural amendment approved by project governance.
 

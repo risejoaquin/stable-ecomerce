@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_sellable_units_barcode ON sellable_units(barcode)
 CREATE INDEX IF NOT EXISTS idx_sellable_units_status ON sellable_units(status);
 
 -- Add sellable_unit_id to existing inventory_movements table
-ALTER TABLE inventory_movements 
+ALTER TABLE inventory_movements
   ADD COLUMN IF NOT EXISTS sellable_unit_id UUID REFERENCES sellable_units(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_sellable_unit_id ON inventory_movements(sellable_unit_id);
@@ -92,8 +92,8 @@ DECLARE
   unit_status TEXT;
 BEGIN
   -- 1. Sort items to acquire locks in deterministic order and prevent deadlocks
-  FOR item IN 
-    SELECT 
+  FOR item IN
+    SELECT
       (val->>'sellable_unit_id')::UUID AS unit_id,
       (val->>'quantity')::INT AS qty
     FROM jsonb_array_elements(items_input) AS val
@@ -128,8 +128,8 @@ BEGIN
   END LOOP;
 
   -- 3. All items verified and locked. Execute deductions and movements
-  FOR item IN 
-    SELECT 
+  FOR item IN
+    SELECT
       (val->>'sellable_unit_id')::UUID AS unit_id,
       (val->>'quantity')::INT AS qty
     FROM jsonb_array_elements(items_input) AS val
@@ -149,7 +149,7 @@ BEGIN
       notes,
       created_at
     )
-    SELECT 
+    SELECT
       su.id,
       su.product_id,
       order_id_input,
@@ -164,7 +164,7 @@ BEGIN
   -- 4. Success result
   RETURN QUERY SELECT true, NULL::TEXT, NULL::UUID, 0;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 ```
 
 ---
@@ -221,7 +221,7 @@ BEGIN
 
   RETURN QUERY SELECT true, updated_stock;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 ```
 
 ---

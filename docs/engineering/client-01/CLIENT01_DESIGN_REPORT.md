@@ -1,11 +1,11 @@
 # Client 01 Architecture & Engineering Design Completion Report
 
-**Milestone**: Client 01 Omnichannel Architecture & Engineer Enablement  
-**Jira Epic**: CCP-44  
-**Authoring Agent**: Agent B (Client01 Architecture & Engineer Enablement Designer)  
-**Branch**: `docs/ccp-44-client01-design`  
-**Execution Date**: September 28, 2026  
-**Status**: COMPLETE / VERIFIED  
+**Milestone**: Client 01 Omnichannel Architecture & Engineer Enablement<br/>
+**Jira Epic**: CCP-44<br/>
+**Authoring Agent**: Agent B (Client01 Architecture & Engineer Enablement Designer)<br/>
+**Branch**: `docs/ccp-44-client01-design`<br/>
+**Execution Date**: September 28, 2026<br/>
+**Status**: COMPLETE / VERIFIED
 
 ---
 
@@ -13,9 +13,9 @@
 
 Agent B has completed the comprehensive architectural design, interface contract formalization, data migration strategy, and engineer execution enablement pack creation for **Client 01 (Selfcare Sinners)**.
 
-All specifications bridge the existing hardened online ecommerce monolith (Node.js 22 / Express 4.21 / React 19 / Supabase PostgreSQL / Stripe / Resend) with an in-browser Web Point of Sale (POS) register. 
+All specifications bridge the existing hardened online ecommerce monolith (Node.js 22 / Express 4.21 / React 19 / Supabase PostgreSQL / Stripe / Resend) with an in-browser Web Point of Sale (POS) register.
 
-Every design decision has been strictly classified under the project's governance taxonomy, preserving the frozen contracts and ensuring zero overselling, audit-grade financial ledgers, and zero downtime during rollout.
+Every design decision has been strictly classified under the project's governance taxonomy, preserving the frozen contracts and ensuring zero overselling, audit-grade financial ledgers, and zero downtime during rollout. This report certifies the design specification and contract freeze (CCP-44); database migrations and product code implementations are explicitly deferred to downstream execution tickets starting with CCP-12.
 
 ---
 
@@ -76,16 +76,18 @@ All 21 ticket execution packs have been authored under `docs/engineering/client-
 
 ---
 
-## 4. Frozen Architectural Contracts Compliance Matrix
+## 4. Frozen Architectural Contracts Compliance Matrix (Design Specification)
 
-| Frozen Contract | Requirement Summary | Architectural Compliance Invariant | Compliance Status |
+This milestone establishes and formalizes the design specifications for the frozen architectural contracts. In accordance with the CCP-44 documentation mandate, no runtime code or database migrations are included in this PR; all implementation artifacts are deferred to subsequent engineering tickets starting with CCP-12.
+
+| Frozen Contract | Requirement Summary | Architectural Specification Invariant | Design Specification Status |
 | :--- | :--- | :--- | :-: |
-| **DR-INV-001** | Persistent `SellableUnit` is sole inventory authority. Standalone products get 1 unit; variant products get 1 unit per variant. Row-level locks prevent overselling. | Documented in `03_INVENTORY_CONTRACT.md`. Enforced via PL/pgSQL stored procedure `decrement_sellable_unit_stock` using `FOR UPDATE`. | **FULL COMPLIANCE** |
-| **DR-PAY-001** | Canonical `order_payments` ledger records all tenders (`stripe`, `cash`, `card_reference`). Never fake Stripe IDs. 1:N schema. | Documented in `05_PAYMENT_CONTRACT.md`. Supported in migration `create_order_payments_ledger.sql` and verified via reconciliation queries. | **FULL COMPLIANCE** |
-| **DR-IDEM-001**| Durable PostgreSQL-backed idempotency. POS sales require `client_request_id`. Same payload returns cached response; modified payload returns 409. | Documented in `06_IDEMPOTENCY_CONTRACT.md`. Backed by `idempotency_records` table and canonical SHA-256 payload hashing. | **FULL COMPLIANCE** |
-| **DR-AUTH-001**| Roles `owner` and `admin` operate POS; `user` and `support` denied. No new cashier role. Backend enforced. | Documented in `07_AUTHORIZATION_CONTRACT.md`. Enforced via Express middleware `requirePosOperator`. | **FULL COMPLIANCE** |
-| **DR-ERR-001** | Canonical error envelope `{"error": {"code", "message", "details", "requestId"}}` across all endpoints. | Documented in `08_ERROR_CONTRACT.md`. Catalogued 15 standardized error codes with HTTP status mappings. | **FULL COMPLIANCE** |
-| **DR-REC-001** | Deterministic receipt read model from persisted data. Email delivery failure MUST NOT roll back transactions. | Documented in `11_RECEIPT_CONTRACT.md`. Asynchronous queue isolation in `email_queue` prevents financial rollbacks. | **FULL COMPLIANCE** |
+| **DR-INV-001** | Persistent `SellableUnit` is sole inventory authority. Standalone products get 1 unit; variant products get 1 unit per variant. Row-level locks prevent overselling. | Documented in `03_INVENTORY_CONTRACT.md`. Enforced via PL/pgSQL stored procedure `decrement_sellable_unit_stock` using `FOR UPDATE` with pinned safe `search_path`. DDL migration and RPC implementation are deferred to CCP-12. | **DESIGN SPECIFIED (Deferred to CCP-12)** |
+| **DR-PAY-001** | Canonical `order_payments` ledger records all tenders (`stripe`, `cash`, `card_reference`). Never fake Stripe IDs. 1:N schema. | Documented in `05_PAYMENT_CONTRACT.md` and `04_ORDER_CONTRACT.md`. Ledger DDL migration (`20260928000002_create_order_payments_ledger.sql`) and reconciliation function are deferred to CCP-13. | **DESIGN SPECIFIED (Deferred to CCP-13)** |
+| **DR-IDEM-001**| Durable PostgreSQL-backed idempotency. POS sales require `client_request_id`. Same payload returns cached response; modified payload returns 409. | Documented in `06_IDEMPOTENCY_CONTRACT.md`. Backed by `idempotency_records` table schema and canonical SHA-256 payload hashing; implementation deferred to CCP-14. | **DESIGN SPECIFIED (Deferred to CCP-14)** |
+| **DR-AUTH-001**| Roles `owner` and `admin` operate POS; `user` and `support` denied. No new cashier role. Backend enforced. | Documented in `07_AUTHORIZATION_CONTRACT.md`. Enforced via Express middleware `requirePosOperator`; implementation deferred to CCP-22. | **DESIGN SPECIFIED (Deferred to CCP-22)** |
+| **DR-ERR-001** | Canonical error envelope `{"error": {"code", "message", "details", "requestId"}}` across all endpoints. | Documented in `08_ERROR_CONTRACT.md`. Catalogued 15 standardized error codes with HTTP status mappings; application-wide adoption deferred to execution tickets. | **DESIGN SPECIFIED (Deferred to execution)** |
+| **DR-REC-001** | Deterministic receipt read model from persisted data. Email delivery failure MUST NOT roll back transactions. | Documented in `11_RECEIPT_CONTRACT.md`. Asynchronous queue isolation in `email_queue` specified to prevent financial rollbacks; implementation deferred to CCP-23/CCP-27. | **DESIGN SPECIFIED (Deferred to CCP-23/27)** |
 
 ---
 
@@ -94,7 +96,7 @@ All 21 ticket execution packs have been authored under `docs/engineering/client-
 Agent B operated strictly within assigned boundaries:
 1. **Isolated Execution**: All work was performed exclusively in `worktrees/agent-b/docs/engineering/client-01/`.
 2. **Zero Runtime Code Modification**: No application runtime code under `src/*`, `server.ts`, or build configurations was modified.
-3. **Zero Database Mutations**: No SQL migrations were executed against live staging or production databases.
+3. **Zero Database Mutations & No Uncommitted Migrations**: No SQL migrations were executed against live staging or production databases. Implementation migration scripts are deferred to their respective execution tickets (e.g., CCP-12, CCP-13) and are intentionally not included in this design-only PR.
 4. **Zero Worktree or Git Operations**: No git push, worktree modifications, or branch merges were performed.
 5. **Zero Secret Exposure**: No environment variables, private keys, or API tokens were touched or logged.
 

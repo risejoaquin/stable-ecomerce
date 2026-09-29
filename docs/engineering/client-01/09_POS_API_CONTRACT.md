@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document specifies the REST interface contracts for the Web Point of Sale (POS) system. 
+This document specifies the REST interface contracts for the Web Point of Sale (POS) system.
 
 The primary endpoint is `POST /api/pos/sales`, which executes an in-person retail transaction atomically, backed by server-side price resolution, atomic stock decrements, and canonical payment ledger insertion.
 

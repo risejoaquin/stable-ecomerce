@@ -85,7 +85,7 @@ sequenceDiagram
     API->>DB: INSERT INTO email_queue (to_email, template, payload, status: 'pending')
     DB-->>API: 200 OK (Job Enqueued)
     API-->>Cashier: 200 OK (Email Queued Successfully)
-    
+
     Note over Worker, Resend: Asynchronous Background Processing
     Worker->>DB: SELECT * FROM email_queue WHERE status = 'pending' FOR UPDATE SKIP LOCKED
     Worker->>Worker: Render Receipt HTML Template

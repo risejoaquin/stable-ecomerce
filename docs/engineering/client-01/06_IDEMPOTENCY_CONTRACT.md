@@ -73,7 +73,7 @@ sequenceDiagram
     Client->>MW: POST /api/pos/sales (Header/Body: clientRequestId)
     MW->>MW: Compute SHA-256(canonicalPayload)
     MW->>DB: SELECT * FROM idempotency_records WHERE key = :key FOR UPDATE
-    
+
     alt Key Not Found
         MW->>DB: INSERT (key, hash, 'in_progress', locked_until: NOW() + 60s)
         MW->>Handler: Proceed to Route Handler

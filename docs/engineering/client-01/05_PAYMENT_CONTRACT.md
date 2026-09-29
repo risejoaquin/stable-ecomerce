@@ -140,7 +140,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     o.id AS order_id,
     o.total AS order_total,
     COALESCE(SUM(p.amount), 0.00) AS captured_total,
@@ -151,7 +151,7 @@ BEGIN
   WHERE o.id = order_id_input
   GROUP BY o.id, o.total;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 ```
 
 ---
@@ -161,7 +161,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```typescript
 export type PaymentChannel = 'stripe' | 'cash' | 'card_reference';
 
-export type PaymentStatus = 
+export type PaymentStatus =
   | 'pending'
   | 'captured'
   | 'failed'

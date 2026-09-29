@@ -33,7 +33,7 @@ sequenceDiagram
     Cashier->>API: POST /api/pos/orders/:id/refund (clientRequestId, items, reason)
     API->>DB: Check Auth ('owner'/'admin') & Idempotency Key
     API->>DB: Fetch Order & Payments FOR UPDATE
-    
+
     alt Original Channel == 'stripe'
         API->>Stripe: stripe.refunds.create(amount, payment_intent)
         Stripe-->>API: 200 OK (re_xxx)
@@ -108,8 +108,8 @@ BEGIN
   END IF;
 
   -- 3. Process item restock
-  FOR item IN 
-    SELECT 
+  FOR item IN
+    SELECT
       (val->>'order_item_id')::UUID AS item_id,
       (val->>'quantity')::INT AS qty,
       (val->>'restock')::BOOLEAN AS should_restock
@@ -137,7 +137,7 @@ BEGIN
   -- 4. Update order and payment ledger
   UPDATE order_payments
   SET refunded_amount = refunded_amount + refund_amount_input,
-      status = CASE 
+      status = CASE
         WHEN refunded_amount + refund_amount_input >= amount THEN 'refunded'
         ELSE 'partially_refunded'
       END,
@@ -147,7 +147,7 @@ BEGIN
   UPDATE orders
   SET refunded_amount = new_cumulative_refund,
       refunded_at = NOW(),
-      status = CASE 
+      status = CASE
         WHEN new_cumulative_refund >= total THEN 'refunded'
         ELSE 'partially_refunded'
       END,
@@ -176,7 +176,7 @@ BEGIN
 
   RETURN QUERY SELECT true, order_record.status::TEXT, new_cumulative_refund;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 ```
 
 ---

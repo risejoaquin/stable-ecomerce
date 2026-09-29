@@ -79,7 +79,7 @@ Senior React / TypeScript Frontend Engineer with expertise in point-of-sale regi
    ```json
    {
      "clientRequestId": "uuid-v4",
-     "channel": "pos",
+     "channel": "pos_register",
      "posTerminalId": "term-01",
      "items": [
        { "sellableUnitId": "uuid-unit", "quantity": 1 }

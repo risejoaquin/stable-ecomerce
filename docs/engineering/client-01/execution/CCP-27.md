@@ -47,7 +47,7 @@ Senior React / Frontend Engineer with expertise in print stylesheet design (`@me
   - "Enviar por Email" button calling `POST /api/pos/orders/:id/email-receipt`.
   - Clear success toast; failure to dispatch email does NOT roll back or affect the sale.
 - Authoring `src/components/pos/SalesHistoryDrawer.tsx`:
-  - Lists same-day transactions filtered by `channel = 'pos'`.
+  - Lists same-day transactions filtered by `channel = 'pos_register'`.
   - Shows order timestamp, items count, total amount, tender type, and status (`paid`, `refunded`).
   - Allows clicking any historical order to view/reprint its canonical receipt.
 - Component and unit tests in `tests/frontend/pos-receipt-view.test.tsx`.
@@ -120,7 +120,7 @@ Senior React / Frontend Engineer with expertise in print stylesheet design (`@me
 - [ ] Receipt data is derived 100% from canonical order/payment records per `DR-REC-001`.
 - [ ] Browser print (`window.print()`) cleanly isolates the thermal receipt and hides all app navigation.
 - [ ] Optional email dispatch calls existing Resend backend infrastructure; delivery error does NOT undo the sale.
-- [ ] Sales history drawer filters orders by channel `pos` and displays today's transactions.
+- [ ] Sales history drawer filters orders by channel `pos_register` and displays today's transactions.
 - [ ] Component tests in `tests/frontend/pos-receipt-view.test.tsx` pass 100%.
 
 ## 24. Test Strategy

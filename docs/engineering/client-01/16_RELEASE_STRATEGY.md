@@ -34,22 +34,22 @@ sequenceDiagram
     CI->>CI: Run FAST Gate & RELEASE Gate (Typecheck, Tests, Build)
     CI-->>Stage: Auto-Deploy to Staging Environment
     Dev->>Stage: Execute CCP-35 Staging Verification Protocol
-    
+
     Note over Dev, Stage: Staging Sign-Off Approved
-    
+
     Dev->>ProdDB: Apply Non-Destructive Migrations (Phase 0 DDL)
     Dev->>ProdDB: Run Phase 1 & Phase 3 Backfill Scripts
     Dev->>ProdDB: Run Data Integrity Verification Queries (0 defects required)
-    
+
     Dev->>ProdApp: Deploy Railway Production Container (Flags: POS=false, SU=false)
     ProdApp->>ProdApp: Health Check Verification (/api/health)
-    
+
     Dev->>ProdApp: Enable USE_SELLABLE_UNIT_INVENTORY=true
     Dev->>ProdApp: Monitor Storefront Checkout Metrics (15 mins)
-    
+
     Dev->>ProdApp: Enable ENABLE_WEB_POS=true
     Dev->>ProdApp: Execute CCP-38 Production Smoke Test (In-Store Test Sale)
-    
+
     Note over Dev, ProdApp: Release Milestone Complete & Sealed
 ```
 

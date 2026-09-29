@@ -6,7 +6,7 @@
 - **Secondary Reviewer**: Rogelio (Backend / Database Lead)
 
 ## 2. Objective
-Adapt the existing Admin Dashboard (`AdminDashboard.tsx`) and Customer Management view (`AdminCustomersPage.tsx`) so that revenue metric cards and recent order tables clearly display omnichannel sales breakdowns by channel (`online` vs `pos`), indicate payment channel tags on recent orders, and list registered customer profiles with accurate lifetime order counts and spend figures performantly.
+Adapt the existing Admin Dashboard (`AdminDashboard.tsx`) and Customer Management view (`AdminCustomersPage.tsx`) so that revenue metric cards and recent order tables clearly display omnichannel sales breakdowns by channel (`web_storefront` vs `pos_register`), indicate payment channel tags on recent orders, and list registered customer profiles with accurate lifetime order counts and spend figures performantly.
 
 ## 3. Why
 Fulfills **DR-PAY-001** and omnichannel reporting requirements. With the launch of Client 01 Web POS, physical retail sales coexist with online ecommerce. Business owners and store operators need instant visibility into daily revenue split between online card purchases, in-store cash transactions, and in-store card terminal payments, allowing accurate end-of-day register reconciliation and retail performance tracking.
@@ -69,7 +69,7 @@ Senior React / Frontend Engineer with expertise in dashboard data visualization,
 
 ## 14. Forbidden Changes
 - DO NOT rewrite existing chart components or table pagination logic from scratch.
-- DO NOT hardcode channel names; use canonical enums `'online'` and `'pos'`.
+- DO NOT hardcode channel names; use canonical enums `'web_storefront'` and `'pos_register'`.
 - DO NOT perform expensive unindexed joins on the client side.
 
 ## 15. Repository Boundaries
@@ -94,7 +94,7 @@ Senior React / Frontend Engineer with expertise in dashboard data visualization,
 - Safe idempotent read queries.
 
 ## 20. Migration Considerations
-- Historical orders without explicit `channel` field default to `'online'`.
+- Historical orders without explicit `channel` field default to `'web_storefront'`.
 
 ## 21. Edge Cases
 - All sales in a day are POS cash: online displays `$0.00`, POS displays full total.
@@ -105,7 +105,7 @@ Senior React / Frontend Engineer with expertise in dashboard data visualization,
 
 ## 23. Acceptance Criteria
 - [ ] AdminDashboard displays daily total revenue with clear subtotal breakdown by Online vs POS.
-- [ ] Recent orders list displays channel badge (`Online` / `POS`) for each transaction.
+- [ ] Recent orders list displays channel badge (`web_storefront` / `pos_register`, formatted for UI) for each transaction.
 - [ ] Customer directory lists registered accounts with lifetime order count.
 - [ ] Queries execute performantly without UI lag (< 500ms).
 - [ ] Component tests in `tests/frontend/admin-dashboard-multichannel.test.tsx` pass 100%.
