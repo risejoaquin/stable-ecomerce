@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "pretest:e2e": "npm run build",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "qa:fast": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/validate-fast.ps1",

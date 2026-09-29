@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -331,8 +335,23 @@ jobs:
           $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
 
       - name: Upload Final PL20 Quality Gate Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/quality-gate.json
           retention-days: 30
+
+      - name: Quality Gate Aggregate Verification
+        shell: pwsh
+        env:
+          QUALITY_JOB_RESULT: ${{ needs.quality.result }}
+          E2E_JOB_RESULT: ${{ needs.e2e.result }}
+        run: |
+          $qResult = $env:QUALITY_JOB_RESULT
+          $eResult = $env:E2E_JOB_RESULT
+          if ($qResult -ne 'success' -or $eResult -ne 'success') {
+            Write-Error "Aggregate quality gate failed (quality: $qResult, e2e: $eResult). Failing closed."
+            exit 1
+          }
+          Write-Host "Aggregate quality gate passed successfully (quality: $qResult, e2e: $eResult)."

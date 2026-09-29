@@ -17,6 +17,22 @@ foreach ($route in $routes) {
   } catch { Fail "route $route request failed: $($_.Exception.Message)" }
 }
 
+$serviceEndpoints = @(
+  @{ Name = "readiness"; Path = "/api/readiness" },
+  @{ Name = "robots.txt"; Path = "/robots.txt" },
+  @{ Name = "sitemap.xml"; Path = "/sitemap.xml" },
+  @{ Name = "seo products"; Path = "/api/seo/products" },
+  @{ Name = "public store"; Path = "/api/public/store" },
+  @{ Name = "products catalog"; Path = "/api/products" }
+)
+foreach ($ep in $serviceEndpoints) {
+  try {
+    $r = Invoke-WebRequest -Uri ($base + $ep.Path) -UseBasicParsing -TimeoutSec 25
+    if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400) { Pass "$($ep.Name) $($ep.Path) -> $($r.StatusCode)" }
+    else { Fail "$($ep.Name) $($ep.Path) -> $($r.StatusCode)" }
+  } catch { Fail "$($ep.Name) $($ep.Path) request failed: $($_.Exception.Message)" }
+}
+
 try {
   $healthResponse = Invoke-RestMethod -Uri "$base/api/health" -TimeoutSec 20
   if ($healthResponse.status -ne 'ok') { Fail "health status is '$($healthResponse.status)'" }
