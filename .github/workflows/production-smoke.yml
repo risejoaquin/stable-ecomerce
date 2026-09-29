@@ -10,6 +10,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -47,7 +51,7 @@ jobs:
 
       - name: Validate production
         id: smoke_validate
-        shell: powershell
+        shell: pwsh
         run: >-
           .\scripts\qa\validate-production.ps1
           -BaseUrl "https://selfcaresinners.com"
