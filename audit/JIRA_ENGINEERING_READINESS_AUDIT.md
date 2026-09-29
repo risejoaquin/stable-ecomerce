@@ -24,22 +24,28 @@ All project milestones, delivery timelines, and sprint goals are reconciled agai
 
 ### Readiness Metric Calculation
 
-$$\text{Readiness \%} = \frac{\text{Count of } ENGINEER\_READY \text{ in-scope tickets}}{\text{Total Client 01 in-scope tickets}} \times 100$$
+$$\text{Readiness \%} = \frac{\text{Count of } ENGINEER\_READY \text{ in-scope work items}}{\text{Total Client 01 in-scope work items (Denominator)}} \times 100$$
 
-$$\text{Readiness \%} = \frac{0}{32} \times 100 = \mathbf{0.0\%}$$
+$$\text{Readiness \%} = \frac{0}{31} \times 100 = \mathbf{0.0\%}$$
 
 ### Scope & Classification Breakdown
 
-| Metric | Count | Details |
-| :--- | :---: | :--- |
-| **Total Audited Tickets** | **44** | `CCP-1` through `CCP-44` |
-| **Portfolio Epics** | **12** | `CCP-1` to `CCP-11` (Domain epics) + `CCP-40` (Foundation epic) |
-| **Total In-Scope Work Items** | **32** | `CCP-12`–`CCP-31`, `CCP-33`–`CCP-39`, `CCP-41`–`CCP-44` |
-| **Explicitly Excluded from Client 01** | **1** | `CCP-32` (Meta Commerce & Conversions API — non-blocking hooks only) |
-| **`ENGINEER_READY`** | **0** | **0.0%** of in-scope work items |
-| **`NEEDS_ALIGNMENT`** | **8** | `CCP-16`, `CCP-35`, `CCP-36`, `CCP-37`, `CCP-40`, `CCP-41`, `CCP-42`, `CCP-44` |
-| **`BLOCKED`** | **24** | `CCP-12`–`CCP-15`, `CCP-17`–`CCP-31`, `CCP-33`–`CCP-34`, `CCP-38`–`CCP-39`, `CCP-43` |
-| **`NOT_IN_SCOPE`** | **1** | `CCP-32` |
+| Metric | Count | Percentage | Details |
+| :--- | :---: | :---: | :--- |
+| **Total Audited Tickets** | **44** | — | `CCP-1` through `CCP-44` |
+| **Portfolio Epics** | **12** | — | `CCP-1` to `CCP-11` (Domain epics) + `CCP-40` (Foundation epic; excluded from work item denominator) |
+| **Total In-Scope Work Items (Denominator)** | **31** | **100.0%** | `CCP-12`–`CCP-31` (20), `CCP-33`–`CCP-39` (7), `CCP-41`–`CCP-44` (4) |
+| **Explicitly Excluded from Client 01** | **1** | — | `CCP-32` (Meta Commerce & Conversions API — non-blocking hooks only) |
+| **`ENGINEER_READY`** | **0** | **0.0%** | Zero tickets currently meet Definition of Ready in Jira |
+| **`NEEDS_ALIGNMENT`** | **7** | **22.6%** | `CCP-16`, `CCP-35`, `CCP-36`, `CCP-37`, `CCP-41`, `CCP-42`, `CCP-44` |
+| **`BLOCKED`** | **24** | **77.4%** | `CCP-12`–`CCP-15` (4), `CCP-17`–`CCP-31` (15), `CCP-33`–`CCP-34` (2), `CCP-38`–`CCP-39` (2), `CCP-43` (1) |
+| **`NOT_IN_SCOPE`** | **1** | — | `CCP-32` |
+
+> [!NOTE] Scope & Denominator Reconciliation:
+> - **Explicit Work Item Set**: The in-scope engineering work item denominator is exactly **31** (`CCP-12..31` = 20, `CCP-33..39` = 7, `CCP-41..44` = 4).
+> - **CCP-40 Treatment (Separate Epic)**: `CCP-40` is registered in Jira with Issue Type `Epic` ("Engineering Foundation & Client 01 Delivery Epic"). Because Jira Epics serve as portfolio/umbrella containers rather than developer-executable stories or tasks undergoing Definition of Ready sign-off, `CCP-40` is categorized under **Portfolio Epics** (joining `CCP-1` through `CCP-11` for a total of 12 Epics) and is excluded from the 31-ticket engineering work item denominator. `CCP-40` is audited in Section 3 and Section 5 for administrative milestone alignment (reconciling its target handoff date to 05 Oct 2026), but is not conflated with the work item readiness denominator.
+> - **Total Reconciliation Check**: 31 (In-scope work items) + 1 (`CCP-32` excluded) + 12 (Portfolio Epics: `CCP-1`–`CCP-11`, `CCP-40`) = **44 Total Audited Tickets**.
+> - **Work Item Sum Check**: 0 (`ENGINEER_READY`) + 7 (`NEEDS_ALIGNMENT`) + 24 (`BLOCKED`) = **31 In-Scope Work Items** (100.0%).
 
 ---
 
@@ -50,7 +56,7 @@ Although comprehensive architecture and execution packs have now been authored b
 1. **Unmerged Contract Freeze Gate (`CCP-44`)**:
    Under the primary invariant:
    > **NO CODE before Development Ready. NO parallel cross-boundary implementation before Contract Freeze.**
-   
+
    The architectural specifications and execution packs authored on `docs/ccp-44-engineering-governance`, `docs/ccp-44-client01-design`, and `docs/ccp-44-qa-release-operations` are currently unmerged PRs. Until `CCP-44` is formally merged into `main`, every implementation ticket is strictly blocked.
 
 2. **Severed Dependency Topology in Jira Cloud**:
@@ -60,7 +66,7 @@ Although comprehensive architecture and execution packs have now been authored b
    - The entire foundational gate (`CCP-41` → `CCP-42` → `CCP-44` → `CCP-39`) is disconnected from Jira's dependency graph.
 
 3. **Missing Architectural Contract Citations (`DR-*`)**:
-   - 22 out of 32 in-scope tickets fail to cite the frozen architectural contracts:
+   - 21 out of 31 in-scope work items fail to cite the frozen architectural contracts:
      - `DR-INV-001` (Canonical SellableUnit Inventory Authority)
      - `DR-PAY-001` (Order Payments Ledger & Multi-Channel Tender)
      - `DR-IDEM-001` (PostgreSQL Durable Idempotency)
@@ -76,9 +82,10 @@ Although comprehensive architecture and execution packs have now been authored b
    - Jira Sprint 1 is named `"Delivery Sprint — 23 Sep to 03"` with end date `2026-10-03`.
    - All references must reconcile to **03 Oct (RC Cut) / 04 Oct (Hardening + UAT) / 05 Oct (Production Handoff)**.
 
-5. **Stale Lifecycle States for Completed Onboarding Dry Runs**:
+5. **Stale Lifecycle States & Conditional Closure Requirements for Onboarding Tickets**:
    - `CCP-41` (Julian TEAM-READY) and `CCP-42` (Rogelio TEAM-READY) had their dry-run PRs (#10 and #9) successfully executed, validated, and closed on GitHub.
-   - However, in Jira, `CCP-41` is still sitting in `Tareas por hacer` (To Do), and `CCP-42` is in `En revisión` (In Review). Neither has been marked `Done / Finalizada`.
+   - However, in Jira, historical snapshot facts record `CCP-41` sitting in `Tareas por hacer` (To Do) and `CCP-42` in `En revisión` (In Review). Neither has been transitioned in Jira.
+   - **Critical Scope Distinction for CCP-41**: While PR #10 confirmed Git/CI flow and local execution (clean build, lint, fast tests, local dev server), it proves Git/CI mechanics only. It does **not** prove Jira Member role, Railway staging Viewer role, zero production access, or zero direct database access (least privilege). Therefore, the closure of `CCP-41` cannot be unconditional; it may transition to `Done / Finalizada` only after Joaquin Vallejo (or authorized technical authority) confirms the remaining access tier evidence.
 
 ---
 
@@ -114,8 +121,8 @@ Although comprehensive architecture and execution packs have now been authored b
 | **CCP-37** | Historia | Tareas por hacer | `Joaquin Vallejo` | **`NEEDS_ALIGNMENT`** | Blocked by CCP-36; date needs reconciliation to 04 Oct UAT walkthrough | Reconcile date to 04 Oct; define formal UAT walkthrough checklist |
 | **CCP-38** | Tarea | Tareas por hacer | `Joaquin Vallejo` | **`BLOCKED`** | Final release gate; blocked by CCP-37, CCP-30, CCP-31; handoff date 05 Oct | Wire blockers; verify deployment runbook matches `PRODUCTION_RELEASE_RUNBOOK.md` |
 | **CCP-39** | Historia | Blocked | `adaninz4` (Rogelio) | **`BLOCKED`** | Root schema gate; marked Blocked in Jira; missing Jira link to CCP-44 | Wire `is blocked by CCP-44` and `blocks CCP-12`; unblock upon CCP-44 merge |
-| **CCP-40** | Epic | Tareas por hacer | `Joaquin Vallejo` | **`NEEDS_ALIGNMENT`** | Stale text: "Production handoff target: 03 Oct 2026"; missing epic links | Reconcile target handoff to 05 Oct 2026; link foundation tasks |
-| **CCP-41** | Tarea | Tareas por hacer | `Julian` | **`NEEDS_ALIGNMENT`** | Work complete on GitHub (PR #10 closed); Jira status is stale (To Do) | Transition status to `Done / Finalizada`; wire `blocks CCP-44` |
+| **CCP-40** | Epic | Tareas por hacer | `Joaquin Vallejo` | **`NEEDS_ALIGNMENT`** *(Epic Alignment)* | Foundation Epic (Portfolio Epic; excluded from work item denominator); stale text: "Production handoff target: 03 Oct 2026"; missing epic links | Reconcile target handoff to 05 Oct 2026; link foundation tasks. Portfolio Epic container excluded from 31-ticket work item denominator. |
+| **CCP-41** | Tarea | Tareas por hacer | `Julian` | **`NEEDS_ALIGNMENT`** | PR #10 closed on GitHub (proves Git/CI flow only); Jira status observed as `Tareas por hacer`; lacks proof of Jira Member role, Railway staging Viewer, zero prod access, zero DB access | **Conditional closure only**: transition to `Done / Finalizada` ONLY after Joaquin/technical authority confirms remaining access evidence; then wire `blocks CCP-44` |
 | **CCP-42** | Tarea | En revisión | `adaninz4` (Rogelio) | **`NEEDS_ALIGNMENT`** | Work complete on GitHub (PR #9 closed); Jira status pending signoff | Review PR #9 evidence; transition to `Done / Finalizada`; wire `blocks CCP-44` |
 | **CCP-43** | Historia | Tareas por hacer | `Julian` | **`BLOCKED`** | Dedicated POS UI item; blocked by CCP-44 & CCP-14; zero links in Jira | Wire `is blocked by CCP-44` and `blocks CCP-33`; inject DR-ERR-001 |
 | **CCP-44** | Tarea | En curso | `Joaquin Vallejo` | **`NEEDS_ALIGNMENT`** | Design packs created by Agents A/B/C; PRs pending merge; stale 03 Oct handoff date | Reconcile handoff date to 05 Oct; merge PRs; transition to `Done` |
@@ -146,9 +153,10 @@ CCP-41 (Julian TEAM-READY)
 
 1. **Stage 1: `CCP-41` (Julian TEAM-READY)**
    - **Assigned**: Julian (`Julian716`)
-   - **Observed Repository State**: PR #10 created, validated (`lint`, `test`, `build`, `qa:fast` PASS, dev server on port 3000 verified), closed without merge.
-   - **Observed Jira State**: `Tareas por hacer` (To Do), zero issue links.
-   - **Status**: **SUBSTANTIALLY COMPLETE — JIRA TRANSITION PENDING**.
+   - **Observed Repository State**: PR #10 created, validated (`lint`, `test`, `build`, `qa:fast` PASS, dev server on port 3000 verified), closed without merge. Proves Git/CI flow and local execution environment only.
+   - **Observed Jira State**: `Tareas por hacer` (To Do), zero issue links (historical snapshot preserved).
+   - **Access Evidence Gaps**: PR #10 does not prove Jira Member role, Railway staging Viewer role, zero production access, or zero direct database access.
+   - **Status**: **CONDITIONAL — TRANSITION TO DONE GATED BY REMAINING ACCESS EVIDENCE CONFIRMATION**.
 
 2. **Stage 2: `CCP-42` (Rogelio TEAM-READY)**
    - **Assigned**: Rogelio (`adaninz4`)
@@ -249,11 +257,18 @@ To transition the Jira backlog from 0.0% to 100% Engineering Readiness without v
 
 ### Group A: Administrative & Foundational Transitions
 
-#### 1. Transition CCP-41 to `Finalizada` (Done)
-- **Current Status**: `Tareas por hacer` → **Target Status**: `Finalizada`
-- **Resolution**: Completed
-- **Comment / Evidence**: "Julian onboarding dry run verified and closed via PR #10 (Windows 11, Node 22, npm 10, npm ci, lint/test/build/qa:fast PASS, port 3000 local dev verified). Zero functional code modified."
-- **Issue Links to Add**:
+#### 1. Conditional Transition of CCP-41 to `Finalizada` (Done)
+- **Current Status**: `Tareas por hacer` (To Do)
+- **Historical Snapshot Fact**: Observed in Jira as `Tareas por hacer` with zero issue links. PR #10 verified Git/CI flow and local execution (Windows 11, Node 22, npm 10, npm ci, lint/test/build/qa:fast PASS, port 3000 local dev verified), closed without merge.
+- **Target Status**: `Finalizada` (Done) — **STRICTLY CONDITIONAL**
+- **Closure Condition**: Transition to `Finalizada` ONLY after Joaquin Vallejo (or authorized technical authority) confirms the complete set of access tier evidence:
+  1. Jira Member access confirmed.
+  2. Railway staging Viewer access confirmed.
+  3. No production environment access confirmed (least privilege enforced).
+  4. No direct database access confirmed (least privilege enforced).
+- **Resolution**: Completed (contingent upon access evidence confirmation).
+- **Comment / Evidence to Inject Upon Confirmation**: "Julian onboarding validated: Git/CI flow proven via PR #10; technical authority has confirmed Jira Member role, Railway staging Viewer role, zero production access, and zero direct database access."
+- **Issue Links to Add (Post-Verification)**:
   - `blocks` `CCP-44`
 
 #### 2. Transition CCP-42 to `Finalizada` (Done)
@@ -381,11 +396,11 @@ To transition the Jira backlog from 0.0% to 100% Engineering Readiness without v
 ```mermaid
 graph TD
     subgraph S0["Stage 0: Team & Governance Readiness"]
-        CCP41["CCP-41: Julian TEAM-READY<br/>(PR #10 Verified)"]
+        CCP41["CCP-41: Julian TEAM-READY<br/>(PR #10 Git/CI OK; Access Signoff Pending)"]
         CCP42["CCP-42: Rogelio TEAM-READY<br/>(PR #9 Verified)"]
         CCP44["CCP-44: Contract Freeze<br/>(Agents A, B, C Packs)"]
-        CCP40["CCP-40: Engineering Foundation Epic"]
-        CCP41 --> CCP44
+        CCP40["CCP-40: Engineering Foundation Epic<br/>(Portfolio Epic - Denominator Excluded)"]
+        CCP41 -.->|Conditional on Access Signoff| CCP44
         CCP42 --> CCP44
         CCP40 -.-> CCP44
     end
@@ -422,7 +437,7 @@ graph TD
         CCP23["CCP-23: Transactional Email Queue<br/>(DR-REC-001 Decoupled)"]
         CCP25["CCP-25: Admin Order Management<br/>(Fulfillment Updates)"]
         CCP26["CCP-26: Admin Multi-Channel Dashboard<br/>(Online vs POS)"]
-        
+
         CCP13 --> CCP14
         CCP22 --> CCP14
         CCP44 --> CCP43
@@ -440,7 +455,7 @@ graph TD
         CCP24["CCP-24: Order Confirm & Tracking<br/>(PII-Safe Lookup)"]
         CCP27["CCP-27: Web POS Receipt View<br/>(DR-REC-001 Read Model)"]
         CCP28["CCP-28: POS Cancellation & Restock<br/>(Channel-Aware Restock)"]
-        
+
         CCP15 --> CCP24
         CCP23 --> CCP24
         CCP14 --> CCP27
@@ -459,7 +474,7 @@ graph TD
         CCP36["CCP-36: Hardening Window<br/>(04 Oct 2026 Zero-Defect)"]
         CCP37["CCP-37: Client UAT Signoff<br/>(04 Oct 2026 Staging Walkthrough)"]
         CCP38["CCP-38: Production Deployment<br/>(05 Oct 2026 Live Handoff)"]
-        
+
         CCP14 --> CCP33
         CCP15 --> CCP33
         CCP43 --> CCP33
@@ -470,7 +485,7 @@ graph TD
         CCP33 --> CCP34
         CCP44 --> CCP30
         CCP44 --> CCP31
-        
+
         CCP16 --> CCP35
         CCP21 --> CCP35
         CCP24 --> CCP35
@@ -479,12 +494,12 @@ graph TD
         CCP27 --> CCP35
         CCP33 --> CCP35
         CCP34 --> CCP35
-        
+
         CCP35 --> CCP36
         CCP17 --> CCP36
         CCP18 --> CCP36
         CCP19 --> CCP36
-        
+
         CCP36 --> CCP37
         CCP37 --> CCP38
         CCP30 --> CCP38
@@ -505,6 +520,6 @@ JIRA_ENGINEERING_READINESS = 0.0%
 JIRA_READINESS = PARTIAL
 AGENT_D_RESULT=PASS
 REPORT_PATH=audit/JIRA_ENGINEERING_READINESS_AUDIT.md
-READINESS_FINDINGS=Total in-scope tickets: 32; Engineer Ready: 0 (0.0%); Needs Alignment: 8; Blocked: 24; Not in Scope: 1 (CCP-32). Primary blockers: CCP-44 Contract Freeze unmerged; CCP-39 lacks Jira links; upstream tickets lack DR-* references and concrete evidence requirements; schedule conflicts (03 Oct vs 05 Oct).
-BLOCKERS=CCP-44 contract freeze unmerged, stale handoff dates (03 Oct vs 05 Oct), missing Jira dependency links between foundational and functional tickets
+READINESS_FINDINGS=Total in-scope work items: 31; Engineer Ready: 0 (0.0%); Needs Alignment: 7 (22.6%); Blocked: 24 (77.4%); Not in Scope: 1 (CCP-32); Portfolio Epics: 12 (CCP-1..11 Domain Epics + CCP-40 Foundation Epic). Primary blockers: CCP-44 Contract Freeze unmerged; CCP-39 lacks Jira links; upstream tickets lack DR-* references and concrete evidence requirements; schedule conflicts (03 Oct vs 05 Oct); CCP-41 access evidence verification pending.
+BLOCKERS=CCP-44 contract freeze unmerged, stale handoff dates (03 Oct vs 05 Oct), missing Jira dependency links between foundational and functional tickets, pending CCP-41 access evidence verification
 ```
