@@ -1,10 +1,10 @@
 # ADR-XXX: [Descriptive Title of the Decision]
 
-**Status**: [PROPOSED | ACCEPTED | REJECTED | SUPERSEDED by ADR-YYY]  
-**Date**: YYYY-MM-DD  
-**Deciders**: [List names / GitHub handles, e.g., @risejoaquin, @bonjourrog, @Julian716]  
-**Technical Domain**: [Backend | Frontend | Database | Security | Infra | Payments]  
-**Classification**: [FROZEN REQUIREMENT | FROZEN CONTRACT | DERIVED ENGINEERING DESIGN | ENGINEER IMPLEMENTATION CHOICE]  
+**Status**: [PROPOSED | ACCEPTED | REJECTED | SUPERSEDED by ADR-YYY]
+**Date**: YYYY-MM-DD
+**Deciders**: [List names / GitHub handles, e.g., @risejoaquin, @bonjourrog, @Julian716]
+**Technical Domain**: [Backend | Frontend | Database | Security | Infra | Payments]
+**Classification**: [FROZEN REQUIREMENT | FROZEN CONTRACT | DERIVED ENGINEERING DESIGN | ENGINEER IMPLEMENTATION CHOICE]
 
 ---
 

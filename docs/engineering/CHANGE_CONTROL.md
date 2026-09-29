@@ -1,10 +1,10 @@
 # Engineering Change Control & Contract Management Standard
 
-**Document ID**: `GOV-ENG-006`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: Technical Leads, Architects, Human Engineers, Autonomous Agents  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-006`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: Technical Leads, Architects, Human Engineers, Autonomous Agents
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 

@@ -1,18 +1,18 @@
 # Engineering Evidence Model & Verification Lifecycle
 
-**Document ID**: `GOV-ENG-005`  
-**Classification**: Authoritative Engineering Governance  
-**Status**: ACTIVE / ENFORCED  
-**Applies To**: All human engineers, autonomous agents, QA leads, and release authorities  
-**Authority**: Technical & Release Authority (`@risejoaquin`)  
+**Document ID**: `GOV-ENG-005`
+**Classification**: Authoritative Engineering Governance
+**Status**: ACTIVE / ENFORCED
+**Applies To**: All human engineers, autonomous agents, QA leads, and release authorities
+**Authority**: Technical & Release Authority (`@risejoaquin`)
 
 ---
 
 ## 1. Principle & Purpose
 
-In the Client Commerce Platform engineering culture, **claims without evidence are non-existent**. 
+In the Client Commerce Platform engineering culture, **claims without evidence are non-existent**.
 
-> **"Code existing is not proof. A script existing is not proof. A build passing does not prove runtime behavior. Local passing does not prove production."**  
+> **"Code existing is not proof. A script existing is not proof. A build passing does not prove runtime behavior. Local passing does not prove production."**
 > *(Reference: `AGENTS.md` - Evidence Standard)*
 
 Every defect remediation, architectural implementation, quality gate passage, and production release must produce verifiable, deterministic, and auditable proof-of-work.
