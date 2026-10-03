@@ -67,7 +67,7 @@ Incident / Feedback → Backlog (19)
 | **13** | **QA Verification** | Code review approved; QA verification environment or suite triggered. | Automated QA suites and exploratory QA verification signed off with evidence. | QA Lead / Domain Lead |
 | **14** | **Staging Validation** | QA verified; deployment to staging/preview environment. | Staging database migrations applied cleanly; runtime verification completed. | Release Engineer / Domain Lead |
 | **15** | **Release Gate** | Staging validation successful; deployment package prepared. | Release checklist signed off; rollback plan confirmed; release notes staged. | Release Authority (`@risejoaquin`) |
-| **16** | **Merge & Deployment** | Release gate unlocked. | PR merged via Squash & Merge; Railway automated production build triggered. | Release Authority (`@risejoaquin`) |
+| **16** | **Merge & Deployment** | Release gate unlocked. | PR merged via Squash & Merge; production Railway deployment manually authorized and triggered (`autoDeploy=false`). | Release Authority (`@risejoaquin`) |
 | **17** | **Production Smoke** | Production deployment completed on Railway. | Automated and manual production smoke tests (`validate-production.ps1`) executed and passed. | Release Authority / On-Call |
 | **18** | **Observability** | Production smoke passed; traffic flowing. | Sentry error rates normal, Pino log streams clean, latency within SLA thresholds. | Engineering Team |
 | **19** | **Feedback / Backlog** | System operational; telemetry or user feedback collected. | Defect tickets created or enhancement requests fed into Stage 01. | Product / Engineering |
@@ -242,8 +242,8 @@ To avoid false confidence, the team maintains strict distinction between verific
 ## 12. Merge & Production Verification
 
 1. Merges to `main` are performed exclusively by the Release Authority (`@risejoaquin`) once all CI checks pass and required approvals are secured.
-2. Following merge, Railway triggers automated production deployment of `main` to `https://selfcaresinners.com`.
-3. Post-merge verification protocol:
+2. Merging to `main` does NOT automatically trigger a production deployment (`autoDeploy=false` on production Railway). Production deployment to `https://selfcaresinners.com` is manually authorized and triggered exclusively by the Release Authority (`@risejoaquin`) following staged release gates.
+3. Post-deployment verification protocol:
    - Confirm `https://selfcaresinners.com/api/health` reports status `ok` with the merged commit SHA.
    - Run production smoke validation:
      ```powershell
