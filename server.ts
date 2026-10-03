@@ -565,7 +565,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG and WebP are allowed.'));
+      cb(new AppError('Invalid file type. Only JPEG, PNG and WebP are allowed.', 400));
     }
   }
 });
@@ -2565,8 +2565,7 @@ app.post(
     const allowedImageTypes = new Set([
       'image/jpeg',
       'image/png',
-      'image/webp',
-      'image/avif'
+      'image/webp'
     ]);
 
     if (!allowedImageTypes.has(req.file.mimetype)) {
@@ -12197,6 +12196,9 @@ app.post(
   // Global Error Handling Middleware
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     logger.error({ err }, 'Unhandled Error');
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large' });
+    }
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation Error', details: (err as any).errors });
     }
