@@ -731,7 +731,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
       typeof svixSignature !== 'string'
     ) {
       logger.warn('Invalid Resend webhook signature headers');
-      return res.status(400).json({ error: 'Invalid webhook signature' });
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
     try {
@@ -761,7 +761,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
         'Invalid Resend webhook signature'
       );
 
-      return res.status(400).json({
+      return res.status(401).json({
         error: 'Invalid webhook signature'
       });
     }
