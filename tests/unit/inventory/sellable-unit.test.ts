@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type { Product, ProductVariant } from '../../../src/types/index';
 import {
   CreateSellableUnitSchema,
@@ -7,6 +7,9 @@ import {
   UpdateSellableUnitSchema,
   mapProductToDefaultSellableUnit,
   mapVariantToSellableUnit,
+  type DecrementStockPayload,
+  type DecrementStockResult,
+  type UpdateSellableUnitInput,
   type LegacyInventoryProduct,
   type SellableUnit,
   type SellableUnitMappingIdentity,
@@ -86,6 +89,28 @@ describe('SKU helpers and validation', () => {
 });
 
 describe('domain schemas', () => {
+  it('rejects stock in generic updates while preserving create compatibility', () => {
+    expect(UpdateSellableUnitSchema.safeParse({ stock: 1 }).success).toBe(false);
+    expect(UpdateSellableUnitSchema.safeParse({ title: 'Updated', stock: 1 }).success).toBe(false);
+    expect(CreateSellableUnitSchema.parse({ ...createInput, stock: 1 }).stock).toBe(1);
+    expectTypeOf<UpdateSellableUnitInput>().not.toHaveProperty('stock');
+  });
+
+  it('exports the frozen decrement-stock application contract for CCP-12', () => {
+    expectTypeOf<DecrementStockPayload>().toEqualTypeOf<{
+      items: Array<{ sellableUnitId: string; quantity: number }>;
+      orderId: string;
+      reason?: 'sale' | 'manual_adjustment';
+      notes?: string;
+    }>();
+    expectTypeOf<DecrementStockResult>().toEqualTypeOf<{
+      success: boolean;
+      errorCode?: 'INSUFFICIENT_STOCK' | 'SELLABLE_UNIT_NOT_FOUND' | 'SELLABLE_UNIT_INACTIVE' | 'INVALID_QUANTITY';
+      failedSellableUnitId?: string;
+      availableStock?: number;
+    }>();
+  });
+
   it('defaults nullable fields, attributes, stock and status without changing input', () => {
     expect(CreateSellableUnitSchema.parse(createInput)).toEqual({
       ...createInput, barcode: null, priceOverride: null, costPrice: null,
@@ -205,6 +230,20 @@ describe('standalone compatibility mapper', () => {
 });
 
 describe('variant compatibility mapper', () => {
+  it.each([
+    ['active', 'active'],
+    ['archived', 'archived'],
+    ['draft', 'archived'],
+    ['out_of_stock', 'archived'],
+    [undefined, 'archived'],
+  ] as const)('inherits parent status %s as %s', (status, expected) => {
+    const source = { ...product, status };
+    const variant: ProductVariant = { name: 'Red', stock: 1 };
+    expect(mapVariantToSellableUnit(source, variant, identity).status).toBe(expected);
+    expect(mapVariantToSellableUnit(source, variant, identity).status)
+      .toBe(mapProductToDefaultSellableUnit(source, identity).status);
+  });
+
   it('maps one unit per variant with SKU, price, stock and safe attributes', () => {
     const variants: ProductVariant[] = [
       { id: 'red', name: 'Red', sku: 'red-01', stock: 2, price: 210, barcode: ' 0001 ', costPrice: 100, attributes: { color: 'Red' } },
@@ -225,7 +264,7 @@ describe('variant compatibility mapper', () => {
 
   it('supports legacy title and cost_price, explicit nulls and zero override', () => {
     const variant: ProductVariant = { name: 'Fallback', title: ' Large ', stock: 0, price: 0, cost_price: 0, barcode: null, attributes: null };
-    expect(mapVariantToSellableUnit({ ...product, status: 'draft' }, variant, identity)).toMatchObject({ title: 'Serum (Large)', sku: 'SKU-SERUMGLOW-LARGE', priceOverride: 0, costPrice: 0, stock: 0, barcode: null, attributes: {}, status: 'active' });
+    expect(mapVariantToSellableUnit({ ...product, status: 'draft' }, variant, identity)).toMatchObject({ title: 'Serum (Large)', sku: 'SKU-SERUMGLOW-LARGE', priceOverride: 0, costPrice: 0, stock: 0, barcode: null, attributes: {}, status: 'archived' });
     expect(mapVariantToSellableUnit(product, { ...variant, price: null } as unknown as ProductVariant, identity).priceOverride).toBeNull();
   });
 

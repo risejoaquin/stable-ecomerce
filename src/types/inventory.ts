@@ -21,6 +21,24 @@ export interface SellableUnit {
   updatedAt: string;
 }
 
+/** Canonical application contract; physical execution belongs to CCP-12. */
+export interface DecrementStockPayload {
+  items: Array<{
+    sellableUnitId: string;
+    quantity: number;
+  }>;
+  orderId: string;
+  reason?: 'sale' | 'manual_adjustment';
+  notes?: string;
+}
+
+export interface DecrementStockResult {
+  success: boolean;
+  errorCode?: 'INSUFFICIENT_STOCK' | 'SELLABLE_UNIT_NOT_FOUND' | 'SELLABLE_UNIT_INACTIVE' | 'INVALID_QUANTITY';
+  failedSellableUnitId?: string;
+  availableStock?: number;
+}
+
 const text = z.string().trim().min(1);
 const skuSchema = z.string().min(1).regex(/^[A-Za-z0-9_-]+$/).transform((value) => normalizeSku(value));
 const barcodeSchema = z.string().transform((value, context) => {
@@ -87,11 +105,11 @@ export const SellableUnitInputSchema = inputSchema.extend({
   attributes: attributesSchema.default({}),
 });
 export const CreateSellableUnitSchema = SellableUnitInputSchema;
-export const UpdateSellableUnitSchema = inputSchema.omit({ productId: true }).partial();
+export const UpdateSellableUnitSchema = inputSchema.omit({ productId: true, stock: true }).partial();
 export type SellableUnitInput = Pick<SellableUnit, 'productId' | 'sku' | 'title'>
   & Partial<Pick<SellableUnit, 'barcode' | 'priceOverride' | 'costPrice' | 'stock' | 'status' | 'attributes'>>;
 export type CreateSellableUnitInput = SellableUnitInput;
-export type UpdateSellableUnitInput = Partial<Omit<SellableUnitInput, 'productId'>>;
+export type UpdateSellableUnitInput = Partial<Omit<SellableUnitInput, 'productId' | 'stock'>>;
 
 /** Persistence supplies identity/timestamps; mappers never invent database IDs. */
 export interface SellableUnitMappingIdentity {
@@ -140,7 +158,7 @@ export function mapVariantToSellableUnit(product: LegacyInventoryProduct, varian
     costPrice: variant.costPrice ?? variant.cost_price ?? null,
     // DR-INV-001 migration compatibility, not a stock mutation mechanism.
     stock: variant.stock,
-    status: 'active',
+    status: product.status === 'active' ? 'active' : 'archived',
     // Only explicitly declared attributes; never serialize arbitrary legacy JSON.
     attributes: variant.attributes ?? {},
   });
