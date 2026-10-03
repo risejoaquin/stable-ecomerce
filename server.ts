@@ -32,15 +32,75 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
+// Pino paths redact structured credentials/PII; error text is not a safe data field.
+export function productionLoggingOptions(): pino.LoggerOptions {
+  const sensitive = [
+    'password', 'password_hash', 'new_password', 'token', 'secret', 'jwt',
+    'authorization', 'cookie', 'cookies', 'access_token', 'refresh_token',
+    'stripeSecretKey', 'webhookSecret', 'supabaseServiceRoleKey',
+    'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SUPABASE_SERVICE_ROLE_KEY',
+    'RESEND_API_KEY', 'DATABASE_URL', 'JWT_SECRET', 'apiKey',
+    'cardNumber', 'card_number', 'pan', 'cvv', 'cvc',
+    'email', 'customer_email', 'customerEmail', 'phone', 'full_name',
+    'fullName', 'address', 'shipping_address', 'billing_address'
+  ];
+  return {
+    redact: {
+      paths: [
+        ...sensitive.flatMap(key => [key, `*.${key}`, `*.*.${key}`, `*.*.*.${key}`]),
+        'req.headers', 'req.url', 'req.remoteAddress', 'req.body',
+        'res.headers["set-cookie"]', 'body', 'payload', 'metadata',
+        'payment.tenderDetails', 'req.body.payment.tenderDetails'
+      ],
+      censor: '[REDACTED]'
+    },
+    serializers: {
+      req: (req) => {
+        const serialized = pino.stdSerializers.req(req);
+        // Only log detached HTTP metadata; never expose the serializer's raw
+        // request reference or shared headers/query/params to redaction.
+        return {
+          id: serialized.id, method: serialized.method, url: serialized.url,
+          headers: { ...serialized.headers },
+          remoteAddress: serialized.remoteAddress, remotePort: serialized.remotePort
+        };
+      },
+      err: (err) => {
+        const serialized = pino.stdSerializers.err(err);
+        const values = [
+          ...sensitive.map(key => err?.[key]),
+          ...Object.entries(process.env)
+            .filter(([key]) => /SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL/.test(key))
+            .map(([, value]) => value)
+        ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+        const sanitize = (text: unknown) => {
+          if (typeof text !== 'string') return undefined;
+          let safe = text;
+          for (const value of values) safe = safe.split(value).join('[REDACTED]');
+          return safe
+            .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+            .replace(/\b(?:sk|rk)_(?:live|test)_[a-zA-Z0-9]+\b/g, '[REDACTED]')
+            .replace(/\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b/g, '[REDACTED]')
+            .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED]')
+            .replace(/\b(?:\d[ -]?){10,19}\b/g, '[REDACTED]')
+            .replace(/\b(password|token|secret|jwt|cookie|cvv|cvc|pan|phone)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1=[REDACTED]');
+        };
+        // Whitelist diagnostic fields; exclude arbitrary error payloads/cause.
+        return { type: serialized.type, message: sanitize(serialized.message), stack: sanitize(serialized.stack) };
+      }
+
+    }
+  };
+}
+
 // Setup Pino Logger
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
+  ...productionLoggingOptions(),
   ...(process.env.NODE_ENV !== 'production' && {
     transport: {
       target: 'pino-pretty',
-      options: {
-        colorize: true,
-      }
+      options: { colorize: true }
     }
   })
 });
@@ -613,6 +673,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
   
   app.use(pinoHttp({
     logger,
+    serializers: productionLoggingOptions().serializers,
     customProps: (req) => ({ requestId: (req as any).requestId })
   }));
 
@@ -1248,8 +1309,18 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
 app.get('/api/health', asyncHandler(async (req, res) => {
     const uptimeSeconds = Math.round(process.uptime());
-    res.json({
-      status: 'ok',
+    let connected = false;
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('stores').select('id', { head: true }).limit(1);
+        connected = !error;
+      } catch (err) {
+        logger.error({ err, requestId: (req as any).requestId }, 'Database health probe failed');
+      }
+    }
+    res.status(connected ? 200 : 503).json({
+      status: connected ? 'ok' : 'degraded',
+      database: connected ? 'connected' : 'disconnected',
       service: 'selfcare-sinners-web',
       environment: process.env.NODE_ENV || 'development',
       version: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.npm_package_version || 'local',
