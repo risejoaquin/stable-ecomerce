@@ -8,7 +8,7 @@ import {
   ArrowRight,
   Info,
 } from 'lucide-react';
-import { PosCartItem, formatCurrency } from '../../hooks/usePosCart';
+import { PosCartItem, formatCurrency, multiplyMoney } from '../../hooks/usePosCart';
 
 export interface PosCartProps {
   items: PosCartItem[];
@@ -73,6 +73,9 @@ export const PosCart: React.FC<PosCartProps> = ({
       {/* Clear Confirmation Prompt */}
       {showClearConfirm && (
         <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Confirmación para vaciar carrito"
           data-testid="pos-clear-confirm-dialog"
           className="p-3 bg-rose-50 border-b border-rose-200 flex items-center justify-between gap-2"
         >
@@ -113,7 +116,7 @@ export const PosCart: React.FC<PosCartProps> = ({
           </div>
         ) : (
           items.map((item) => {
-            const lineSubtotal = item.sellableUnit.price * item.quantity;
+            const lineSubtotal = multiplyMoney(item.sellableUnit.price, item.quantity);
             return (
               <div
                 key={item.sellableUnit.id}

@@ -6,8 +6,14 @@ import {
   MOCK_SELLABLE_UNITS,
   buildPosSalePayload,
   createClientRequestId,
+  toMinorUnits,
+  fromMinorUnits,
+  addMoney,
+  subtractMoney,
+  multiplyMoney,
   PosSalePayload,
-  PosSaleResponse,
+  PosSaleSuccessResponse,
+  PosSaleErrorResponse,
   PosErrorCode,
 } from '../../src/hooks/usePosCart';
 
@@ -59,7 +65,6 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
     it('disables add button for out of stock items', () => {
       render(<PosRegisterPage />);
 
-      // Unit with stock = 0 is 'Exfoliante Líquido BHA 2% Renovador 120ml' (id ending 8d94)
       const outOfStockUnit = MOCK_SELLABLE_UNITS.find((u) => u.stock === 0);
       expect(outOfStockUnit).toBeDefined();
 
@@ -69,8 +74,8 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
     });
   });
 
-  describe('2. Cart Operations (Single Canonical Hook State)', () => {
-    it('adds, increments, decrements, and removes items from cart', async () => {
+  describe('2. Cart Operations & Money Precision', () => {
+    it('adds, increments, decrements, and removes items from cart with accurate money calculation', async () => {
       render(<PosRegisterPage />);
 
       const unit1 = MOCK_SELLABLE_UNITS[0]; // Serum $389.00
@@ -95,6 +100,8 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
       // Add unit2
       fireEvent.click(screen.getByTestId(`add-to-cart-${unit2.id}`));
       expect(screen.getByTestId('cart-summary-items-count')).toHaveTextContent('2');
+      // Subtotal should be 389.00 + 549.00 = 938.00
+      expect(screen.getByTestId('cart-summary-estimated-subtotal')).toHaveTextContent('$938.00');
 
       // Remove unit2 using trash button
       fireEvent.click(screen.getByTestId(`cart-item-remove-${unit2.id}`));
@@ -106,7 +113,7 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
       expect(screen.getByTestId('pos-cart-empty-state')).toBeInTheDocument();
     });
 
-    it('supports clear cart with confirmation cancel and confirmation accept paths', () => {
+    it('supports clear cart with accessible confirmation dialog', () => {
       render(<PosRegisterPage />);
 
       const unit1 = MOCK_SELLABLE_UNITS[0];
@@ -115,7 +122,11 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
 
       // Click Vaciar Carrito
       fireEvent.click(screen.getByTestId('pos-cart-clear-btn'));
-      expect(screen.getByTestId('pos-clear-confirm-dialog')).toBeInTheDocument();
+      const confirmDialog = screen.getByTestId('pos-clear-confirm-dialog');
+      expect(confirmDialog).toBeInTheDocument();
+      expect(confirmDialog).toHaveAttribute('role', 'alertdialog');
+      expect(confirmDialog).toHaveAttribute('aria-modal', 'true');
+      expect(confirmDialog).toHaveAttribute('aria-label', 'Confirmación para vaciar carrito');
 
       // Cancel path
       fireEvent.click(screen.getByTestId('pos-clear-confirm-no'));
@@ -131,15 +142,29 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
 
   describe('3. Tender Modal & Cash Payment Validation', () => {
     it('disables submit when cash tendered is insufficient and calculates visual change when sufficient', async () => {
-      const mockSubmit = vi.fn().mockResolvedValue({
-        success: true,
-        saleId: 'SALE-10001',
-        clientRequestId: 'test-req-id',
-        terminalId: 'TERM-POS-01',
-        items: [{ sellableUnitId: MOCK_SELLABLE_UNITS[0].id, quantity: 1 }],
-        payment: { channel: 'cash', amountTendered: 500 },
-        timestamp: new Date().toISOString(),
-      });
+      const canonicalSuccessResponse: PosSaleSuccessResponse = {
+        order: {
+          id: 'ord-canon-cash-01',
+          clientRequestId: 'test-req-id-1',
+          terminalId: 'TERM-POS-01',
+          receiptNumber: 'REC-2026-CASH',
+          channel: 'pos_register',
+          status: 'pagado',
+          subtotal: 389.0,
+          total: 389.0,
+          currency: 'mxn',
+        },
+        receipt: {
+          id: 'rcpt-canon-cash-01',
+          receiptNumber: 'REC-2026-CASH',
+          tenderType: 'cash',
+          amountTendered: 500,
+          changeGiven: 111,
+          total: 389.0,
+        },
+      };
+
+      const mockSubmit = vi.fn().mockResolvedValue(canonicalSuccessResponse);
 
       render(<PosRegisterPage onSaleSubmit={mockSubmit} />);
 
@@ -148,7 +173,10 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
 
       // Open Tender
       fireEvent.click(screen.getByTestId('pos-proceed-to-tender-btn'));
-      expect(screen.getByTestId('pos-tender-modal')).toBeInTheDocument();
+      const modal = screen.getByTestId('pos-tender-modal');
+      expect(modal).toBeInTheDocument();
+      expect(modal).toHaveAttribute('role', 'dialog');
+      expect(modal).toHaveAttribute('aria-modal', 'true');
 
       const amountInput = screen.getByTestId('pos-amount-tendered-input');
       const submitBtn = screen.getByTestId('pos-tender-submit-btn');
@@ -188,28 +216,38 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
       expect(payload).not.toHaveProperty('channel');
       expect(payload).not.toHaveProperty('posTerminalId');
       expect(payload).not.toHaveProperty('payments');
-      expect((payload.payment as any).amount).toBeUndefined();
-      expect((payload.payment as any).cashTendered).toBeUndefined();
-      expect((payload.payment as any).changeDue).toBeUndefined();
+      expect((payload.payment as unknown as Record<string, unknown>).amount).toBeUndefined();
+      expect((payload.payment as unknown as Record<string, unknown>).cashTendered).toBeUndefined();
+      expect((payload.payment as unknown as Record<string, unknown>).changeDue).toBeUndefined();
     });
   });
 
   describe('4. Tender Modal & Card Reference Validation', () => {
     it('validates referenceCode length and optional last4 format', async () => {
-      const mockSubmit = vi.fn().mockResolvedValue({
-        success: true,
-        saleId: 'SALE-10002',
-        clientRequestId: 'test-req-id',
-        terminalId: 'TERM-POS-01',
-        items: [{ sellableUnitId: MOCK_SELLABLE_UNITS[0].id, quantity: 1 }],
-        payment: {
-          channel: 'card_reference',
+      const canonicalSuccessResponse: PosSaleSuccessResponse = {
+        order: {
+          id: 'ord-canon-card-02',
+          clientRequestId: 'test-req-id-2',
+          terminalId: 'TERM-POS-01',
+          receiptNumber: 'REC-2026-CARD',
+          channel: 'pos_register',
+          status: 'pagado',
+          subtotal: 389.0,
+          total: 389.0,
+          currency: 'mxn',
+        },
+        receipt: {
+          id: 'rcpt-canon-card-02',
+          receiptNumber: 'REC-2026-CARD',
+          tenderType: 'card_reference',
           referenceCode: 'AUTH-994411',
           cardBrand: 'Visa',
           last4: '4321',
+          total: 389.0,
         },
-        timestamp: new Date().toISOString(),
-      });
+      };
+
+      const mockSubmit = vi.fn().mockResolvedValue(canonicalSuccessResponse);
 
       render(<PosRegisterPage onSaleSubmit={mockSubmit} />);
 
@@ -224,7 +262,7 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
       const refInput = screen.getByTestId('pos-card-reference-input');
       const submitBtn = screen.getByTestId('pos-tender-submit-btn');
 
-      // Reference code too short (e.g. 2 chars < 4)
+      // Reference code too short (< 4 chars)
       fireEvent.change(refInput, { target: { value: 'AB' } });
       expect(screen.getByTestId('card-ref-error')).toBeInTheDocument();
       expect(submitBtn).toBeDisabled();
@@ -269,6 +307,29 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
   });
 
   describe('5. Idempotency & Retry Stability', () => {
+    it('fails closed when crypto.randomUUID is not available', () => {
+      const originalCrypto = globalThis.crypto;
+      try {
+        Object.defineProperty(globalThis, 'crypto', {
+          value: { randomUUID: undefined },
+          configurable: true,
+          writable: true,
+        });
+        expect(() => createClientRequestId()).toThrow(/crypto\.randomUUID/);
+      } finally {
+        Object.defineProperty(globalThis, 'crypto', {
+          value: originalCrypto,
+          configurable: true,
+          writable: true,
+        });
+      }
+    });
+
+    it('generates a valid UUID string when crypto.randomUUID is present', () => {
+      const id = createClientRequestId();
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+
     it('preserves the exact same clientRequestId during commercial retry of a failed attempt', async () => {
       let attemptCount = 0;
       let firstReqId = '';
@@ -278,24 +339,35 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
         attemptCount++;
         if (attemptCount === 1) {
           firstReqId = payload.clientRequestId;
-          return {
-            success: false,
+          const errorResponse: PosSaleErrorResponse = {
             error: {
-              code: 'INSUFFICIENT_STOCK' as PosErrorCode,
+              code: 'INSUFFICIENT_STOCK',
               message: 'Inventario insuficiente al reservar unidades.',
             },
           };
+          return errorResponse;
         } else {
           secondReqId = payload.clientRequestId;
-          return {
-            success: true,
-            saleId: 'SALE-RETRY-SUCCESS',
-            clientRequestId: payload.clientRequestId,
-            terminalId: payload.terminalId,
-            items: payload.items,
-            payment: payload.payment,
-            timestamp: new Date().toISOString(),
+          const successResponse: PosSaleSuccessResponse = {
+            order: {
+              id: 'ord-retry-success',
+              clientRequestId: payload.clientRequestId,
+              terminalId: payload.terminalId,
+              receiptNumber: 'REC-RETRY-SUCCESS',
+              channel: 'pos_register',
+              status: 'pagado',
+              total: 389.0,
+            },
+            receipt: {
+              id: 'rcpt-retry-success',
+              receiptNumber: 'REC-RETRY-SUCCESS',
+              tenderType: 'cash',
+              amountTendered: 400,
+              changeGiven: 11,
+              total: 389.0,
+            },
           };
+          return successResponse;
         }
       });
 
@@ -326,11 +398,12 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
 
       // Verify that retry used the EXACT SAME clientRequestId
       expect(secondReqId).toBe(firstReqId);
-      expect(screen.getByTestId('receipt-sale-id')).toHaveTextContent('SALE-RETRY-SUCCESS');
+      expect(screen.getByTestId('receipt-sale-id')).toHaveTextContent('REC-RETRY-SUCCESS');
+      expect(screen.getByTestId('receipt-request-id')).toHaveTextContent(firstReqId);
     });
   });
 
-  describe('6. Canonical Error Code Branching', () => {
+  describe('6. Canonical Error Responses & Code Branching', () => {
     const errorCodes: Array<{ code: PosErrorCode; expectedText: RegExp }> = [
       { code: 'AUTH_REQUIRED', expectedText: /Autenticación Requerida/i },
       { code: 'FORBIDDEN', expectedText: /Acceso Denegado/i },
@@ -343,13 +416,16 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
 
     errorCodes.forEach(({ code, expectedText }) => {
       it(`branches properly for canonical error code ${code}`, async () => {
-        const mockSubmit = vi.fn().mockResolvedValue({
-          success: false,
+        const canonicalErrorResponse: PosSaleErrorResponse = {
           error: {
             code,
             message: `Detalle simulado para ${code}`,
+            requestId: 'req-err-branch-test',
+            details: { reason: 'test failure' },
           },
-        });
+        };
+
+        const mockSubmit = vi.fn().mockResolvedValue(canonicalErrorResponse);
 
         render(<PosRegisterPage onSaleSubmit={mockSubmit} />);
 
@@ -363,21 +439,52 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
         });
 
         expect(screen.getByTestId('pos-tender-error-banner')).toHaveTextContent(expectedText);
+        expect(screen.getByTestId('pos-error-request-id')).toHaveTextContent('req-err-branch-test');
+        expect(screen.getByTestId('pos-error-details')).toHaveTextContent('test failure');
       });
     });
   });
 
-  describe('7. Success Transition & Cart Clear', () => {
-    it('clears cart and transitions to receipt view on success, then resets on new sale', async () => {
-      const mockSubmit = vi.fn().mockResolvedValue({
-        success: true,
-        saleId: 'SALE-883311',
-        clientRequestId: 'req-success-123',
-        terminalId: 'TERM-POS-01',
-        items: [{ sellableUnitId: MOCK_SELLABLE_UNITS[0].id, quantity: 1 }],
-        payment: { channel: 'cash', amountTendered: 400 },
-        timestamp: new Date().toISOString(),
-      });
+  describe('7. Canonical Success Transition & Receipt Model', () => {
+    it('renders canonical receipt fields without root success/saleId, and clears cart', async () => {
+      const canonicalSuccessResponse: PosSaleSuccessResponse = {
+        order: {
+          id: 'ord-canon-883311',
+          clientRequestId: 'req-success-123',
+          terminalId: 'TERM-POS-01',
+          receiptNumber: 'REC-20260928-8833',
+          channel: 'pos_register',
+          status: 'pagado',
+          cashierUserId: 'usr-cashier-01',
+          subtotal: 389.0,
+          total: 389.0,
+          currency: 'mxn',
+          paidAt: '2026-09-28T14:30:00Z',
+          createdAt: '2026-09-28T14:30:00Z',
+          items: [{ sellableUnitId: MOCK_SELLABLE_UNITS[0].id, quantity: 1 }],
+        },
+        receipt: {
+          id: 'rcpt-canon-883311',
+          orderId: 'ord-canon-883311',
+          receiptNumber: 'REC-20260928-8833',
+          storeName: 'Selfcare Sinners',
+          issuedAt: '2026-09-28T14:30:00Z',
+          cashierName: 'Julian Staff',
+          subtotal: 389.0,
+          total: 389.0,
+          tenderType: 'cash',
+          amountTendered: 400.0,
+          changeGiven: 11.0,
+        },
+      };
+
+      // Explicit verification: the response does NOT have non-canonical root fields
+      expect((canonicalSuccessResponse as unknown as Record<string, unknown>).success).toBeUndefined();
+      expect((canonicalSuccessResponse as unknown as Record<string, unknown>).saleId).toBeUndefined();
+      expect((canonicalSuccessResponse as unknown as Record<string, unknown>).payment).toBeUndefined();
+      expect((canonicalSuccessResponse as unknown as Record<string, unknown>).timestamp).toBeUndefined();
+
+      const mockSubmit = vi.fn().mockResolvedValue(canonicalSuccessResponse);
 
       render(<PosRegisterPage onSaleSubmit={mockSubmit} />);
 
@@ -395,7 +502,18 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
         expect(screen.getByTestId('pos-receipt-modal')).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('receipt-sale-id')).toHaveTextContent('SALE-883311');
+      const receiptModal = screen.getByTestId('pos-receipt-modal');
+      expect(receiptModal).toHaveAttribute('role', 'dialog');
+      expect(receiptModal).toHaveAttribute('aria-modal', 'true');
+
+      // Canonical receipt fields assertions
+      expect(screen.getByTestId('receipt-sale-id')).toHaveTextContent('REC-20260928-8833');
+      expect(screen.getByTestId('receipt-order-id')).toHaveTextContent('ord-canon-883311');
+      expect(screen.getByTestId('receipt-request-id')).toHaveTextContent('req-success-123');
+      expect(screen.getByTestId('receipt-payment-channel')).toHaveTextContent('Efectivo');
+      expect(screen.getByTestId('receipt-amount-tendered')).toHaveTextContent('$400.00');
+      expect(screen.getByTestId('receipt-change-due')).toHaveTextContent('$11.00');
+      expect(screen.getByTestId('receipt-total-amount')).toHaveTextContent('$389.00');
 
       // Click Nueva Venta
       fireEvent.click(screen.getByTestId('pos-new-sale-btn'));
@@ -407,7 +525,38 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
     });
   });
 
-  describe('8. Contract Builder & Helper Validation', () => {
+  describe('8. Demo / Isolated UI Mode Claim Safety', () => {
+    it('does NOT render "En Línea" and instead renders explicit isolated demo mode badge', () => {
+      render(<PosRegisterPage />);
+
+      // Prohibited: "En Línea" must NOT be rendered
+      expect(screen.queryByText(/En Línea/i)).not.toBeInTheDocument();
+
+      // Required: explicit demo mode badge must be rendered
+      const demoBadge = screen.getByTestId('pos-demo-mode-badge');
+      expect(demoBadge).toBeInTheDocument();
+      expect(demoBadge).toHaveTextContent(/Modo demostración \/ Datos simulados \/ UI aislada/i);
+    });
+  });
+
+  describe('9. Money Precision Helper Functions', () => {
+    it('performs exact minor units conversion and operations without float drift', () => {
+      expect(toMinorUnits(0.1 + 0.2)).toBe(30);
+      expect(fromMinorUnits(30)).toBe(0.3);
+
+      // Float addition precision
+      expect(addMoney(0.1, 0.2)).toBe(0.3);
+
+      // Float subtraction precision (500 - 389 = 111, 0.3 - 0.1 = 0.2)
+      expect(subtractMoney(500, 389)).toBe(111);
+      expect(subtractMoney(0.3, 0.1)).toBe(0.2);
+
+      // Float multiplication precision (19.99 * 3 = 59.97)
+      expect(multiplyMoney(19.99, 3)).toBe(59.97);
+    });
+  });
+
+  describe('10. Contract Builder Validation', () => {
     it('buildPosSalePayload adheres strictly to CCP-43 schema rules', () => {
       const clientRequestId = createClientRequestId();
       const payload = buildPosSalePayload({
@@ -425,13 +574,13 @@ describe('CCP-43: Web POS Register UI (Isolated Wave - FASE A)', () => {
       });
 
       // Assert non-existence of deprecated or invalid fields
-      const raw = payload as any;
+      const raw = payload as unknown as Record<string, unknown>;
       expect(raw.channel).toBeUndefined();
       expect(raw.posTerminalId).toBeUndefined();
       expect(raw.payments).toBeUndefined();
-      expect(raw.payment.amount).toBeUndefined();
-      expect(raw.payment.cashTendered).toBeUndefined();
-      expect(raw.payment.changeDue).toBeUndefined();
+      expect((raw.payment as unknown as Record<string, unknown>).amount).toBeUndefined();
+      expect((raw.payment as unknown as Record<string, unknown>).cashTendered).toBeUndefined();
+      expect((raw.payment as unknown as Record<string, unknown>).changeDue).toBeUndefined();
     });
   });
 });

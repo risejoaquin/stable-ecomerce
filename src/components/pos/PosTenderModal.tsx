@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Banknote,
@@ -16,11 +16,12 @@ import {
   PosSalePayload,
   PosSaleResponse,
   PosSaleSuccessResponse,
-  PosSaleErrorResponse,
   PosErrorCode,
   buildPosSalePayload,
   formatCurrency,
   getPosErrorMessage,
+  isPosSaleSuccess,
+  subtractMoney,
 } from '../../hooks/usePosCart';
 
 export interface PosTenderModalProps {
@@ -56,7 +57,12 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
 
   // Execution state
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<{ code: PosErrorCode; message: string } | null>(null);
+  const [error, setError] = useState<{
+    code: PosErrorCode | string;
+    message: string;
+    details?: unknown;
+    requestId?: string;
+  } | null>(null);
   const [successReceipt, setSuccessReceipt] = useState<PosSaleSuccessResponse | null>(null);
   const [frozenSubtotal, setFrozenSubtotal] = useState(estimatedSubtotal);
 
@@ -73,16 +79,17 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
       setSuccessReceipt(null);
       setIsSubmitting(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const activeSubtotal = frozenSubtotal > 0 ? frozenSubtotal : estimatedSubtotal;
 
-  // Numeric cash calculation
+  // Numeric cash calculation with minor-units precision helper
   const amountTenderedNum = parseFloat(amountTenderedInput) || 0;
   const isCashInsufficient = channel === 'cash' && amountTenderedNum < activeSubtotal;
-  const changeDue = Math.max(0, amountTenderedNum - activeSubtotal);
+  const changeDue = Math.max(0, subtractMoney(amountTenderedNum, activeSubtotal));
 
   // Card reference validation
   const trimmedRef = referenceCode.trim();
@@ -137,17 +144,23 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
 
     try {
       const response = await onSubmitSale(payload);
-      if (response.success) {
+      if (isPosSaleSuccess(response)) {
         setSuccessReceipt(response);
         onSuccess(response);
+      } else if ('error' in response && response.error) {
+        setError(response.error);
       } else {
-        const errResp = response as PosSaleErrorResponse;
-        setError(errResp.error || { code: 'INTERNAL_ERROR', message: 'Error al procesar la venta' });
+        setError({
+          code: 'INTERNAL_ERROR',
+          message: 'Respuesta inválida del servidor POS.',
+        });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Error de red o comunicación con el servicio POS.';
       setError({
         code: 'INTERNAL_ERROR',
-        message: err?.message || 'Error de red o comunicación con el servicio POS.',
+        message,
       });
     } finally {
       setIsSubmitting(false);
@@ -211,6 +224,16 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                 Detalle: {error.message}
               </p>
             )}
+            {error.details && (
+              <p className="text-[10px] font-mono text-rose-500 mt-1" data-testid="pos-error-details">
+                Info adicional: {typeof error.details === 'object' ? JSON.stringify(error.details) : String(error.details)}
+              </p>
+            )}
+            {error.requestId && (
+              <p className="text-[10px] font-mono text-rose-600 mt-1" data-testid="pos-error-request-id">
+                ReqId: {error.requestId}
+              </p>
+            )}
           </div>
         </div>
 
@@ -224,7 +247,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
             data-testid="pos-tender-retry-btn"
             onClick={handleProcessSale}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition-colors cursor-pointer"
           >
             <RotateCw className={`h-3 w-3 ${isSubmitting ? 'animate-spin' : ''}`} />
             Reintentar Venta
@@ -234,11 +257,19 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
     );
   };
 
-  // Render Receipt / Success View
+  // Render Receipt / Success View using Canonical Model
   if (successReceipt) {
+    const canonicalOrder = successReceipt.order;
+    const canonicalReceipt = successReceipt.receipt;
+    const receiptNumberDisplay =
+      canonicalReceipt.receiptNumber || canonicalOrder.receiptNumber || canonicalOrder.id;
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Comprobante de Venta POS"
           data-testid="pos-receipt-modal"
           className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-neutral-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         >
@@ -253,24 +284,36 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
           <div className="p-6 space-y-4 text-sm">
             <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 space-y-1.5 font-mono text-xs">
               <div className="flex justify-between">
-                <span className="text-neutral-500">Folio Venta:</span>
+                <span className="text-neutral-500">Folio Comprobante:</span>
                 <span className="font-bold text-neutral-900" data-testid="receipt-sale-id">
-                  {successReceipt.saleId}
+                  {receiptNumberDisplay}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">ID de Orden:</span>
+                <span className="font-mono text-neutral-900" data-testid="receipt-order-id">
+                  {canonicalOrder.id}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-500">Terminal:</span>
-                <span className="text-neutral-900">{successReceipt.terminalId}</span>
+                <span className="text-neutral-900">{canonicalOrder.terminalId}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-500">Client Request ID:</span>
                 <span className="text-neutral-900 text-[10px]" data-testid="receipt-request-id">
-                  {successReceipt.clientRequestId}
+                  {canonicalOrder.clientRequestId}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-500">Fecha/Hora:</span>
-                <span className="text-neutral-900">{new Date(successReceipt.timestamp).toLocaleTimeString()}</span>
+                <span className="text-neutral-900">
+                  {canonicalReceipt.issuedAt
+                    ? new Date(canonicalReceipt.issuedAt).toLocaleTimeString()
+                    : canonicalOrder.paidAt
+                    ? new Date(canonicalOrder.paidAt).toLocaleTimeString()
+                    : new Date().toLocaleTimeString()}
+                </span>
               </div>
             </div>
 
@@ -279,49 +322,60 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
               <div className="flex justify-between text-neutral-600 font-medium">
                 <span>Método de Pago:</span>
                 <span className="capitalize font-bold text-neutral-900" data-testid="receipt-payment-channel">
-                  {successReceipt.payment.channel === 'cash' ? 'Efectivo' : 'Tarjeta (Referencia)'}
+                  {canonicalReceipt.tenderType === 'cash' ? 'Efectivo' : 'Tarjeta (Referencia)'}
                 </span>
               </div>
 
-              {successReceipt.payment.channel === 'cash' && (
+              {canonicalReceipt.tenderType === 'cash' && (
                 <>
                   <div className="flex justify-between text-neutral-600">
                     <span>Monto Recibido:</span>
                     <span className="font-semibold text-neutral-900" data-testid="receipt-amount-tendered">
-                      {formatCurrency(successReceipt.payment.amountTendered)}
+                      {formatCurrency(canonicalReceipt.amountTendered ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-emerald-700 font-bold">
                     <span>Cambio Entregado:</span>
                     <span data-testid="receipt-change-due">
-                      {formatCurrency(Math.max(0, successReceipt.payment.amountTendered - activeSubtotal))}
+                      {formatCurrency(
+                        canonicalReceipt.changeGiven !== undefined
+                          ? canonicalReceipt.changeGiven
+                          : Math.max(0, subtractMoney(canonicalReceipt.amountTendered ?? 0, activeSubtotal))
+                      )}
                     </span>
                   </div>
                 </>
               )}
 
-              {successReceipt.payment.channel === 'card_reference' && (
+              {canonicalReceipt.tenderType === 'card_reference' && (
                 <>
                   <div className="flex justify-between text-neutral-600">
                     <span>Referencia:</span>
                     <span className="font-mono text-neutral-900" data-testid="receipt-card-reference">
-                      {successReceipt.payment.referenceCode}
+                      {canonicalReceipt.referenceCode}
                     </span>
                   </div>
-                  {successReceipt.payment.cardBrand && (
+                  {canonicalReceipt.cardBrand && (
                     <div className="flex justify-between text-neutral-600">
                       <span>Marca:</span>
-                      <span className="text-neutral-900">{successReceipt.payment.cardBrand}</span>
+                      <span className="text-neutral-900">{canonicalReceipt.cardBrand}</span>
                     </div>
                   )}
-                  {successReceipt.payment.last4 && (
+                  {canonicalReceipt.last4 && (
                     <div className="flex justify-between text-neutral-600">
                       <span>Últimos 4 dígitos:</span>
-                      <span className="font-mono text-neutral-900">•••• {successReceipt.payment.last4}</span>
+                      <span className="font-mono text-neutral-900">•••• {canonicalReceipt.last4}</span>
                     </div>
                   )}
                 </>
               )}
+
+              <div className="flex justify-between text-neutral-800 font-bold pt-1.5 border-t border-neutral-200">
+                <span>Total Cobrado:</span>
+                <span data-testid="receipt-total-amount">
+                  {formatCurrency(canonicalReceipt.total ?? canonicalOrder.total ?? activeSubtotal)}
+                </span>
+              </div>
             </div>
 
             <button
@@ -342,6 +396,9 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cobro de Venta POS"
         data-testid="pos-tender-modal"
         className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-neutral-200 overflow-hidden flex flex-col max-h-[90vh]"
       >
@@ -355,7 +412,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
             type="button"
             data-testid="pos-tender-close-btn"
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 cursor-pointer"
             aria-label="Cerrar ventana de cobro"
           >
             <X className="h-5 w-5" />
@@ -393,7 +450,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                 type="button"
                 data-testid="payment-channel-cash"
                 onClick={() => setChannel('cash')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all ${
+                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
                   channel === 'cash'
                     ? 'border-neutral-900 bg-neutral-900 text-white shadow-xs'
                     : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
@@ -407,7 +464,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                 type="button"
                 data-testid="payment-channel-card"
                 onClick={() => setChannel('card_reference')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all ${
+                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
                   channel === 'card_reference'
                     ? 'border-neutral-900 bg-neutral-900 text-white shadow-xs'
                     : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
@@ -451,7 +508,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                   type="button"
                   data-testid="quick-cash-exact"
                   onClick={() => handleQuickCash(estimatedSubtotal)}
-                  className="px-2.5 py-1.5 bg-white border border-neutral-300 rounded-md font-medium text-neutral-700 hover:bg-neutral-100"
+                  className="px-2.5 py-1.5 bg-white border border-neutral-300 rounded-md font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
                 >
                   Exacto ({formatCurrency(estimatedSubtotal)})
                 </button>
@@ -463,7 +520,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                         type="button"
                         data-testid={`quick-cash-${amt}`}
                         onClick={() => handleQuickCash(amt)}
-                        className="px-2.5 py-1.5 bg-white border border-neutral-300 rounded-md font-medium text-neutral-700 hover:bg-neutral-100"
+                        className="px-2.5 py-1.5 bg-white border border-neutral-300 rounded-md font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
                       >
                         ${amt}
                       </button>
@@ -481,7 +538,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
                     className="flex items-center justify-between text-xs text-rose-700 font-semibold p-2 bg-rose-50 rounded-lg border border-rose-200"
                   >
                     <span>Monto insuficiente</span>
-                    <span>Faltan: {formatCurrency(estimatedSubtotal - amountTenderedNum)}</span>
+                    <span>Faltan: {formatCurrency(subtractMoney(activeSubtotal, amountTenderedNum))}</span>
                   </div>
                 ) : (
                   <div
@@ -602,7 +659,7 @@ export const PosTenderModal: React.FC<PosTenderModalProps> = ({
             data-testid="pos-tender-cancel-btn"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-4 py-2.5 rounded-xl border border-neutral-300 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors"
+            className="px-4 py-2.5 rounded-xl border border-neutral-300 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
           >
             Cancelar
           </button>

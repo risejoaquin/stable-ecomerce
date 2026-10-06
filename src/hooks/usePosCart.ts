@@ -57,39 +57,116 @@ export interface PosSalePayload {
   payment: PosPaymentInput;
 }
 
-export interface PosSaleSuccessResponse {
-  success: true;
-  saleId: string;
+/**
+ * Canonical POS Order model according to 09_POS_API_CONTRACT.md
+ */
+export interface PosCanonicalOrder {
+  id: string;
   clientRequestId: string;
   terminalId: string;
-  items: PosSaleItemPayload[];
-  payment: PosPaymentInput;
-  timestamp: string;
+  receiptNumber?: string;
+  channel?: string;
+  status?: string;
+  cashierUserId?: string;
+  subtotal?: number;
+  discountAmount?: number;
+  total?: number;
+  currency?: string;
+  paidAt?: string;
+  createdAt?: string;
+  items?: unknown[];
+  payment?: unknown;
 }
 
+/**
+ * Canonical POS Receipt model according to 09_POS_API_CONTRACT.md
+ */
+export interface PosCanonicalReceipt {
+  id?: string;
+  orderId?: string;
+  receiptNumber?: string;
+  storeName?: string;
+  issuedAt?: string;
+  cashierName?: string;
+  lineItems?: unknown[];
+  subtotal?: number;
+  total?: number;
+  tenderType?: string;
+  amountTendered?: number;
+  changeGiven?: number;
+  referenceCode?: string;
+  cardBrand?: string;
+  last4?: string;
+}
+
+/**
+ * Canonical success response shape: { order, receipt }
+ * Disallows success: true, root saleId, root timestamp, root payment.
+ */
+export interface PosSaleSuccessResponse {
+  order: PosCanonicalOrder;
+  receipt: PosCanonicalReceipt;
+}
+
+/**
+ * Canonical error response shape: { error: { code, message, details?, requestId? } }
+ * Disallows success: false.
+ */
 export interface PosSaleErrorResponse {
-  success: false;
   error: {
-    code: PosErrorCode;
+    code: PosErrorCode | string;
     message: string;
+    details?: unknown;
+    requestId?: string;
   };
 }
 
 export type PosSaleResponse = PosSaleSuccessResponse | PosSaleErrorResponse;
 
 /**
+ * Type guard for canonical POS sale response
+ */
+export function isPosSaleSuccess(
+  response: PosSaleResponse
+): response is PosSaleSuccessResponse {
+  return 'order' in response && 'receipt' in response && !('error' in response);
+}
+
+/**
+ * Money precision helpers (minor units / cents) to prevent floating-point inaccuracies.
+ */
+export function toMinorUnits(amount: number): number {
+  return Math.round(amount * 100);
+}
+
+export function fromMinorUnits(cents: number): number {
+  return cents / 100;
+}
+
+export function addMoney(a: number, b: number): number {
+  return fromMinorUnits(toMinorUnits(a) + toMinorUnits(b));
+}
+
+export function subtractMoney(a: number, b: number): number {
+  return fromMinorUnits(toMinorUnits(a) - toMinorUnits(b));
+}
+
+export function multiplyMoney(amount: number, multiplier: number): number {
+  return fromMinorUnits(Math.round(toMinorUnits(amount) * multiplier));
+}
+
+/**
  * Generate a client request ID (UUID v4) for idempotency.
  * Must be preserved across retries of the same tender attempt.
+ * Fails closed without non-cryptographic fallbacks.
  */
 export function createClientRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  throw new Error(
+    'crypto.randomUUID no está disponible en este entorno. Se requiere soporte criptográfico seguro para generar clientRequestId.'
+  );
 }
 
 /**
@@ -134,7 +211,7 @@ export function buildPosSalePayload(params: {
 /**
  * Canonical mapping of backend POS error codes to user-friendly messages.
  */
-export function getPosErrorMessage(code: PosErrorCode): string {
+export function getPosErrorMessage(code: PosErrorCode | string): string {
   switch (code) {
     case 'VALIDATION_ERROR':
       return 'Error de validación: Verifique los datos de la venta y los parámetros del pago.';
@@ -303,10 +380,13 @@ export function usePosCart(initialItems: PosCartItem[] = []) {
     [items]
   );
 
-  const estimatedSubtotal = useMemo(
-    () => items.reduce((acc, item) => acc + item.sellableUnit.price * item.quantity, 0),
-    [items]
-  );
+  const estimatedSubtotal = useMemo(() => {
+    const totalMinor = items.reduce((acc, item) => {
+      const lineMinor = Math.round(toMinorUnits(item.sellableUnit.price) * item.quantity);
+      return acc + lineMinor;
+    }, 0);
+    return fromMinorUnits(totalMinor);
+  }, [items]);
 
   return {
     items,

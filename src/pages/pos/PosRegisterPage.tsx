@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   Monitor,
-  Wifi,
-  Sparkles,
   ShoppingBag,
 } from 'lucide-react';
 import {
   usePosCart,
   createClientRequestId,
+  toMinorUnits,
+  fromMinorUnits,
+  subtractMoney,
   PosSalePayload,
   PosSaleResponse,
   PosSaleSuccessResponse,
@@ -62,25 +63,74 @@ export const PosRegisterPage: React.FC<PosRegisterPageProps> = ({
       // Small simulated latency for UX realism
       await new Promise((resolve) => setTimeout(resolve, 300));
 
+      const subtotalMinor = payload.items.reduce((acc, item) => {
+        const found = initialCatalog.find((u) => u.id === item.sellableUnitId);
+        const price = found ? found.price : 0;
+        return acc + Math.round(toMinorUnits(price) * item.quantity);
+      }, 0);
+      const subtotal = fromMinorUnits(subtotalMinor);
+      const total = subtotal;
+
+      const tenderType = payload.payment.channel;
+      const amountTendered =
+        payload.payment.channel === 'cash' ? payload.payment.amountTendered : total;
+      const changeGiven =
+        payload.payment.channel === 'cash' ? Math.max(0, subtractMoney(amountTendered, total)) : 0;
+      const referenceCode =
+        payload.payment.channel === 'card_reference' ? payload.payment.referenceCode : undefined;
+      const cardBrand =
+        payload.payment.channel === 'card_reference' ? payload.payment.cardBrand : undefined;
+      const last4 =
+        payload.payment.channel === 'card_reference' ? payload.payment.last4 : undefined;
+
+      const orderId = `ord_sim_${payload.clientRequestId.slice(0, 8)}`;
+      const receiptNumber = `REC-SIM-${Date.now().toString().slice(-6)}`;
+
       const successResponse: PosSaleSuccessResponse = {
-        success: true,
-        saleId: `SALE-${Math.floor(100000 + Math.random() * 900000)}`,
-        clientRequestId: payload.clientRequestId,
-        terminalId: payload.terminalId,
-        items: payload.items,
-        payment: payload.payment,
-        timestamp: new Date().toISOString(),
+        order: {
+          id: orderId,
+          clientRequestId: payload.clientRequestId,
+          terminalId: payload.terminalId,
+          receiptNumber,
+          channel: 'pos_register',
+          status: 'pagado',
+          cashierUserId: 'usr_cashier_simulated',
+          subtotal,
+          discountAmount: 0,
+          total,
+          currency: 'mxn',
+          paidAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          items: payload.items,
+          payment: payload.payment,
+        },
+        receipt: {
+          id: `rcpt_sim_${payload.clientRequestId.slice(0, 8)}`,
+          orderId,
+          receiptNumber,
+          storeName: 'Selfcare Sinners (Simulado)',
+          issuedAt: new Date().toISOString(),
+          cashierName: 'Cajero POS (Modo Demostración)',
+          subtotal,
+          total,
+          tenderType,
+          amountTendered,
+          changeGiven,
+          referenceCode,
+          cardBrand,
+          last4,
+        },
       };
       return successResponse;
     },
-    []
+    [initialCatalog]
   );
 
   const activeSaleSubmit = onSaleSubmit || defaultSaleSubmit;
 
-  // On sale success, cart is cleared and receipt is shown in tender modal
+  // On sale success, cart is cleared
   const handleSaleSuccess = useCallback(
-    (receipt: PosSaleSuccessResponse) => {
+    (_receipt: PosSaleSuccessResponse) => {
       clearCart();
     },
     [clearCart]
@@ -114,10 +164,12 @@ export const PosRegisterPage: React.FC<PosRegisterPageProps> = ({
             <span data-testid="pos-terminal-badge">{terminalId}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <Wifi className="h-3.5 w-3.5" />
-            <span>En Línea</span>
+          <div
+            data-testid="pos-demo-mode-badge"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60"
+          >
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            <span>Modo demostración / Datos simulados / UI aislada</span>
           </div>
         </div>
       </header>
@@ -163,4 +215,5 @@ export const PosRegisterPage: React.FC<PosRegisterPageProps> = ({
     </div>
   );
 };
+
 export default PosRegisterPage;
