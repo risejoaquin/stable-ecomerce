@@ -3,24 +3,24 @@
 **Document ID**: `RB-PROD-001`
 **Classification**: `DERIVED ENGINEERING DESIGN`
 **Authority**: Authoritative Operational Protocol for Production Deployment
-**Execution Date**: **05 Oct 2026** (Mandatory & Frozen)
+**Execution Date**: **16 Oct 2026** (Current approved release calendar)
 **Parent Epic**: `CCP-38` / `CCP-44`
 
 ---
 
 ## 1. Executive Summary & Mandatory Release Calendar
 
-This runbook specifies the precise step-by-step procedure for executing the **Production Release** and operational handoff of Client 01 v1.0 on **05 Oct 2026**.
+This runbook specifies the precise step-by-step procedure for executing the **Production Release** and operational handoff of Client 01 v1.0 on **16 Oct 2026**, only after a GO decision and all release gates PASS.
 
+```text
+13 Oct 2026: Feature Freeze & Release Candidate Cut (rc/client01-v1.0)
+14 Oct 2026: Hardening, Regression Sweeps & Security Verification
+15 Oct 2026: Formal UAT & Acceptance Signoff
+16 Oct 2026: GO/NO-GO, Manual Authorized Production Deployment, Smoke Verification & Handoff
 ```
-03 Oct 2026: Feature Freeze & Release Candidate Cut (rc/client01-v1.0)
-04 Oct 2026: Hardening, Regression Sweeps & Stakeholder UAT
-05 Oct 2026: Production Deployment, Database Migrations, Smoke Verification & Handoff
-```
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:
-> **05 Oct 2026 is the sole authorized Production Release Day.** Under no circumstances may production deployment occur on 03 Oct or 04 Oct.
-
+> **CURRENT RELEASE AUTHORITY RULE**:
+> **16 Oct 2026 is the target GO/NO-GO and production handoff date.** Production deployment is never automatic; it requires explicit authorization and all required gates PASS.
 ---
 
 ## 2. Decision Classifications
@@ -44,7 +44,7 @@ This runbook specifies the precise step-by-step procedure for executing the **Pr
 
 ---
 
-## 3. Pre-Flight Release Authorization Checklist (05 Oct 2026, 08:00 UTC)
+## 3. Pre-Flight Release Authorization Checklist (16 Oct 2026, pre-flight window)
 
 Before any production command is issued, all gate criteria must be checked:
 
@@ -69,7 +69,7 @@ Before any production command is issued, all gate criteria must be checked:
 
 ---
 
-## 5. Step-by-Step Production Deployment Sequence (05 Oct 2026, 10:00 UTC)
+## 5. Step-by-Step Production Deployment Sequence (16 Oct 2026, authorized release window)
 
 ```
 [09:45 UTC] Final Go / No-Go Poll in #ops-release-client01
@@ -140,7 +140,7 @@ Before any production command is issued, all gate criteria must be checked:
    > **NOTE**: No direct push to `main` (`git push origin main`) is permitted or required.
 
 ### 5.3 Stage 3: Railway Deployment Execution (10:20 UTC)
-1. **Action**: Railway automatically triggers a deployment from the authorized PR merge to `main` (or trigger via CLI):
+1. **Action**: Railway production is not assumed to auto-deploy from `main`. After explicit release authorization, the designated operator performs the controlled manual deployment:
    ```bash
    railway up --service stable-ecomerce
    ```
@@ -189,5 +189,5 @@ If any of the following occur during the release window, the Release Coordinator
 
 When Stage 5 completes with **PASS**:
 1. Release Coordinator posts formal announcement in `#general` and `#engineering`:
-   > **RELEASE COMPLETE**: Client 01 v1.0 is successfully deployed to production at `https://selfcaresinners.com` on 05 Oct 2026. Health and readiness verified. Omnichannel inventory and Web POS are officially live.
+   > **RELEASE COMPLETE**: Client 01 v1.0 is successfully deployed to production at `https://selfcaresinners.com` on 16 Oct 2026. Health and readiness verified. Omnichannel inventory and Web POS are officially live.
 2. Hand over operational monitoring to the On-Call Engineer as specified in `POST_RELEASE_VALIDATION.md`.
