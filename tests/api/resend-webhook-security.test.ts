@@ -69,6 +69,46 @@ describe('CCP-17: real Resend webhook signature enforcement', () => {
     expect(response.status).toBe(401);
   });
 
+  it.each(['svix-id', 'svix-timestamp', 'svix-signature'])('partial headers missing %s -> HTTP 401', async (missing) => {
+    const headers = {
+      'svix-id': 'msg_ccp17_fixture',
+      'svix-timestamp': String(Math.floor(Date.now() / 1000)),
+      'svix-signature': 'v1,fixture',
+    };
+    delete headers[missing as keyof typeof headers];
+    const response = await request(app).post('/api/webhooks/resend')
+      .set('Content-Type', 'application/json').set(headers).send(payload);
+    expect(response.status).toBe(401);
+    expect(processEvent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['stale timestamp', payload, -3600, 401],
+    ['future timestamp', payload, 3600, 401],
+    ['empty payload', '', 0, 401],
+    ['processor failure', payload, 0, 500],
+  ] as const)('%s with authentic signature', async (scenario, body, offset, status) => {
+    const id = 'msg_ccp17_fixture';
+    const timestamp = String(Math.floor(Date.now() / 1000) + offset);
+    const signature = createHmac('sha256', fixtureKey)
+      .update(`${id}.${timestamp}.${body}`).digest('base64');
+    if (scenario === 'processor failure') {
+      processEvent.mockRejectedValueOnce(new Error('CCP-17 synthetic processing failure'));
+    }
+    const response = await request(app).post('/api/webhooks/resend')
+      .set('Content-Type', 'application/json')
+      .set('svix-id', id).set('svix-timestamp', timestamp)
+      .set('svix-signature', `v1,${signature}`).send(body);
+    expect(response.status).toBe(status);
+    if (scenario === 'processor failure') {
+      expect(response.status).not.toBe(401);
+      expect(processEvent).toHaveBeenCalledExactlyOnceWith({ supabase: null, event: JSON.parse(payload) });
+      expect(response.body.error).toBe('Webhook processing failed');
+    } else {
+      expect(processEvent).not.toHaveBeenCalled();
+    }
+  });
+
   it('valid signature -> HTTP 200 and processing only after verification', async () => {
     const id = 'msg_ccp17_fixture';
     const timestamp = String(Math.floor(Date.now() / 1000));

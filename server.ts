@@ -734,12 +734,13 @@ export async function startServer(options: { listen?: boolean } = {}) {
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
+    let event: ReturnType<typeof resend.webhooks.verify>;
     try {
       const rawBody = Buffer.isBuffer(req.body)
         ? req.body.toString('utf8')
         : String(req.body || '');
 
-      const event = resend.webhooks.verify({
+      event = resend.webhooks.verify({
         payload: rawBody,
         headers: {
           id: svixId,
@@ -749,12 +750,6 @@ export async function startServer(options: { listen?: boolean } = {}) {
         webhookSecret: process.env.RESEND_WEBHOOK_SECRET
       });
 
-      const result = await processResendWebhookEvent({
-        supabase,
-        event
-      });
-
-      return res.json({ received: true, ...result });
     } catch (error: any) {
       logger.warn(
         { err: error?.message },
@@ -764,6 +759,17 @@ export async function startServer(options: { listen?: boolean } = {}) {
       return res.status(401).json({
         error: 'Invalid webhook signature'
       });
+    }
+    try {
+      const result = await processResendWebhookEvent({
+        supabase,
+        event
+      });
+
+      return res.json({ received: true, ...result });
+    } catch (error: any) {
+      logger.error({ err: error?.message }, 'Resend webhook processing failed');
+      return res.status(500).json({ error: 'Webhook processing failed' });
     }
   }));
 
