@@ -1,6 +1,8 @@
 # Operational incident escalation
 
-Escalate persistent `/api/health` HTTP 503 responses, repeated production 5xx errors, or suspected sensitive-data exposure in logs. HTTP 200 with `database: "connected"` confirms the existing Supabase database probe succeeded; HTTP 503 indicates unavailable or unconfigured database access. This probe does not assess payment or email providers.
+`/api/health` is the shallow liveness probe: HTTP 200 means the HTTP process is responding; it does not query Supabase or assess providers. `/api/readiness` is the existing dependency/configuration probe: HTTP 200 requires all existing environment, Supabase, Stripe and email checks to pass; otherwise HTTP 503. Stripe/email checks verify configuration, not live provider connectivity. The read-only Supabase probe has a 2000 ms deadline and abort signal; failure, missing configuration or timeout makes readiness HTTP 503 with `checks.supabase.ok: false`. Database diagnostics stay in server logs.
+
+Escalate persistent `/api/readiness` HTTP 503 responses, unavailable liveness, repeated production 5xx errors, or suspected sensitive-data exposure in logs.
 
 1. Notify the **Technical / Release Authority (@risejoaquin)** for incident coordination and decisions about remediation or release actions.
 2. For database connectivity incidents, involve the **Database Engineer**. For runtime, deployment or logging incidents, involve **DevOps / SRE**. These responsibility roles follow the engineering incident-response and CCP-30 execution documentation; no additional contact channel is assumed.

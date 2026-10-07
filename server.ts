@@ -86,10 +86,24 @@ export function productionLoggingOptions(): pino.LoggerOptions {
             .replace(/\b(password|token|secret|jwt|cookie|cvv|cvc|pan|phone)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1=[REDACTED]');
         };
         // Whitelist diagnostic fields; exclude arbitrary error payloads/cause.
-        return { type: serialized.type, message: sanitize(serialized.message), stack: sanitize(serialized.stack) };
+        return {
+          type: serialized.type, message: sanitize(serialized.message), stack: sanitize(serialized.stack),
+          code: typeof err?.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(err.code) ? err.code : undefined,
+          status: Number.isInteger(err?.status) && err.status >= 100 && err.status <= 599 ? err.status : undefined,
+          statusCode: Number.isInteger(err?.statusCode) && err.statusCode >= 100 && err.statusCode <= 599 ? err.statusCode : undefined
+        };
       }
 
     }
+  };
+}
+
+// pino-http calls customProps again at completion, after Express matched the route.
+export function productionHttpLogProps(req: express.Request) {
+  const route = req.route?.path;
+  return {
+    requestId: (req as any).requestId,
+    path: typeof route === 'string' && /^\/[A-Za-z0-9_/:.*-]*$/.test(route) ? route : undefined
   };
 }
 
@@ -674,7 +688,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
   app.use(pinoHttp({
     logger,
     serializers: productionLoggingOptions().serializers,
-    customProps: (req) => ({ requestId: (req as any).requestId })
+    customProps: productionHttpLogProps
   }));
 
   app.use(cors({
@@ -1309,18 +1323,8 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
 app.get('/api/health', asyncHandler(async (req, res) => {
     const uptimeSeconds = Math.round(process.uptime());
-    let connected = false;
-    if (supabase) {
-      try {
-        const { error } = await supabase.from('stores').select('id', { head: true }).limit(1);
-        connected = !error;
-      } catch (err) {
-        logger.error({ err, requestId: (req as any).requestId }, 'Database health probe failed');
-      }
-    }
-    res.status(connected ? 200 : 503).json({
-      status: connected ? 'ok' : 'degraded',
-      database: connected ? 'connected' : 'disconnected',
+    res.json({
+      status: 'ok',
       service: 'selfcare-sinners-web',
       environment: process.env.NODE_ENV || 'development',
       version: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.npm_package_version || 'local',
@@ -1343,11 +1347,26 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
 
     if (supabase) {
       const started = Date.now();
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const { error } = await supabase.from('stores').select('id').limit(1);
-        checks.supabase = { ok: !error, latencyMs: Date.now() - started, error: error?.message || null };
+        const deadline = new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            reject(new Error('Database probe timed out'));
+            controller.abort();
+          }, 2000);
+        });
+        const { error } = await Promise.race([
+          supabase.from('stores').select('id').limit(1).abortSignal(controller.signal),
+          deadline
+        ]);
+        if (error) logger.error({ err: error, requestId: (req as any).requestId }, 'Database readiness probe failed');
+        checks.supabase = { ok: !error, latencyMs: Date.now() - started, error: error ? 'Supabase check failed' : null };
       } catch (err: any) {
-        checks.supabase = { ok: false, latencyMs: Date.now() - started, error: err?.message || 'Supabase check failed' };
+        logger.error({ err, requestId: (req as any).requestId }, 'Database readiness probe failed');
+        checks.supabase = { ok: false, latencyMs: Date.now() - started, error: 'Supabase check failed' };
+      } finally {
+        clearTimeout(timeout);
       }
     } else {
       checks.supabase = { ok: false, error: 'Supabase client is not configured' };
