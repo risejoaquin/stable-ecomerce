@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { requirePosOperator, verifyBearerAuth } from './src/server/middleware/auth.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import express from 'express';
@@ -218,10 +219,8 @@ const requireAuth = () => (req, res, next) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, effectiveJwtSecret) as any;
-    req.auth = { userId: decoded.userId, role: decoded.role };
+    req.auth = verifyBearerAuth(req, effectiveJwtSecret);
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -806,15 +805,16 @@ export async function startServer(options: { listen?: boolean } = {}) {
       typeof svixSignature !== 'string'
     ) {
       logger.warn('Invalid Resend webhook signature headers');
-      return res.status(400).json({ error: 'Invalid webhook signature' });
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
+    let event: ReturnType<typeof resend.webhooks.verify>;
     try {
       const rawBody = Buffer.isBuffer(req.body)
         ? req.body.toString('utf8')
         : String(req.body || '');
 
-      const event = resend.webhooks.verify({
+      event = resend.webhooks.verify({
         payload: rawBody,
         headers: {
           id: svixId,
@@ -824,6 +824,17 @@ export async function startServer(options: { listen?: boolean } = {}) {
         webhookSecret: process.env.RESEND_WEBHOOK_SECRET
       });
 
+    } catch (error: any) {
+      logger.warn(
+        { err: error?.message },
+        'Invalid Resend webhook signature'
+      );
+
+      return res.status(401).json({
+        error: 'Invalid webhook signature'
+      });
+    }
+    try {
       const result = await processResendWebhookEvent({
         supabase,
         event
@@ -831,19 +842,28 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
       return res.json({ received: true, ...result });
     } catch (error: any) {
-      logger.warn(
-        { err: error?.message },
-        'Invalid Resend webhook signature'
-      );
-
-      return res.status(400).json({
-        error: 'Invalid webhook signature'
-      });
+      logger.error({ err: error?.message }, 'Resend webhook processing failed');
+      return res.status(500).json({ error: 'Webhook processing failed' });
     }
   }));
 
   // Regular JSON middleware for other routes
   app.use(express.json());
+
+  app.use('/api/pos', requirePosOperator({
+    authenticate: (req) => verifyBearerAuth(req, effectiveJwtSecret),
+    findUser: async (id) => {
+      if (!supabase) throw new Error('User store unavailable');
+      const { data, error } = await supabase.from('users')
+        .select('id, email, role, full_name').eq('id', id).single();
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw new Error('User lookup failed');
+      }
+      return data ? { id: data.id, email: data.email, role: data.role, fullName: data.full_name } : null;
+    },
+    logger
+  }));
 
   // Mock Auth middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
   // app.use('/api', mockAuthMiddleware());
