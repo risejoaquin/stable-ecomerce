@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { requirePosOperator, verifyBearerAuth } from './src/server/middleware/auth.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import express from 'express';
@@ -32,15 +33,89 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
+// Pino paths redact structured credentials/PII; error text is not a safe data field.
+export function productionLoggingOptions(): pino.LoggerOptions {
+  const sensitive = [
+    'password', 'password_hash', 'new_password', 'token', 'secret', 'jwt',
+    'authorization', 'cookie', 'cookies', 'access_token', 'refresh_token',
+    'stripeSecretKey', 'webhookSecret', 'supabaseServiceRoleKey',
+    'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SUPABASE_SERVICE_ROLE_KEY',
+    'RESEND_API_KEY', 'DATABASE_URL', 'JWT_SECRET', 'apiKey',
+    'cardNumber', 'card_number', 'pan', 'cvv', 'cvc',
+    'email', 'customer_email', 'customerEmail', 'phone', 'full_name',
+    'fullName', 'address', 'shipping_address', 'billing_address'
+  ];
+  return {
+    redact: {
+      paths: [
+        ...sensitive.flatMap(key => [key, `*.${key}`, `*.*.${key}`, `*.*.*.${key}`]),
+        'req.headers', 'req.url', 'req.remoteAddress', 'req.body',
+        'res.headers["set-cookie"]', 'body', 'payload', 'metadata',
+        'payment.tenderDetails', 'req.body.payment.tenderDetails'
+      ],
+      censor: '[REDACTED]'
+    },
+    serializers: {
+      req: (req) => {
+        const serialized = pino.stdSerializers.req(req);
+        // Only log detached HTTP metadata; never expose the serializer's raw
+        // request reference or shared headers/query/params to redaction.
+        return {
+          id: serialized.id, method: serialized.method, url: serialized.url,
+          headers: { ...serialized.headers },
+          remoteAddress: serialized.remoteAddress, remotePort: serialized.remotePort
+        };
+      },
+      err: (err) => {
+        const serialized = pino.stdSerializers.err(err);
+        const values = [
+          ...sensitive.map(key => err?.[key]),
+          ...Object.entries(process.env)
+            .filter(([key]) => /SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL/.test(key))
+            .map(([, value]) => value)
+        ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+        const sanitize = (text: unknown) => {
+          if (typeof text !== 'string') return undefined;
+          let safe = text;
+          for (const value of values) safe = safe.split(value).join('[REDACTED]');
+          return safe
+            .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+            .replace(/\b(?:sk|rk)_(?:live|test)_[a-zA-Z0-9]+\b/g, '[REDACTED]')
+            .replace(/\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b/g, '[REDACTED]')
+            .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED]')
+            .replace(/\b(?:\d[ -]?){10,19}\b/g, '[REDACTED]')
+            .replace(/\b(password|token|secret|jwt|cookie|cvv|cvc|pan|phone)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1=[REDACTED]');
+        };
+        // Whitelist diagnostic fields; exclude arbitrary error payloads/cause.
+        return {
+          type: serialized.type, message: sanitize(serialized.message), stack: sanitize(serialized.stack),
+          code: typeof err?.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(err.code) ? err.code : undefined,
+          status: Number.isInteger(err?.status) && err.status >= 100 && err.status <= 599 ? err.status : undefined,
+          statusCode: Number.isInteger(err?.statusCode) && err.statusCode >= 100 && err.statusCode <= 599 ? err.statusCode : undefined
+        };
+      }
+
+    }
+  };
+}
+
+// pino-http calls customProps again at completion, after Express matched the route.
+export function productionHttpLogProps(req: express.Request) {
+  const route = req.route?.path;
+  return {
+    requestId: (req as any).requestId,
+    path: typeof route === 'string' && /^\/[A-Za-z0-9_/:.*-]*$/.test(route) ? route : undefined
+  };
+}
+
 // Setup Pino Logger
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
+  ...productionLoggingOptions(),
   ...(process.env.NODE_ENV !== 'production' && {
     transport: {
       target: 'pino-pretty',
-      options: {
-        colorize: true,
-      }
+      options: { colorize: true }
     }
   })
 });
@@ -144,10 +219,8 @@ const requireAuth = () => (req, res, next) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, effectiveJwtSecret) as any;
-    req.auth = { userId: decoded.userId, role: decoded.role };
+    req.auth = verifyBearerAuth(req, effectiveJwtSecret);
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -613,7 +686,8 @@ export async function startServer(options: { listen?: boolean } = {}) {
   
   app.use(pinoHttp({
     logger,
-    customProps: (req) => ({ requestId: (req as any).requestId })
+    serializers: productionLoggingOptions().serializers,
+    customProps: productionHttpLogProps
   }));
 
   app.use(cors({
@@ -731,15 +805,16 @@ export async function startServer(options: { listen?: boolean } = {}) {
       typeof svixSignature !== 'string'
     ) {
       logger.warn('Invalid Resend webhook signature headers');
-      return res.status(400).json({ error: 'Invalid webhook signature' });
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
+    let event: ReturnType<typeof resend.webhooks.verify>;
     try {
       const rawBody = Buffer.isBuffer(req.body)
         ? req.body.toString('utf8')
         : String(req.body || '');
 
-      const event = resend.webhooks.verify({
+      event = resend.webhooks.verify({
         payload: rawBody,
         headers: {
           id: svixId,
@@ -749,6 +824,17 @@ export async function startServer(options: { listen?: boolean } = {}) {
         webhookSecret: process.env.RESEND_WEBHOOK_SECRET
       });
 
+    } catch (error: any) {
+      logger.warn(
+        { err: error?.message },
+        'Invalid Resend webhook signature'
+      );
+
+      return res.status(401).json({
+        error: 'Invalid webhook signature'
+      });
+    }
+    try {
       const result = await processResendWebhookEvent({
         supabase,
         event
@@ -756,19 +842,28 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
       return res.json({ received: true, ...result });
     } catch (error: any) {
-      logger.warn(
-        { err: error?.message },
-        'Invalid Resend webhook signature'
-      );
-
-      return res.status(400).json({
-        error: 'Invalid webhook signature'
-      });
+      logger.error({ err: error?.message }, 'Resend webhook processing failed');
+      return res.status(500).json({ error: 'Webhook processing failed' });
     }
   }));
 
   // Regular JSON middleware for other routes
   app.use(express.json());
+
+  app.use('/api/pos', requirePosOperator({
+    authenticate: (req) => verifyBearerAuth(req, effectiveJwtSecret),
+    findUser: async (id) => {
+      if (!supabase) throw new Error('User store unavailable');
+      const { data, error } = await supabase.from('users')
+        .select('id, email, role, full_name').eq('id', id).single();
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw new Error('User lookup failed');
+      }
+      return data ? { id: data.id, email: data.email, role: data.role, fullName: data.full_name } : null;
+    },
+    logger
+  }));
 
   // Mock Auth middleware (optional auth on /api routes, use requireAuth() on specific routes to enforce)
   // app.use('/api', mockAuthMiddleware());
@@ -1272,11 +1367,26 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
 
     if (supabase) {
       const started = Date.now();
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const { error } = await supabase.from('stores').select('id').limit(1);
-        checks.supabase = { ok: !error, latencyMs: Date.now() - started, error: error?.message || null };
+        const deadline = new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            reject(new Error('Database probe timed out'));
+            controller.abort();
+          }, 2000);
+        });
+        const { error } = await Promise.race([
+          supabase.from('stores').select('id').limit(1).abortSignal(controller.signal),
+          deadline
+        ]);
+        if (error) logger.error({ err: error, requestId: (req as any).requestId }, 'Database readiness probe failed');
+        checks.supabase = { ok: !error, latencyMs: Date.now() - started, error: error ? 'Supabase check failed' : null };
       } catch (err: any) {
-        checks.supabase = { ok: false, latencyMs: Date.now() - started, error: err?.message || 'Supabase check failed' };
+        logger.error({ err, requestId: (req as any).requestId }, 'Database readiness probe failed');
+        checks.supabase = { ok: false, latencyMs: Date.now() - started, error: 'Supabase check failed' };
+      } finally {
+        clearTimeout(timeout);
       }
     } else {
       checks.supabase = { ok: false, error: 'Supabase client is not configured' };
