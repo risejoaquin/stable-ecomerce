@@ -1,75 +1,67 @@
-# ==============================================================================
-# Client Commerce Platform / Selfcare Sinners - Repository Code Ownership
-# ==============================================================================
-# Engineering Team:
-# - Joaquin (@risejoaquin): Technical & Release Authority, Architecture, Security, Governance
-# - Rogelio Beltran Valenzuela (@bonjourrog): Backend, Database, Inventory, Orders, APIs (Engineer A)
-# - Julian Alejandro Rodriguez Verdugo (@Julian716): Frontend, Storefront UI, Admin UI, Web POS UI (Engineer B)
-# ==============================================================================
+# SolidBit / Stable-Ecommerce — shared, controlled review ownership (PROPOSAL)
+# CODEOWNERS requests review; it does NOT confer merge/deploy authorization.
+# GitHub: last matching rule wins; one eligible owner can satisfy CODEOWNERS.
+# Human governance: Joaquín alone authorizes production and merges under GOV-ENG rules.
 
-# Global Default Owner (Fallback & Release Authority)
-* @risejoaquin
+# Fallback: an independent reviewer for Joaquín's PRs.
+*                              @risejoaquin @bonjourrog
 
-# ------------------------------------------------------------------------------
-# Frontend, UI & Client Presentation Layer (Julian)
-# ------------------------------------------------------------------------------
-/src/components/            @Julian716
-/src/pages/                 @Julian716
-/src/styles/                @Julian716
-/src/hooks/                 @Julian716
-/src/App.tsx                @Julian716
-/src/main.tsx               @Julian716
-/src/index.css              @Julian716
-/public/                    @Julian716
-/assets/                    @Julian716
-/index.html                 @Julian716
-/vite.config.ts             @Julian716
+# Frontend: Julian is technical owner, Joaquin is alternate reviewer.
+/src/components/               @Julian716 @risejoaquin
+/src/pages/                    @Julian716 @risejoaquin
+/src/styles/                   @Julian716 @risejoaquin
+/src/hooks/                    @Julian716 @risejoaquin
+/src/App.tsx                   @Julian716 @risejoaquin
+/src/main.tsx                  @Julian716 @risejoaquin
+/src/index.css                @Julian716 @risejoaquin
+/public/                       @Julian716 @risejoaquin
+/assets/                       @Julian716 @risejoaquin
+/index.html                   @Julian716 @risejoaquin
+/vite.config.ts               @Julian716 @risejoaquin
+/src/pages/pos/                @Julian716 @risejoaquin
+/src/components/pos/           @Julian716 @risejoaquin
 
-# Planned Client 01 Web POS UI (Sprint Scope)
-/src/pages/pos/             @Julian716
-/src/components/pos/        @Julian716
+# Backend: Rogelio is technical owner, Joaquin is alternate reviewer.
+/server.ts                     @bonjourrog @risejoaquin
+/email-templates.ts            @bonjourrog @risejoaquin
+/src/server/                   @bonjourrog @risejoaquin
+/src/api/                      @bonjourrog @risejoaquin
+/supabase/                     @bonjourrog @risejoaquin
+/scripts/db/                   @bonjourrog @risejoaquin
+/src/server/pos/               @bonjourrog @risejoaquin
 
-# ------------------------------------------------------------------------------
-# Backend, Database, APIs & Integrations (Rogelio)
-# ------------------------------------------------------------------------------
-/server.ts                  @bonjourrog
-/email-templates.ts         @bonjourrog
-/src/server/                @bonjourrog
-/src/api/                   @bonjourrog
-/supabase/                  @bonjourrog
-/scripts/db/                @bonjourrog
-/docs/database/             @bonjourrog
-/scripts/qa/database/       @bonjourrog
+# Shared contracts and utilities: automatic CODEOWNERS review is NOT dual approval.
+# GOV-ENG-007 requires both Rogelio AND Julian for frozen/shared contracts.
+/src/lib/                      @bonjourrog @Julian716 @risejoaquin
+/src/types/                    @bonjourrog @Julian716 @risejoaquin
+/src/types.ts                  @bonjourrog @Julian716 @risejoaquin
+/src/routes/                   @Julian716 @risejoaquin
 
-# Planned Client 01 Web POS Backend & Shared Stock RPC
-/src/server/pos/            @bonjourrog
+# Testing by domain; more specific rules must be last.
+/tests/                        @bonjourrog @Julian716 @risejoaquin
+/tests/frontend/               @Julian716 @risejoaquin
+/tests/unit/inventory/         @bonjourrog @risejoaquin
+/tests/security/               @risejoaquin @bonjourrog
+/e2e/                          @Julian716 @risejoaquin
+/scripts/qa/                   @risejoaquin @bonjourrog
+/scripts/qa/security/          @risejoaquin @bonjourrog
+/scripts/qa/database/          @bonjourrog @risejoaquin
 
-# ------------------------------------------------------------------------------
-# Shared Contracts, DTOs & Cross-Cutting Utilities
-# ------------------------------------------------------------------------------
-/src/lib/                   @risejoaquin @bonjourrog @Julian716
-/src/types/                 @bonjourrog @Julian716
-/src/types.ts               @bonjourrog @Julian716
-/src/routes/                @Julian716 @risejoaquin
+# Critical areas: technical review shared; Joaquin's release authority NOT delegated.
+/.github/                      @risejoaquin @bonjourrog
+/.github/CODEOWNERS            @risejoaquin @bonjourrog
+/.github/workflows/            @risejoaquin @bonjourrog
+/config/                       @risejoaquin @bonjourrog
+/package.json                 @risejoaquin @bonjourrog
+/package-lock.json            @risejoaquin @bonjourrog
+/SECURITY.md                  @risejoaquin @bonjourrog
+/CONTRIBUTING.md              @risejoaquin @bonjourrog
+/ARCHITECTURE.md              @risejoaquin @bonjourrog
+/CHANGELOG.md                 @risejoaquin @bonjourrog
 
-# ------------------------------------------------------------------------------
-# Testing & Quality Assurance
-# ------------------------------------------------------------------------------
-/tests/                     @bonjourrog @Julian716 @risejoaquin
-/e2e/                       @Julian716 @risejoaquin
-/scripts/qa/                @risejoaquin @bonjourrog
-
-# ------------------------------------------------------------------------------
-# Architecture, Governance, Security & Release Engineering (Joaquin)
-# ------------------------------------------------------------------------------
-/.github/                   @risejoaquin
-/scripts/qa/security/       @risejoaquin
-/tests/security/            @risejoaquin
-/config/                    @risejoaquin
-/package.json               @risejoaquin
-/package-lock.json          @risejoaquin
-/SECURITY.md                @risejoaquin
-/CONTRIBUTING.md            @risejoaquin
-/ARCHITECTURE.md            @risejoaquin
-/CHANGELOG.md               @risejoaquin
-/docs/                      @risejoaquin
+# General docs, with domain-specific overrides LAST.
+/docs/                         @risejoaquin @bonjourrog
+/docs/database/                @bonjourrog @risejoaquin
+/docs/design/                  @Julian716 @risejoaquin
+/docs/engineering/             @risejoaquin @bonjourrog
+/docs/engineering/client-01/   @risejoaquin @bonjourrog @Julian716
