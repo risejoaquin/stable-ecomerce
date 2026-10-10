@@ -1,601 +1,244 @@
 # AGENTS.md
-# Selfcare Sinners / Stable Ecommerce
+# SolidBit / Stable-Ecommerce — Client Commerce Platform (Client 01: Selfcare Sinners)
 
-## Purpose
+## 1. Purpose & Authority
 
-This repository is developed using a coordinated workflow between:
+This repository is developed through structured human-agent collaboration adhering to canonical engineering governance:
 
-- ChatGPT Web: primary reasoning, architecture, diagnosis, planning, code review, remediation design and PASS/FAIL decisions.
-- Codex local agent: local execution, file inspection, simple implementation, testing, Git operations, deployment commands and evidence collection.
-- User: final authority for product/business decisions and credentials/permissions when required.
-
-Codex is primarily an execution agent.
-
-Do not independently redesign the project, invent phases, change architecture, or expand scope unless explicitly instructed.
+- **Technical & Release Authority — Joaquín (`@risejoaquin`)**: Final authority for product direction, architecture, security policies, permissions, credentials, ADR approvals, release gates, and all production merges and deployments. Autonomous agents and technical assistants do NOT possess authority to approve PRs, merge to `main`, or deploy software.
+- **Backend Engineer (Engineer A) — Rogelio Beltran Valenzuela (`@bonjourrog`)**: Domain owner for Backend Application, PostgreSQL / Supabase Database, Row Level Security (RLS) policies, database migrations, SellableUnit domain foundation, inventory concurrency, atomic stock decrement RPCs, orders, and REST/RPC APIs.
+- **Frontend Engineer (Engineer B) — Julian Alejandro Rodriguez Verdugo (`@Julian716`)**: Domain owner for Storefront Customer UI, Admin Command Center Backoffice UI, Web POS Register UI, responsive themes, client styling, and Playwright end-to-end customer journey testing.
+- **Primary Local Execution Agent — Antigravity CLI**: Local executor and orchestrator operating within isolated Git worktrees. Antigravity executes file inspections, test suites, builds, local validation scripts, atomic edits, and evidence collection under strict human authorization and least-privilege boundaries.
+- **Technical Analysis & Planning Support — ChatGPT**: Support agent for technical reasoning, architecture analysis, planning, code review assistance, remediation design, and evidence formatting. ChatGPT operates via external interfaces, does NOT have direct access to local execution terminals, and does NOT execute local commands or manage local Git repositories.
 
 ---
 
-# Project
+## 2. Foundational Axiom & Operational Invariants
 
-Name:
-Selfcare Sinners / Stable Ecommerce
+### The Foundational Axiom
+> **PROMPTS ARE EPHEMERAL. REPOSITORY STATE, JIRA TICKETS, FROZEN CONTRACTS, AND CI EVIDENCE ARE AUTHORITATIVE.**
 
-Repository:
-risejoaquin/stable-ecomerce
+Instructions in chat sessions, transient conversation memory, or ad-hoc prompts never supersede frozen contracts (`DR-*`), repository code, Git commit history, Jira issue specifications, or automated CI test results.
 
-Branch:
-main
-
-Production:
-https://selfcaresinners.com
-
-Local Windows path:
-
-C:\Users\Lucilfer\Documents\Stable-Ecommerce
-
-Current reference commit when this file was created:
-
-29657b687356d96db853b6bb5b6c67efa105c8c6
-
-Commit message:
-
-qa: establish automated quality gates
-
-GitHub is the source of truth.
+### Core Execution Invariants
+1. **Smallest Correct Change**: Implement the minimal correct modification required to satisfy the acceptance criteria. Opportunistic refactoring, aesthetic rewrites, and unrequested scope expansions are strictly forbidden.
+2. **Work-In-Progress (WIP) Strict Limit**:
+   $$\text{Max WIP} = 1 \text{ Primary Active Ticket} + 1 \text{ Secondary / Non-Blocking Ticket}$$
+   - **Primary Active Ticket**: Hands on keyboard, local branch implementation, writing code and tests.
+   - **Secondary Ticket (Non-Blocking)**: Awaiting CI execution, awaiting peer review, or conducting initial requirements research. Zero active code churn.
+   - **No Concurrent Implementation**: An engineer or agent may never implement two feature branches simultaneously.
+3. **Worktree Isolation**: All development must occur in isolated Git worktrees (e.g., `worktrees/ccp-XX-...`). Agents must keep a clean workspace and never create, modify, or delete sibling worktrees.
+4. **No Direct Development on `main`**:
+   - `git push origin main` is **strictly prohibited**.
+   - `git push --force` or `git reset --hard` on shared branches is **strictly prohibited**.
+   - All changes must be delivered via isolated branches (`<category>/<jira-key>-<short-descriptive-slug>`), Pull Requests targeting `main` (or an explicit release candidate branch), automated CI quality gates, domain codeowner approvals, QA verification, staging validation, and authorized release merge.
 
 ---
 
-# Primary operating rule
+## 3. Autonomous Agent Prohibitions & Boundaries
 
-When ChatGPT Web gives an instruction:
+Autonomous agents (including Antigravity CLI and paired LLMs) operate strictly as subordinate execution units governed by human authorities:
 
-1. Execute the requested action exactly.
-2. Do not expand the requested scope.
-3. Do not make unrelated refactors.
-4. Capture relevant stdout/stderr.
-5. Report what changed.
-6. Report test results.
-7. Stop on non-trivial failures and return evidence to ChatGPT Web.
-
-If the problem is simple and mechanical, Codex may fix it directly.
-
-Examples of simple fixes:
-
-- path correction;
-- typo;
-- missing import;
-- script invocation issue;
-- trivial syntax issue;
-- line-ending issue;
-- file permission/unblock issue;
-- clearly requested one-line or isolated edit.
-
-For architectural, security, payment, database, authentication, authorization, performance, migration, or multi-file behavioral issues:
-
-STOP and report the evidence to ChatGPT Web unless an explicit implementation plan was already provided.
+1. **NO Autonomous Self-Sign-Off**: An agent may never approve its own Pull Request, sign off on an ADR, or declare a release gate passed.
+2. **NO Direct Merges**: Agents are strictly prohibited from executing `git merge`, calling GitHub merge APIs, or triggering automated production deployments (Railway, Supabase, Vercel).
+3. **NO Jira Status Manipulation**: Agents must not unilaterally transition Jira tickets to `Done` or `Closed` without verified CI evidence, codeowner approval, and human sign-off.
+4. **NO Weakening of Quality Controls**:
+   - **PROHIBITED**: Inserting `// @ts-ignore`, `// @ts-nocheck`, or `eslint-disable` to silence compiler or lint errors.
+   - **PROHIBITED**: Deleting failing test assertions or deleting existing test suites.
+   - **PROHIBITED**: Artificially increasing test timeout thresholds to mask performance regressions.
+   - **PROHIBITED**: Mocking out security or authorization checks (e.g., bypassing Supabase RLS, skipping webhook HMAC validation) to achieve a green test pass.
+5. **NO Production Database Mutations**: Agents must never execute ad-hoc DDL or DML against production databases.
 
 ---
 
-# Division of responsibilities
+## 4. Division of Responsibilities
 
-## ChatGPT Web owns
+### Technical Authority (`@risejoaquin`) Owns:
+- Architectural and security decisions;
+- Acceptance of Definition of Ready (DoR) and Definition of Done (DoD);
+- ADR approvals and frozen contract changes (`DR-*`);
+- Release scheduling, feature freeze, hardening, and release candidate cut;
+- Pull Request approvals for architecture, security, and governance paths;
+- Final merge authorization to `main` and production release deployments.
 
-- architecture decisions;
-- security remediation design;
-- payment-flow decisions;
-- database/security decisions;
-- performance diagnosis;
-- roadmap sequencing;
-- scope definition;
-- code design for significant changes;
-- determining PASS / FAIL;
-- determining when a phase is CLOSED;
-- deciding when to commit;
-- deciding when to push;
-- deciding when to deploy;
-- preparing larger patches or multi-file fixes.
+### Domain Engineers (`@bonjourrog`, `@Julian716`) Own:
+- Domain technical design and module implementation within assigned subsystems;
+- Code reviews and sign-offs as designated domain codeowners;
+- Unit, integration, and domain-specific regression test implementation;
+- Staging validation of domain features.
 
-## Codex owns
+### Antigravity CLI Owns:
+- Inspecting local repository state and branch tracking;
+- Executing local commands (PowerShell, npm, Node, Vitest, Playwright);
+- Running local quality gates (`npm run lint`, `npm test`, `npm run build`, `npm run qa:fast`);
+- Applying atomic code edits strictly within allowed file paths;
+- Capturing stdout, stderr, and command exit codes;
+- Formatting and generating local evidence artifacts;
+- Halting execution immediately upon encountering non-trivial failures.
 
-- inspecting local repository state;
-- reading files requested by ChatGPT Web;
-- executing PowerShell commands;
-- executing npm commands;
-- running Node scripts;
-- running Playwright;
-- running tests;
-- running QA scripts;
-- running builds;
-- applying explicit simple edits;
-- applying patches;
-- checking Git state;
-- staging exact files;
-- committing when explicitly instructed;
-- pushing when explicitly instructed;
-- running deployment commands when explicitly instructed;
-- collecting logs and evidence;
-- reporting failures accurately.
+### ChatGPT Support Owns:
+- Reviewing diagnostic evidence and proposing root-cause hypotheses;
+- Designing remediation plans adhering to existing contracts;
+- Assisting in requirements breakdown and test case structuring;
+- Assisting with documentation, auditing, and report consolidation.
 
 ---
 
-# Communication protocol
+## 5. Git Lifecycle & Branching Standards
 
-After executing a task, report:
+### Branch Naming Convention
+All branches must branch off the latest `origin/main` commit and follow canonical naming:
+```
+<category>/<jira-key>-<short-descriptive-slug>
+```
+Categories:
+- `feat/`: New user-facing or platform functionality (e.g., `feat/ccp-14-pos-sales-api`)
+- `fix/`: Defect remediation or bug patch (e.g., `fix/ccp-18-upload-auth`)
+- `docs/`: Documentation, specifications, governance (e.g., `docs/ccp-40-antigravity-governance`)
+- `chore/`: Tooling, workflow updates, non-code dependencies (e.g., `chore/ccp-52-vitest-upgrade`)
+- `refactor/`: Code restructuring without behavioral change (e.g., `refactor/ccp-89-pino-logger-extract`)
+- `test/`: Automated test suite additions or test harness updates (e.g., `test/ccp-67-order-idempotency-e2e`)
 
-1. Commands executed.
-2. Exit code when available.
-3. PASS / FAIL for each step.
-4. Relevant stdout/stderr.
-5. Files modified.
-6. `git status --short` if files changed.
-7. `git diff --stat` if files changed.
-8. Exact error text if something failed.
-
-Do not summarize away important errors.
-
-Never hide warnings that may affect correctness.
-
-For very long logs:
-- include the failure section;
-- include final summaries;
-- include relevant stack traces;
-- include enough surrounding context to diagnose the issue.
-
----
-
-# Failure protocol
-
-If a non-trivial test or command fails:
-
-1. Stop the current phase.
-2. Do not continue to deployment.
-3. Do not commit failed work unless explicitly instructed.
-4. Do not invent a workaround.
-5. Report the full relevant error.
-6. Wait for ChatGPT Web to provide diagnosis or remediation.
-
-Do not declare PASS because most tests passed.
-
-PASS means all required gates for the requested task passed.
+### Git Staging & Commit Hygiene
+- **Never use broad staging commands**:
+  - Do NOT run `git add .` or `git add -A`.
+  - Always stage exact files: `git add path/to/file1 path/to/file2`.
+- **Pre-commit verification**:
+  ```powershell
+  git status --short
+  git diff --check
+  git diff --stat
+  git diff --cached --name-only
+  ```
+- **Commit format**: Conventional commits: `<type>(<scope>): <imperative description> [CCP-XX]`.
+- **Atomic Commits**: Every commit must be compilable, testable, and logically cohesive.
 
 ---
 
-# Git safety rules
+## 6. Communication & Reporting Protocol
 
-Never use:
-
-git add .
-git add -A
-git push --force
-git push -f
-git reset --hard
-
-unless ChatGPT Web explicitly instructs otherwise for a specific reason.
-
-Prefer exact staging:
-
-git add path/to/file1
-git add path/to/file2
-
-Before starting work:
-
-git status
-git fetch origin
-git pull --ff-only origin main
-
-Before commit:
-
-git status --short
-git diff --check
-git diff --stat
-git diff --cached --name-only
-
-Before push:
-
-git fetch origin
-git rev-list --left-right --count HEAD...origin/main
-
-Expected before a normal push after one local commit:
-
-1    0
-
-Push normally:
-
-git push origin main
-
-After push:
-
-git status
-git rev-parse HEAD
-git rev-parse origin/main
-
-HEAD and origin/main should match.
+When reporting execution results, the agent must output:
+1. Exact commands executed;
+2. Command exit codes (0 = SUCCESS, non-zero = FAILURE);
+3. PASS / FAIL status for each discrete step;
+4. Relevant stdout/stderr (retaining full error traces, line numbers, and failure summaries);
+5. List of files modified;
+6. `git status --short` output;
+7. `git diff --stat` output;
+8. Exact error messages without summarizing away diagnostic context.
 
 ---
 
-# Temporary files
+## 7. Failure Protocol
 
-Do not commit:
+If any test, build, lint, or validation script fails:
+1. **STOP IMMEDIATELY**: Halt the current execution sequence.
+2. **DO NOT PUSH OR MERGE**: Never push failed code or mark tasks ready for review.
+3. **DO NOT INVENT WORKAROUNDS**: Do not weaken assertions, skip tests, or alter interfaces to force a green run.
+4. **CAPTURE EVIDENCE**: Log the full error, command, and surrounding context.
+5. **ESCALATE**: Escalate to Technical Authority (`@risejoaquin`) or assigned domain lead with a clear diagnostic summary.
 
-- generated QA artifacts;
-- temporary patch README files;
-- ad-hoc debug files;
-- local logs;
-- local secrets;
-- `.env`;
-- `.env.local`;
-- temporary Lighthouse output;
-- temporary Playwright output unless explicitly requested;
-- `node_modules`;
-- local context files unless explicitly requested.
-
-Respect `.gitignore`.
+> **RULE ON PASS STATUS**: Never declare `PASS` because "most tests passed" or "only non-critical checks failed". `PASS` requires 100% of required gates for the task to exit cleanly with code 0.
 
 ---
 
-# Dependency rules
+## 8. Preserved Technical & Security Safeguards
 
-npm is the canonical package manager.
+### 8.1 Zero Secret Exposure
+Never commit, log, or serialize:
+- API secrets, private keys, or database credentials;
+- Stripe live or test secret keys, webhook signing secrets;
+- Resend email API keys, JWT signing secrets;
+- Passwords or `password_hash` fields;
+- Full user session tokens;
+- Payment card data: Primary Account Numbers (PAN), Card Verification Values (CVV).
 
-Use:
+### 8.2 Database Security & Invariance
+- **Row Level Security (RLS)**: Must be enabled on all Supabase tables (`ENABLE ROW LEVEL SECURITY`).
+- **SECURITY DEFINER**: Any Postgres function defined with `SECURITY DEFINER` must explicitly enforce `SET search_path = public` to prevent search-path injection.
+- **Stock Decrement Concurrency**: Inventory adjustments must execute atomically via dedicated RPC (`decrement_stock`) to prevent race conditions and negative inventory.
+- **No Unauthorized Production Changes**: Never modify production schemas or permissions without explicit authorization and an approved migration script.
 
-npm ci
+### 8.3 Payment Safety (Stripe & POS)
+- Strictly preserve webhook signature verification (HMAC via Svix / Stripe SDK).
+- Maintain payment idempotency using unique idempotency keys (`DR-IDEM-001`).
+- Target technical readiness for **PCI DSS 4.0.1 SAQ A / SAQ A-EP**. Never claim official PCI certification without a qualified assessor audit.
 
-when:
-- setting up a fresh machine;
-- synchronizing node_modules to package-lock.json;
-- ChatGPT Web explicitly requests it.
+### 8.4 Content Security Policy (CSP) & Web Security
+- Do not weaken CSP headers by injecting `unsafe-inline` or `unsafe-hashes` without explicit architectural approval.
+- Enforce input validation using strict schemas (e.g., Zod) on all API endpoints.
+- Enforce data minimization: never expose internal columns (`cost_price`, `stripe_customer_id`, `internal_notes`) on public endpoints (`/api/products`, `/api/orders/track`).
 
-Do not run `npm install` unless dependencies are intentionally being changed.
+### 8.5 Dependency Management
+- `npm` is the canonical package manager.
+- Always use `npm ci` for clean, reproducible installations.
+- Do NOT run `npm install` unless dependencies are deliberately being added or updated.
+- Do NOT run `npm audit fix` or `npm audit fix --force` without explicit human authorization.
 
-Do not run:
-
-npm audit fix
-npm audit fix --force
-
-without explicit instruction.
-
-Current known dependency baseline:
-
-- 2 moderate vulnerabilities
-- 1 high vulnerability
-
-These are pending controlled investigation.
+### 8.6 Temporary & Generated Files
+Strictly respect `.gitignore`. Never commit:
+- `.env`, `.env.local`, or local configuration overrides;
+- Local log files (`*.log`), debug dumps, or ad-hoc scratch scripts;
+- Generated QA artifacts, Playwright test traces/videos, or Lighthouse reports (unless explicitly staged as versioned evidence);
+- `node_modules` or build output directories (`dist/`, `build/`).
 
 ---
 
-# QA commands
+## 9. Quality Assurance & Verification Gates
 
-Available QA scripts:
+### 9.1 Local Validation Commands
+```powershell
+# 1. Typecheck: Verify strict TypeScript compilation without emitting output
+npm run lint
 
-.\scripts\qa\validate-fast.ps1
+# 2. Unit & Integration Suite: Run Vitest test suite
+npm test
 
-.\scripts\qa\validate-release.ps1
+# 3. Production Build: Bundle client (Vite) and server (esbuild)
+npm run build
 
-.\scripts\qa\validate-all.ps1
+# 4. Fast Quality Pre-Gate: Automated local pre-gate script
+npm run qa:fast
+```
 
-.\scripts\qa\validate-production.ps1
+### 9.2 Extended & Release Gates (Required for DB, Security, Core, and Release PRs)
+```powershell
+# Full release validation suite
+npm run qa:release
 
+# Automated secret scanner
 .\scripts\qa\security\scan-local-secrets.ps1
 
+# Security baseline verification report
 .\scripts\qa\security\validate-security-baseline.ps1
 
-.\scripts\qa\quality\validate-dependencies.ps1
+# Core regression contracts harness
+.\scripts\qa\regression\validate-regression-core.ps1
 
-.\scripts\qa\database\validate-database-security.ps1
-
----
-
-# FAST gate
-
-Expected FAST gate:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- FINAL RESULT PASS
-
-Run:
-
-.\scripts\qa\validate-fast.ps1
+# Playwright End-to-End customer journey testing
+npm run test:e2e
+```
 
 ---
 
-# RELEASE gate
-
-Expected RELEASE gate:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- Secret scan PASS
-- Security baseline report PASS
-- Core regression PASS
-- FINAL RESULT PASS
-
-Run:
-
-.\scripts\qa\validate-release.ps1
-
-Security baseline `Report PASS` means the scanner executed correctly.
-
-It does NOT mean all security findings are resolved.
-
----
-
-# Current validated baseline
-
-The following has already been locally validated:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- Secret Scan PASS
-- FAST PASS
-- RELEASE PASS
-- Core Regression PASS
-- QA Automation Foundation CLOSED/PASS
-
-Core regressions validated:
-
-- smoke-qa-release-e
-- smoke-mobile-ux-f
-- smoke-post-ux-c-hotfix-20
-- smoke-post-ux-c-hotfix-20-2
-
-Do not reopen these without actual regression evidence.
-
----
-
-# Security rules
-
-Never expose or print:
-
-- API secrets;
-- passwords;
-- private keys;
-- Stripe live secret keys;
-- webhook signing secrets;
-- JWT signing secrets;
-- database passwords;
-- full session tokens;
-- PAN;
-- CVV.
-
-Never serialize `password_hash`.
-
-Do not weaken CSP by adding:
-
-unsafe-inline
-
-or:
-
-unsafe-hashes
-
-as a shortcut unless explicitly approved after analysis.
-
-Do not bypass authentication or authorization for testing unless explicitly instructed.
-
----
-
-# Known security findings
-
-Current known security issues include:
-
-## P0
-
-SEC-001
-Resend webhook signature verification missing.
-
-## P1 / significant findings
-
-SEC-002
-Legacy `/api/upload` authorization.
-
-SEC-003
-Public `.select('*')` data overexposure.
-
-SEC-004
-verify-email response overexposure.
-
-SEC-005
-Login dedicated rate limiting.
-
-SEC-006
-CSP `unsafe-inline`.
-
-SEC-007
-Public `/api/log-error`.
-
-SEC-008
-JWT lifecycle / revocation.
-
-SEC-009
-Reusable password-reset token.
-
-SEC-010
-Weak password policy.
-
-SEC-011
-Email verification semantics.
-
-SEC-012
-Email-change reauthentication.
-
-SEC-013
-Store creation authorization.
-
-SEC-014
-Order tracking DTO overexposure.
-
-SEC-015
-Recover-cart token security.
-
-SEC-016
-Guest cart-sync abuse.
-
-SEC-017
-Telemetry metadata validation.
-
-SEC-018 / SEC-019
-Database RLS / SECURITY DEFINER / grants / policies pending live verification.
-
-Do not mark these resolved unless the corresponding remediation and validation have actually passed.
-
----
-
-# Database security
-
-When database security validation is requested, inspect:
-
-- RLS enabled state;
-- policies;
-- table grants;
-- function grants;
-- function owners;
-- SECURITY DEFINER;
-- search_path;
-- EXECUTE permissions.
-
-Critical functions include:
-
-- decrement_stock
-- consume_coupon_after_payment
-- finalize_paid_order
-- restock_refunded_item
-
-Never modify production database privileges without explicit instruction.
-
----
-
-# Payment safety
-
-Stripe payment integrity is security-sensitive.
-
-Do not modify payment flows, webhook ordering, idempotency, payment status transitions or checkout logic without an explicit plan.
-
-Never log:
-
-- PAN;
-- CVV;
-- Stripe secret keys;
-- webhook secrets.
-
-PCI DSS target:
-
-technical readiness for PCI DSS 4.0.1.
-
-Do not claim PCI certification.
-
----
-
-# Performance baseline
-
-POST-UX C Performance / LCP Closure remains OPEN / PAUSED.
-
-Latest robust PDP LCP median:
-
-approximately 2615.897 ms
-
-Target:
-
-<= 2500 ms
-
-Approximate remaining gap:
-
-115.897 ms
-
-Do not revert HOTFIX 20 without evidence.
-
-Preserve:
-
-- PDP below-fold deferral;
-- LCP image priority;
-- server bootstrap improvements;
-- stable vendor graph.
-
-Do not repeat previously rejected experiments without new evidence.
-
----
-
-# Project roadmap
-
-Main audit sequence:
-
-AUDIT-01 — Security and Payments
-
-AUDIT-02 — Technical Performance
-
-AUDIT-03 — Code Quality and Architecture
-
-AUDIT-04 — Legal and Privacy
-
-AUDIT-05 — UX, CRO and Accessibility
-
-Do not invent additional audit phases.
-
-ChatGPT Web decides sequencing and completion.
-
----
-
-# Current next objective
-
-Immediate sequence:
-
-1. verify GitHub Actions result;
-2. verify Railway deployment;
-3. validate production;
-4. begin AUDIT-01;
-5. prioritize SEC-001 Resend webhook signature verification.
-
-Codex should not begin security remediation independently unless ChatGPT Web provides the implementation instructions.
-
----
-
-# Scope discipline
-
-Do not perform opportunistic refactors.
-
-Do not update dependencies simply because newer versions exist.
-
-Do not rewrite working modules during an unrelated fix.
-
-Do not change formatting across entire files unless required.
-
-Prefer the smallest correct change.
-
-Every defect fix should ideally have a permanent regression test or validation.
-
----
-
-# Evidence standard
-
-A phase can only be considered PASS when the required evidence exists.
-
-Code existing is not proof.
-
-A script existing is not proof.
-
-A build passing does not prove runtime behavior.
-
-A local test does not automatically prove production.
-
-Production changes require production validation when the roadmap requires it.
-
-Codex reports evidence.
-
-ChatGPT Web makes the final PASS/CLOSED decision.
-
-
-# ChatGPT Web handoff
-
-If the user says that the output will be sent to ChatGPT Web:
-
-- provide raw technical evidence;
-- avoid unnecessary explanations;
-- preserve exact error messages;
-- include file paths and line numbers;
-- include commands executed;
-- include final PASS/FAIL summary.
-
-ChatGPT Web will perform the diagnosis and provide the next instruction.
+## 10. Execution Contract & Standard Output Schema
+
+Every autonomous agent task execution must conclude with a standardized evidence block:
+
+```text
+AGENT_ID=<Agent identifier, e.g., AGENT-A>
+JIRA_KEY=<Jira ticket reference, e.g., CCP-40>
+STATUS=PASS|FAIL|BLOCKED
+BASE_SHA=<Commit SHA at start of work>
+HEAD_SHA=<Commit SHA after local commits>
+BRANCH=<Working branch name>
+WORKTREE_PATH=<Full path to isolated worktree>
+FILES_CHANGED=<Comma-separated list of modified files>
+COMMANDS_AND_EXIT_CODES=<Command: exit_code; ...>
+LOCAL_TESTS=PASS|FAIL|NOT_RUN
+CI_RUN_URL=<GitHub Actions run URL or NONE>
+PR_URL=<Pull Request URL or NONE>
+JIRA_EVIDENCE_URL=<Jira issue or comment URL or NONE>
+UNRESOLVED_RISKS=<Identified residual risks or NONE>
+NEXT_AUTHORIZED_STEP=<Next sequential action approved by governance>
+```
