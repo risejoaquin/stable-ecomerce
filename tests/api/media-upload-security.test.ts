@@ -51,6 +51,48 @@ describe('CCP-18 upload security', () => {
         expect(response.status, JSON.stringify(response.body)).toBe(400);
       });
     }
+    for (const [name, filename, contentType, buffer] of [
+      ['arbitrary binary', 'test.png', 'image/png', Buffer.from([0, 1, 2, 3])],
+      ['disguised executable', 'test.png', 'image/png', Buffer.from('MZ executable')],
+      ['invalid extension', 'test.exe', 'image/png', null],
+      ['mismatched extension', 'test.jpg', 'image/png', null],
+      ['invalid MIME', 'test.png', 'application/octet-stream', null],
+      ['spoofed MIME', 'test.png', 'image/png', Buffer.from('<svg/>')],
+      ['empty file', 'test.png', 'image/png', Buffer.alloc(0)],
+      ['corrupt PNG', 'test.png', 'image/png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+    ] as const) {
+      it(`${route}: rejects ${name} safely -> 400`, async () => {
+        const payload = buffer ?? await sharp({ create: { width: 2, height: 2, channels: 3, background: '#ffffff' } }).png().toBuffer();
+        const response = await request(app).post(route).set('Authorization', `Bearer ${token('admin')}`)
+          .attach('file', payload, { filename, contentType });
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ error: contentType === 'application/octet-stream' && route === '/api/upload' ? 'Invalid upload input' : 'Invalid image file' });
+      });
+    }
+    for (const code of ['LIMIT_UNEXPECTED_FILE', 'LIMIT_FILE_COUNT', 'LIMIT_FIELD_COUNT', 'LIMIT_PART_COUNT']) {
+      it(`${route}: ${code} -> safe 400`, async () => {
+        const payload = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#ffffff' } }).png().toBuffer();
+        const pending = request(app).post(route).set('Authorization', `Bearer ${token('admin')}`);
+        if (code === 'LIMIT_FIELD_COUNT' || code === 'LIMIT_PART_COUNT') {
+          for (let i = 0; i < (code === 'LIMIT_FIELD_COUNT' ? 9 : 8); i++) pending.field(`field${i}`, 'value');
+        }
+        pending.attach(code === 'LIMIT_UNEXPECTED_FILE' ? 'unexpected' : 'file', payload, { filename: 'test.png', contentType: 'image/png' });
+        if (code === 'LIMIT_FILE_COUNT' || code === 'LIMIT_PART_COUNT') {
+          pending.attach('file', payload, { filename: 'second.png', contentType: 'image/png' });
+        }
+        const response = await pending;
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ error: 'Invalid upload input' });
+      });
+    }
+    for (const contentType of ['multipart/form-data', 'multipart/form-data; boundary=test-boundary']) {
+      it(`${route}: malformed ${contentType} -> safe 400`, async () => {
+        const response = await request(app).post(route).set('Authorization', `Bearer ${token('admin')}`)
+          .set('Content-Type', contentType).send('malformed multipart input');
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ error: 'Invalid upload input' });
+      });
+    }
     it(`${route}: rejects >5MB -> 413`, async () => {
       const response = await request(app).post(route).set('Authorization', `Bearer ${token('admin')}`).attach('file', Buffer.alloc(5 * 1024 * 1024 + 1), { filename: 'large.png', contentType: 'image/png' });
       expect(response.status, JSON.stringify(response.body)).toBe(413);

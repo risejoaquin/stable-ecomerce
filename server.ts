@@ -570,6 +570,45 @@ const upload = multer({
   }
 });
 
+function validateImageUpload(parser: express.RequestHandler): express.RequestHandler {
+  return (req, res, next) => {
+    parser(req, res, async (error: any) => {
+      if (error) {
+        return res.status(error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 413 : 400)
+          .json({ error: error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 'File too large' : 'Invalid upload input' });
+      }
+      if (!req.file) return res.status(400).json({ error: 'Image file is required' });
+      const { buffer, originalname, mimetype } = req.file;
+      const extensions: Record<string, string[]> = {
+        'image/jpeg': ['jpg', 'jpeg'],
+        'image/png': ['png'],
+        'image/webp': ['webp'],
+      };
+      const extension = /^([^\/\\\x00-\x1f\x7f]+)\.([a-zA-Z]+)$/.exec(originalname)?.[2].toLowerCase();
+      const validSignature = mimetype === 'image/jpeg'
+        ? buffer.length >= 3 && buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))
+        : mimetype === 'image/png'
+          ? buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+          : mimetype === 'image/webp' && buffer.length >= 12
+            && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
+      if (!extension || !extensions[mimetype]?.includes(extension) || !validSignature) {
+        return res.status(400).json({ error: 'Invalid image file' });
+      }
+      try {
+        const image = sharp(buffer, { failOn: 'error' });
+        const metadata = await image.metadata();
+        if (metadata.format !== mimetype.slice(6) || !metadata.width || !metadata.height) {
+          return res.status(400).json({ error: 'Invalid image file' });
+        }
+        await image.toBuffer();
+      } catch {
+        return res.status(400).json({ error: 'Invalid image file' });
+      }
+      next();
+    });
+  };
+}
+
 export function getMonthPeriodBounds(periodStr: string): { periodStart: string; periodEnd: string } {
   const match = /^(\d{4})-(\d{2})$/.exec(String(periodStr || '').trim());
   if (!match) {
@@ -2552,7 +2591,7 @@ app.post(
   '/api/upload/product-image',
   mockAuthMiddleware(),
   requireAdmin(),
-  productImageUpload.single('file'),
+  validateImageUpload(productImageUpload.single('file')),
   asyncHandler(async (req, res) => {
     if (!supabase) {
       return res.status(503).json({ error: 'Storage is not configured' });
@@ -2664,15 +2703,15 @@ app.post(
   })
 );
 
-  app.post('/api/upload', requireAuth(), requireAdmin(), upload.single('file'), asyncHandler(async (req: any, res) => {
+  app.post('/api/upload', requireAuth(), requireAdmin(), validateImageUpload(upload.single('file')), asyncHandler(async (req: any, res) => {
           if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
           if (!supabase) {
             // Return a dummy image URL for local testing
             return res.json({ url: `https://placehold.co/600x400?text=${encodeURIComponent(req.file.originalname)}` });
           }
           try {
-            const fileExt = req.file.originalname.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
+            const fileExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[req.file.mimetype];
+            const fileName = `${crypto.randomUUID()}.${fileExt}`;
             const filePath = `${req.auth.userId}/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
