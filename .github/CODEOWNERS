@@ -22,7 +22,7 @@
 /src/components/pos/           @Julian716 @risejoaquin
 
 # Backend: Rogelio is technical owner, Joaquin is alternate reviewer.
-/server.ts                     @bonjourrog @risejoaquin
+/server.ts                     @bonjourrog @risejoaquin @Julian716
 /email-templates.ts            @bonjourrog @risejoaquin
 /src/server/                   @bonjourrog @risejoaquin
 /src/api/                      @bonjourrog @risejoaquin
