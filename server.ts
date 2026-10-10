@@ -624,23 +624,157 @@ if (STRIPE_SECRET_KEY) {
 }
 
 
+const UPLOAD_LIMITS = {
+  fileSize: 5 * 1024 * 1024, // 5MB limit
+  files: 1,
+  fields: 8,
+  parts: 10,
+  fieldSize: 64 * 1024, // 64KB max field value size
+  fieldNameSize: 100, // 100 chars max field key size
+  fieldNestingDepth: 2,
+};
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+
+const uploadFileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
+  const filename = file.originalname || '';
+  if (/[\/\\]|\.\./.test(filename) || filename.includes('\0')) {
+    return cb(new AppError('Invalid filename or path traversal detected.', 400));
+  }
+
+  const ext = path.extname(filename).toLowerCase();
+  if (!ext || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+    return cb(new AppError('Invalid file type. Only JPEG, PNG and WebP are allowed.', 400));
+  }
+
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+    return cb(new AppError('Invalid file type. Only JPEG, PNG and WebP are allowed.', 400));
+  }
+
+  cb(null, true);
+};
+
+interface ValidatedImage {
+  format: 'jpeg' | 'png' | 'webp';
+  canonicalExt: 'jpg' | 'png' | 'webp';
+  width: number;
+  height: number;
+  buffer: Buffer;
+}
+
+function detectImageFormatFromMagicBytes(buffer: Buffer): 'jpeg' | 'png' | 'webp' | null {
+  if (!buffer || buffer.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'jpeg';
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4E &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0D &&
+    buffer[5] === 0x0A &&
+    buffer[6] === 0x1A &&
+    buffer[7] === 0x0A
+  ) {
+    return 'png';
+  }
+  // WebP: RIFF (bytes 0-3) and WEBP (bytes 8-11)
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  return null;
+}
+
+function getExpectedFormatFromExtension(ext: string): 'jpeg' | 'png' | 'webp' | null {
+  const normalized = ext.toLowerCase();
+  if (normalized === '.jpg' || normalized === '.jpeg') return 'jpeg';
+  if (normalized === '.png') return 'png';
+  if (normalized === '.webp') return 'webp';
+  return null;
+}
+
+function getExpectedFormatFromMime(mime: string): 'jpeg' | 'png' | 'webp' | null {
+  if (mime === 'image/jpeg') return 'jpeg';
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  return null;
+}
+
+async function validateUploadedImage(file: any): Promise<ValidatedImage> {
+  if (!file || !file.buffer || file.buffer.length === 0) {
+    throw new AppError('Image file is required and cannot be empty.', 400);
+  }
+
+  const rawFilename = file.originalname || '';
+  if (/[\/\\]|\.\./.test(rawFilename) || rawFilename.includes('\0')) {
+    throw new AppError('Invalid filename or path traversal detected.', 400);
+  }
+
+  const ext = path.extname(rawFilename).toLowerCase();
+  const extFormat = getExpectedFormatFromExtension(ext);
+  if (!extFormat) {
+    throw new AppError('Invalid file extension. Only .jpg, .jpeg, .png and .webp are allowed.', 400);
+  }
+
+  const mimeFormat = getExpectedFormatFromMime(file.mimetype);
+  if (!mimeFormat) {
+    throw new AppError('Invalid file type. Only JPEG, PNG and WebP are allowed.', 400);
+  }
+
+  if (extFormat !== mimeFormat) {
+    throw new AppError('Incompatible file extension and MIME type.', 400);
+  }
+
+  const magicFormat = detectImageFormatFromMagicBytes(file.buffer);
+  if (!magicFormat || magicFormat !== extFormat) {
+    throw new AppError('File content does not match expected image format.', 400);
+  }
+
+  let metadata: any;
+  try {
+    const source = sharp(file.buffer, { failOn: 'error' });
+    metadata = await source.metadata();
+  } catch (_err) {
+    throw new AppError('Invalid or corrupted image file.', 400);
+  }
+
+  if (!metadata.format || !['jpeg', 'png', 'webp'].includes(metadata.format)) {
+    throw new AppError('Unsupported image format detected.', 400);
+  }
+
+  if (metadata.format !== magicFormat) {
+    throw new AppError('Image structure does not match detected format.', 400);
+  }
+
+  const width = Number(metadata.width || 0);
+  const height = Number(metadata.height || 0);
+  if (!width || !height || width <= 0 || height <= 0) {
+    throw new AppError('Unable to read valid image dimensions.', 400);
+  }
+
+  const canonicalExt = extFormat === 'jpeg' ? 'jpg' : extFormat;
+
+  return {
+    format: extFormat,
+    canonicalExt,
+    width,
+    height,
+    buffer: file.buffer,
+  };
+}
+
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-    files: 1,
-    fields: 8,
-    parts: 10,
-    fieldNestingDepth: 2,
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG and WebP are allowed.'));
-    }
-  }
+  limits: UPLOAD_LIMITS,
+  fileFilter: uploadFileFilter,
+  preservePath: true
 });
 
 export function getMonthPeriodBounds(periodStr: string): { periodStart: string; periodEnd: string } {
@@ -2646,16 +2780,13 @@ app.post('/api/admin/orders/:id/refund', requireAuth(), asyncHandler(async (req:
           }
         }));
 
-  // Image Upload Endpoint
+// Image Upload Endpoint
 // POST-UX C HOTFIX 10: responsive product image upload pipeline
 const productImageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 1,
-    fields: 8,
-    parts: 10
-  }
+  limits: UPLOAD_LIMITS,
+  fileFilter: uploadFileFilter,
+  preservePath: true
 });
 
 app.post(
@@ -2672,31 +2803,15 @@ app.post(
       return res.status(400).json({ error: 'Image file is required' });
     }
 
-    const allowedImageTypes = new Set([
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/avif'
-    ]);
-
-    if (!allowedImageTypes.has(req.file.mimetype)) {
-      return res.status(400).json({ error: 'Unsupported image format' });
-    }
-
-    const source = sharp(req.file.buffer, { failOn: 'error' }).rotate();
-    const metadata = await source.metadata();
-    const sourceWidth = Number(metadata.width || 0);
-    const sourceHeight = Number(metadata.height || 0);
-
-    if (!sourceWidth || !sourceHeight) {
-      return res.status(400).json({ error: 'Unable to read image dimensions' });
-    }
+    const validated = await validateUploadedImage(req.file);
+    const sourceWidth = validated.width;
+    const sourceHeight = validated.height;
 
     const uploadId = crypto.randomUUID();
     const basePath = `responsive/${uploadId}/w${sourceWidth}`;
-    const uploadedPaths = [];
+    const uploadedPaths: string[] = [];
 
-    const uploadAsset = async (storagePath, buffer, contentType) => {
+    const uploadAsset = async (storagePath: string, buffer: Buffer, contentType: string) => {
       const { error } = await supabase.storage
         .from('products')
         .upload(storagePath, buffer, {
@@ -2716,8 +2831,8 @@ app.post(
       const originalPath = `${basePath}/original`;
       const originalUrl = await uploadAsset(
         originalPath,
-        req.file.buffer,
-        req.file.mimetype
+        validated.buffer,
+        `image/${validated.format}`
       );
 
       const standardWidths = [480, 800, 1200].filter((width) => width <= sourceWidth);
@@ -2728,7 +2843,7 @@ app.post(
       const variants = [];
 
       for (const width of targetWidths) {
-        const buffer = await sharp(req.file.buffer, { failOn: 'error' })
+        const buffer = await sharp(validated.buffer, { failOn: 'error' })
           .rotate()
           .resize({
             width,
@@ -2777,19 +2892,22 @@ app.post(
 
   app.post('/api/upload', requireAuth(), requireAdmin(), upload.single('file'), asyncHandler(async (req: any, res) => {
           if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+          const validated = await validateUploadedImage(req.file);
+
           if (!supabase) {
             // Return a dummy image URL for local testing
             return res.json({ url: `https://placehold.co/600x400?text=${encodeURIComponent(req.file.originalname)}` });
           }
           try {
-            const fileExt = req.file.originalname.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `${req.auth.userId}/${fileName}`;
+            const fileName = `${crypto.randomUUID()}.${validated.canonicalExt}`;
+            const safeUserId = String(req.auth?.userId || 'anonymous').replace(/[^a-zA-Z0-9_-]/g, '');
+            const filePath = `${safeUserId}/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
               .from('products')
-              .upload(filePath, req.file.buffer, {
-                contentType: req.file.mimetype,
+              .upload(filePath, validated.buffer, {
+                contentType: `image/${validated.format}`,
               });
             
             if (uploadError) throw uploadError;
@@ -12307,10 +12425,37 @@ app.post(
   // Global Error Handling Middleware
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     logger.error({ err }, 'Unhandled Error');
+    if (err instanceof multer.MulterError || err?.name === 'MulterError') {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large' });
+      }
+      const multerMessages: Record<string, string> = {
+        LIMIT_UNEXPECTED_FILE: 'Unexpected file field',
+        LIMIT_FILE_COUNT: 'Too many files uploaded',
+        LIMIT_FIELD_COUNT: 'Too many form fields',
+        LIMIT_PART_COUNT: 'Too many parts in multipart request',
+        LIMIT_FIELD_SIZE: 'Field value too large',
+        LIMIT_FIELD_VALUE: 'Field value too large',
+        LIMIT_FIELD_KEY: 'Field name too long',
+      };
+      return res.status(400).json({ error: multerMessages[err.code] || 'Invalid upload request' });
+    }
+    if (
+      typeof err?.message === 'string' &&
+      (/multipart/i.test(err.message) ||
+       /boundary/i.test(err.message) ||
+       /part header/i.test(err.message) ||
+       /unexpected end of (multipart|form)/i.test(err.message))
+    ) {
+      return res.status(400).json({ error: 'Malformed multipart request' });
+    }
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation Error', details: (err as any).errors });
     }
-    const statusCode = err.status || err.statusCode || (err instanceof AppError ? err.statusCode : 500);
+    const statusCode = err.status || err.statusCode || 500;
     const message = err.message || 'Internal Server Error';
     res.status(statusCode).json({
       error: message,
