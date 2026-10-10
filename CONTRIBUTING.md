@@ -97,7 +97,7 @@ All dimensions must report `PASS` before a PR is eligible for merge.
   - No merge conflicts exist.
 
 ### 10. Production Validation
-- Following merge, Railway automatically triggers deployment of `main` to `https://selfcaresinners.com`.
+- A merge to `main` does not itself authorize or imply production deployment. Production deployment to `https://selfcaresinners.com` is a separate manual, explicitly authorized release action after all release gates PASS.
 - The responsible engineer must verify production deployment:
   1. Inspect `https://selfcaresinners.com/api/health` to confirm the deployed commit SHA matches `main`.
   2. Execute the production smoke validation script:
