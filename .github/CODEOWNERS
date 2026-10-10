@@ -1,10 +1,19 @@
+# SOLIDBIT TEMPORARY OWNERSHIP - 2026-10-09
+# Joaquin executes Rogelio's active engineering responsibilities.
+# Julian independently reviews Joaquin-authored PRs.
+# Joaquin reviews Julian-authored PRs.
+# Rogelio's tasks remain active.
+# No self-approval or automatic merge.
+# Existing security and CI requirements remain.
+# Existing frozen-contract governance requires separate review.
+# This arrangement ends only by explicit Product Owner direction.
 # SolidBit / Stable-Ecommerce — shared, controlled review ownership (PROPOSAL)
 # CODEOWNERS requests review; it does NOT confer merge/deploy authorization.
 # GitHub: last matching rule wins; one eligible owner can satisfy CODEOWNERS.
 # Human governance: Joaquín alone authorizes production and merges under GOV-ENG rules.
 
 # Fallback: an independent reviewer for Joaquín's PRs.
-*                              @risejoaquin @bonjourrog
+*                              @risejoaquin @Julian716
 
 # Frontend: Julian is technical owner, Joaquin is alternate reviewer.
 /src/components/               @Julian716 @risejoaquin
@@ -22,46 +31,46 @@
 /src/components/pos/           @Julian716 @risejoaquin
 
 # Backend: Rogelio is technical owner, Joaquin is alternate reviewer.
-/server.ts                     @bonjourrog @risejoaquin
-/email-templates.ts            @bonjourrog @risejoaquin
-/src/server/                   @bonjourrog @risejoaquin
-/src/api/                      @bonjourrog @risejoaquin
-/supabase/                     @bonjourrog @risejoaquin
-/scripts/db/                   @bonjourrog @risejoaquin
-/src/server/pos/               @bonjourrog @risejoaquin
+/server.ts                     @Julian716 @risejoaquin
+/email-templates.ts            @Julian716 @risejoaquin
+/src/server/                   @Julian716 @risejoaquin
+/src/api/                      @Julian716 @risejoaquin
+/supabase/                     @Julian716 @risejoaquin
+/scripts/db/                   @Julian716 @risejoaquin
+/src/server/pos/               @Julian716 @risejoaquin
 
 # Shared contracts and utilities: automatic CODEOWNERS review is NOT dual approval.
 # GOV-ENG-007 requires both Rogelio AND Julian for frozen/shared contracts.
-/src/lib/                      @bonjourrog @Julian716 @risejoaquin
-/src/types/                    @bonjourrog @Julian716 @risejoaquin
-/src/types.ts                  @bonjourrog @Julian716 @risejoaquin
+/src/lib/                      @Julian716 @Julian716 @risejoaquin
+/src/types/                    @Julian716 @Julian716 @risejoaquin
+/src/types.ts                  @Julian716 @Julian716 @risejoaquin
 /src/routes/                   @Julian716 @risejoaquin
 
 # Testing by domain; more specific rules must be last.
-/tests/                        @bonjourrog @Julian716 @risejoaquin
+/tests/                        @Julian716 @Julian716 @risejoaquin
 /tests/frontend/               @Julian716 @risejoaquin
-/tests/unit/inventory/         @bonjourrog @risejoaquin
-/tests/security/               @risejoaquin @bonjourrog
+/tests/unit/inventory/         @Julian716 @risejoaquin
+/tests/security/               @risejoaquin @Julian716
 /e2e/                          @Julian716 @risejoaquin
-/scripts/qa/                   @risejoaquin @bonjourrog
-/scripts/qa/security/          @risejoaquin @bonjourrog
-/scripts/qa/database/          @bonjourrog @risejoaquin
+/scripts/qa/                   @risejoaquin @Julian716
+/scripts/qa/security/          @risejoaquin @Julian716
+/scripts/qa/database/          @Julian716 @risejoaquin
 
 # Critical areas: technical review shared; Joaquin's release authority NOT delegated.
-/.github/                      @risejoaquin @bonjourrog
-/.github/CODEOWNERS            @risejoaquin @bonjourrog
-/.github/workflows/            @risejoaquin @bonjourrog
-/config/                       @risejoaquin @bonjourrog
-/package.json                 @risejoaquin @bonjourrog
-/package-lock.json            @risejoaquin @bonjourrog
-/SECURITY.md                  @risejoaquin @bonjourrog
-/CONTRIBUTING.md              @risejoaquin @bonjourrog
-/ARCHITECTURE.md              @risejoaquin @bonjourrog
-/CHANGELOG.md                 @risejoaquin @bonjourrog
+/.github/                      @risejoaquin @Julian716
+/.github/CODEOWNERS            @risejoaquin @Julian716
+/.github/workflows/            @risejoaquin @Julian716
+/config/                       @risejoaquin @Julian716
+/package.json                 @risejoaquin @Julian716
+/package-lock.json            @risejoaquin @Julian716
+/SECURITY.md                  @risejoaquin @Julian716
+/CONTRIBUTING.md              @risejoaquin @Julian716
+/ARCHITECTURE.md              @risejoaquin @Julian716
+/CHANGELOG.md                 @risejoaquin @Julian716
 
 # General docs, with domain-specific overrides LAST.
-/docs/                         @risejoaquin @bonjourrog
-/docs/database/                @bonjourrog @risejoaquin
+/docs/                         @risejoaquin @Julian716
+/docs/database/                @Julian716 @risejoaquin
 /docs/design/                  @Julian716 @risejoaquin
-/docs/engineering/             @risejoaquin @bonjourrog
-/docs/engineering/client-01/   @risejoaquin @bonjourrog @Julian716
+/docs/engineering/             @risejoaquin @Julian716
+/docs/engineering/client-01/   @risejoaquin @Julian716 @Julian716
