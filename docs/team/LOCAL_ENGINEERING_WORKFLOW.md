@@ -1,4 +1,4 @@
-# Workflow Diario de Ingeniería — Jira, Worktrees, Antigravity y ChatGPT Web
+﻿# Workflow Diario de Ingeniería — Jira, Worktrees, Antigravity y ChatGPT Web
 
 **Estado:** Documento operativo canónico de ejecución diaria.
 **Autoridad de Gobierno:** `docs/engineering/TEAM_DEVELOPMENT_WORKFLOW.md` (`GOV-ENG-001`), `EVIDENCE_MODEL.md` (`GOV-ENG-005`), `CHANGE_CONTROL.md` (`GOV-ENG-006`), `SHARED_OWNERSHIP_RULES.md` (`GOV-ENG-007`) y contratos congelados en `docs/engineering/client-01/`.
@@ -97,9 +97,9 @@ flowchart TD
 ### Paso 10: Release Gate y Despliegue a Producción en Railway
 - La autoridad de release (`@risejoaquin`) verifica staging y autoriza el despliegue.
 - > [!IMPORTANT]
-> **No asumir seguridad productiva por merge a main**: el estado de auto-deploy productivo de Railway permanece OPEN hasta verificación CCP-46. Producción requiere autorización explícita de Joaquín.
+> **Producción requiere autorización explícita**: mientras el estado de auto-deploy productivo de Railway permanezca OPEN bajo CCP-46, no se debe afirmar que el despliegue posterior al merge sea manual-only, automático o bloqueado. El mecanismo real debe verificarse frescamente antes de cualquier release.
   > En fecha 2026-10-01 se confirmó que el auto-deploy en el servicio de producción de Railway está desactivado (`autoDeploy: false`).
-  > Tras el merge en GitHub, el Technical Authority debe desencadenar manualmente el despliegue desde el panel o CLI de Railway.
+> **Producción requiere autorización explícita**: mientras el estado de auto-deploy productivo de Railway permanezca OPEN bajo CCP-46, no se debe afirmar que el despliegue posterior al merge sea manual-only, automático o bloqueado. El mecanismo real debe verificarse frescamente antes de cualquier release.
 
 ### Paso 11: Production Smoke y Cierre Documental
 - Ejecución del script de validación de producción:
