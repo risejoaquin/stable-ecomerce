@@ -40,7 +40,7 @@ El gate automatizado de CI (`TEST-DOC-IMPACT.ps1`) inspecciona las rutas modific
 Muchos cambios operativos ocurren **fuera del repositorio Git**:
 - Decisiones en conversaciones de ChatGPT Web.
 - Cambios de estado o dependencias en tickets de Jira.
-- Desactivación de flags o ajustes en la consola de Railway (e.g. `autoDeploy=false`).
+- Cambios de flags o ajustes en la consola de Railway. El estado productivo debe verificarse frescamente bajo CCP-46 antes de documentarlo como verdad operativa.
 - Actualizaciones a scripts en el repositorio externo del orquestador (`Stable-Ecommerce-Orchestrator`).
 
 > [!CAUTION]

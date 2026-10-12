@@ -19,7 +19,7 @@ Cada colaborador debe instalar únicamente las herramientas correspondientes a s
 | **PowerShell 5.1 / pwsh 7+** | Sí (Obligatorio) | Sí (Obligatorio) | Sí (Obligatorio) | Windows PowerShell 5.1 nativo o PowerShell Core 7+. Ver sección 2. |
 | **VS Code / IDE** | Recomendado | Recomendado | Recomendado | Extensiones: ESLint, Prettier, Tailwind CSS |
 | **Antigravity CLI (`agy`)** | Opcional | Opcional | Sí (Obligatorio para waves) | Binario local del equipo. No adivinar flags. |
-| **Railway CLI** | No autorizado | No autorizado | Solo Release Authority | Consultas de lectura autorizadas; autoDeploy=false |
+| **Railway CLI** | No autorizado | No autorizado | Solo Release Authority | Consultas de lectura autorizadas; auto-deploy production status OPEN hasta verificación CCP-46 |
 | **Atlassian CLI (`acli`)** | Opcional (Jira) | Opcional (Jira) | Según autorización | Solo si la wave de Jira lo requiere |
 | **PostgreSQL / Supabase CLI** | Mocks en Fase A | Local dev / Docker | Solo inspección | Credenciales de producción prohibidas en local |
 | **Credenciales Stripe / Resend** | Mocks locales | Mocks / Staging keys | Custodia de secrets | Prohibido registrar tokens o claves live |

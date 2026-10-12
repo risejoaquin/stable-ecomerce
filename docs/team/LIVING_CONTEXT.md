@@ -25,8 +25,8 @@ Para preservar la integridad del contexto vivo:
 | **G1 CODEOWNERS** | **PASS confirmado**: 48 reglas sintácticas y 10 casos de prueba offline validados limpiamente. Baseline SHA: `fa4026cd03fcd5f663dc40c5d262e3d24afd621a`. | El test offline no comprueba que GitHub aplique la protección sin el ruleset activo. | Mantener baseline como referencia autoritativa. |
 | **G2 CODEOWNERS (Local)** | Worktree aislado `worktrees/sb-codeowners-v11`, rama `docs/ccp-40-codeowners-shared-v11` off `0bcc9e4`. Archivo `.github/CODEOWNERS` modificado; `git diff --check` arrojó exit code 0. Suite de documentación instalada. | Pendiente de PR formal y revisión de pares. | Preparar PR formal cuando la autoridad lo autorice. |
 | **GitHub Ruleset Remoto** | Ruleset ID `23977496` (`main-production-protection`). Exige 1 aprobación y checks obligatorios: `quality`, `e2e`, `aggregate`. La revisión de CODEOWNERS está desactivada en la regla remota (`require_code_owner_review=false`). | Modificar reglas remotas sin test puede bloquear pushes legítimos. | No mutar el ruleset remoto sin plan de reversión probado. |
-| **PR #16 Draft** | PR #16 (`docs/ccp-40-antigravity-governance`) abierto en estado **Draft** en GitHub. Modifica `AGENTS.md` y `CONTRIBUTING.md` para actualizar de Codex a Antigravity CLI. | Conflicto de merge si otros agentes tocan `AGENTS.md` o `CONTRIBUTING.md`. | **PROHIBIDO editar `AGENTS.md` o `CONTRIBUTING.md`** en esta wave. |
-| **Railway Producción** | **autoDeploy=false confirmado por el usuario**: Postcheck verificado tras mutación de `serviceInstanceAutoDeployUpdate` en 2026-10-01. Lectura posterior confirmó `enabled: false`. | Asumir falsamente que merge a `main` despliega a producción. | **No tratar merge como deploy**. Despliegue a producción requiere disparo manual por Joaquín. |
+| **PR #16 SUPERSEDED / PR #28 vigente** | PR #16 (`docs/ccp-40-antigravity-governance`) abierto en estado **Draft** en GitHub. Modifica `AGENTS.md` y `CONTRIBUTING.md` para actualizar de Codex a Antigravity CLI. | Conflicto de merge si otros agentes tocan `AGENTS.md` o `CONTRIBUTING.md`. | **PROHIBIDO editar `AGENTS.md` o `CONTRIBUTING.md`** en esta wave. |
+| **Railway Producción** | **OPEN bajo CCP-46**: El estado de auto-deploy productivo de Railway requiere verificación fresca antes de publicarse como verdad operativa verificada. | Asumir falsamente que merge a main es production-safe o incapaz de disparar producción sin verificación fresca de Railway. | Producción requiere autorización explícita de Joaquín y verificación fresca de Railway bajo CCP-46. |
 | **Jira Enlaces Legacy (Wave 3)** | **41 enlaces legacy NO REPARADOS**: Identificados con direcciones o relaciones presuntamente incorrectas en la auditoría previa de Wave 3. No se ha ejecutado ninguna corrección masiva. | Corrupción del grafo de dependencias en Jira si se aplican scripts sin backup. | Obtener export/backup de los 41 pares y planificar reparación quirúrgica con aprobación humana. |
 | **Orquestador Joaquín** | Directorio externo `Stable-Ecommerce-Orchestrator`. Antigravity CLI (`agy`) + worktrees aislados + monitor en sondeo cada 10 s. Wave 3 anterior interrumpida; SUMMARY inconsistente. | Estado terminal de procesos no determinista. | Hardening del orquestador y cierre de wave antes de nuevas mutaciones. |
 | **Orquestador Julián** | Waves R0 a R4 registradas como PASS según reporte verbal y auditoría de Julián / ChatGPT Web. R5 CCP-43 Fase A pendiente de autorización. | Depender de reportes sin verificación de logs crudos. | Verificar reportes y artefactos antes de dar por cerrada una wave. |
@@ -47,11 +47,11 @@ Para preservar la integridad del contexto vivo:
 - **Riesgos y Contratos:** No altera contratos funcionales. Sin push ni PR todavía.
 - **Acción Siguiente:** Mantener aislado en su worktree hasta autorización de PR.
 
-### 2026-10-01 — INFRA — Desactivación de autoDeploy en Railway Producción
-- **Estado:** PROD_VERIFIED
+| **Railway Producción** | **OPEN bajo CCP-46**: El estado de auto-deploy productivo de Railway requiere verificación fresca antes de publicarse como verdad operativa verificada. | Asumir falsamente que merge a main es production-safe o incapaz de disparar producción sin verificación fresca de Railway. | Producción requiere autorización explícita de Joaquín y verificación fresca de Railway bajo CCP-46. |
+- **Estado:** OPEN bajo CCP-46; requiere verificación fresca antes de tratarse como verdad operativa.
 - **Responsable:** Joaquín (`@risejoaquin`)
-- **Fuente de Evidencia:** Confirmación directa del usuario y lectura de API `serviceInstanceAutoDeployStatus` arrojando `enabled: false`.
-- **Hecho Confirmado:** El merge a la rama `main` en GitHub no desencadenará builds ni despliegues automáticos al entorno productivo.
+- **Fuente de Evidencia:** La evidencia histórica no debe publicarse como estado productivo verificado actual. CCP-46 mantiene el riesgo abierto hasta verificación fresca de Railway.
+- **Hecho Confirmado:** No se debe asumir que el merge a la rama `main` sea production-safe ni incapaz de disparar producción hasta completar verificación fresca de Railway bajo CCP-46.
 - **Riesgos y Contratos:** Los despliegues a producción ahora requieren intervención manual consciente.
 - **Acción Siguiente:** Actualizar runbooks y guías operativas (`LOCAL_ENGINEERING_WORKFLOW.md`, `KNOWN_DOCUMENTATION_DRIFT.md`).
 
@@ -63,13 +63,13 @@ Para preservar la integridad del contexto vivo:
 - **Riesgos y Contratos:** La ejecución de modificaciones sin confirmación previa podría corromper la trazabilidad histórica de Jira.
 - **Acción Siguiente:** Preparar tabla formal de mapeo de 41 pares y someterla a revisión humana antes de ejecutar cualquier mutación vía API.
 
-### 2026-10-01 — GOV — Estado del PR #16 Draft (Gobernanza Antigravity)
+### 2026-10-01 — GOV — Estado PR #16 SUPERSEDED / PR #28 vigente (Gobernanza Antigravity)
 - **Estado:** PR_OPEN (Draft)
 - **Responsable:** Joaquín (`@risejoaquin`)
 - **Fuente de Evidencia:** GitHub PR #16 `docs/ccp-40-antigravity-governance`.
 - **Hecho Confirmado:** PR #16 contiene las modificaciones planificadas para actualizar `AGENTS.md` y `CONTRIBUTING.md` al nuevo flujo con Antigravity CLI.
 - **Riesgos y Contratos:** Editar `AGENTS.md` o `CONTRIBUTING.md` en worktrees concurrentes ocasionará conflictos de merge directos.
-- **Acción Siguiente:** Bloquear modificaciones a dichos archivos en las waves actuales hasta el merge o rebase de PR #16.
+- **Acción Siguiente:** Bloquear modificaciones a dichos archivos fuera del flujo vigente. PR #16 está SUPERSEDED; PR #28 es el reemplazo vigente.
 
 ### 2026-10-01 / 2026-10-02 — CCP-40 — Adopción de Política GOV-DOC-001 y Auditorías AUDIT_ENV / AUDIT_GOV
 - **Estado:** IMPLEMENTED_LOCAL

@@ -21,7 +21,7 @@ flowchart TD
     Hum --> PR["8. Pull Request & CI Hard Gates (quality-gate.yml)"]
     PR --> Rev["9. Revisión de Pares & Codeowners (Aprobación Dual)"]
     Rev --> Rel["10. Release Gate (Aprobación @risejoaquin)"]
-    Rel --> Prod["11. Despliegue Manual a Producción en Railway (autoDeploy=false)"]
+    Rel --> Prod["11. Producción en Railway: acción explícita autorizada; auto-deploy OPEN hasta verificación CCP-46"]
     Prod --> Smoke["12. Production Smoke & Actualización de Contexto Vivo"]
 ```
 
@@ -97,7 +97,7 @@ flowchart TD
 ### Paso 10: Release Gate y Despliegue a Producción en Railway
 - La autoridad de release (`@risejoaquin`) verifica staging y autoriza el despliegue.
 - > [!IMPORTANT]
-  > **El merge a `main` NO despliega a producción**:
+> **No asumir seguridad productiva por merge a main**: el estado de auto-deploy productivo de Railway permanece OPEN hasta verificación CCP-46. Producción requiere autorización explícita de Joaquín.
   > En fecha 2026-10-01 se confirmó que el auto-deploy en el servicio de producción de Railway está desactivado (`autoDeploy: false`).
   > Tras el merge en GitHub, el Technical Authority debe desencadenar manualmente el despliegue desde el panel o CLI de Railway.
 

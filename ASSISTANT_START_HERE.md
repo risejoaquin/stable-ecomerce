@@ -16,11 +16,11 @@ Para operar eficazmente en el proyecto, consulte los siguientes documentos de re
 | Documento | Propósito Operativo | Cuándo Consultarlo |
 |---|---|---|
 | [`docs/team/LOCAL_ENVIRONMENT_SETUP.md`](docs/team/LOCAL_ENVIRONMENT_SETUP.md) | Guía de instalación limpia, dependencias por rol, diferencias PowerShell 5.1 vs pwsh 7+, prevención de fugas de secretos y advertencias críticas de almacenamiento (no OneDrive). | Al incorporar un nuevo entorno o máquina, o cambiar dependencias de tooling. |
-| [`docs/team/LOCAL_ENGINEERING_WORKFLOW.md`](docs/team/LOCAL_ENGINEERING_WORKFLOW.md) | Flujo diario completo: diseño en ChatGPT Web, empaquetado ZIP, orquestador Antigravity en worktrees aislados, monitor 10s, reportes crudos, auditorías READ_ONLY, y despliegue manual en Railway (`autoDeploy=false`). | Antes de iniciar cualquier tarea, wave de agentes o preparación de Pull Request. |
+| [docs/team/LOCAL_ENGINEERING_WORKFLOW.md](docs/team/LOCAL_ENGINEERING_WORKFLOW.md) | Flujo diario completo: diseño en ChatGPT Web, empaquetado ZIP, orquestador Antigravity en worktrees aislados, monitor 10s, reportes crudos, auditorías READ_ONLY, y producción en Railway bajo autorización explícita. El estado de auto-deploy productivo permanece OPEN hasta verificación CCP-46. | Antes de iniciar cualquier tarea, wave de agentes o preparación de Pull Request. |
 | [`docs/team/DOCUMENTATION_MAINTENANCE_POLICY.md`](docs/team/DOCUMENTATION_MAINTENANCE_POLICY.md) | Política obligatoria `GOV-DOC-001`. Exige actualizar guías de setup/workflow + `DECISION_LOG.md` + `LIVING_CONTEXT.md` en el mismo PR; sintaxis formal para exenciones `[NO_DOC_IMPACT: ...]`. | En todo cambio de código, tooling, dependencias o decisiones externas a Git. |
-| [`docs/team/LIVING_CONTEXT.md`](docs/team/LIVING_CONTEXT.md) | Estado operativo verificado en vivo (SHAs base, estado G1/G2 CODEOWNERS, rulesets de GitHub, Railway autoDeploy=false, 41 enlaces Jira legacy, línea base de vulnerabilidades). | Al iniciar cualquier sesión como contexto de partida (**verificar siempre contra Git/API**). |
+| [`docs/team/LIVING_CONTEXT.md`](docs/team/LIVING_CONTEXT.md) | Estado operativo verificado en vivo (SHAs base, estado G1/G2 CODEOWNERS, rulesets de GitHub, riesgos Railway pendientes bajo CCP-46, 41 enlaces Jira legacy, línea base de vulnerabilidades). | Al iniciar cualquier sesión como contexto de partida (**verificar siempre contra Git/API**). |
 | [`docs/team/DECISION_LOG.md`](docs/team/DECISION_LOG.md) | Registro append-only de decisiones técnicas, operativas y de arquitectura (incluyendo `D-2026-10-01-05` de política documental). | Para consultar el histórico o asentar una nueva decisión con estado y evidencia. |
-| [`docs/team/KNOWN_DOCUMENTATION_DRIFT.md`](docs/team/KNOWN_DOCUMENTATION_DRIFT.md) | Inventario activo de contradicciones conocidas entre documentación histórica y realidad técnica (e.g. `AGENTS.md` y `CONTRIBUTING.md` pendientes de PR #16). | Para no intentar corregir divergencias históricas de forma improvisada o silenciosa. |
+| [`docs/team/KNOWN_DOCUMENTATION_DRIFT.md`](docs/team/KNOWN_DOCUMENTATION_DRIFT.md) | Inventario activo de contradicciones conocidas entre documentación histórica y realidad técnica (e.g. `AGENTS.md` y `CONTRIBUTING.md` con PR #16 SUPERSEDED y PR #28 vigente). | Para no intentar corregir divergencias históricas de forma improvisada o silenciosa. |
 | [`docs/team/ASSISTANT_HANDOFF_TEMPLATE.md`](docs/team/ASSISTANT_HANDOFF_TEMPLATE.md) | Plantilla estandarizada de cierre de wave y transferencia de contexto entre ChatGPT Web y Antigravity CLI. | Al finalizar una tarea o pasar la estafeta a otro ingeniero o asistente. |
 
 ---
@@ -32,7 +32,7 @@ Para operar eficazmente en el proyecto, consulte los siguientes documentos de re
   - Frontend: React 19, Vite, Tailwind CSS, Lucide Icons.
   - Backend: Node.js 22 LTS, Express, TypeScript, Zod, Pino logger.
   - Base de Datos: PostgreSQL hospedado en Supabase (RLS estricto, RPCs transaccionales).
-  - Infraestructura Cloud: Railway (producción y staging desacoplados; `autoDeploy=false`).
+- Infraestructura Cloud: Railway. Producción y staging deben tratarse como desacoplados; el estado de auto-deploy productivo permanece OPEN hasta verificación CCP-46.
   - Pasarelas y Comunicaciones: Stripe (PCI DSS readiness), Resend (webhooks validados vía HMAC).
 - **Separación del Orquestador**:
   - El sistema de orquestación de agentes (`Stable-Ecommerce-Orchestrator`) reside en un repositorio/directorio **completamente externo y separado**.
@@ -80,7 +80,7 @@ La política `GOV-DOC-001` (asentada formalmente en la decisión `D-2026-10-01-0
   - Nunca ejecutar mutaciones directas en la base de datos o en Jira sin plan de reversión probado.
   - Nunca registrar tokens, contraseñas, variables de entorno sensibles o datos privados en la documentación.
 - **Salvaguarda de Archivos Protegidos en esta Wave**:
-  - `AGENTS.md` y `CONTRIBUTING.md` contienen referencias históricas que están siendo corregidas en el **PR #16 draft**. Está **PROHIBIDO editarlos o sobrescribirlos** para evitar conflictos.
+  - `AGENTS.md` y `CONTRIBUTING.md` contienen referencias históricas que están siendo corregidas en **PR #28 vigente**; PR #16 está SUPERSEDED. Está **PROHIBIDO editarlos o sobrescribirlos** para evitar conflictos.
   - `.github/CODEOWNERS` y los scripts del pipeline de CI están reservados para sus respectivas waves de gobernanza.
 
 ---
