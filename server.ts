@@ -593,7 +593,12 @@ const ProductInputSchema = z.object({
   image_alt_text: z.string().optional().nullable()
 });
 
-
+const DataDeletionRequestSchema = z.object({
+  email: z.string().email().max(254),
+  orderReference: z.string().trim().max(120).optional().nullable(),
+  requestTypes: z.array(z.enum(['account', 'contact', 'orders', 'marketing', 'meta_events', 'other'])).min(1).max(6),
+  details: z.string().trim().max(1000).optional().nullable()
+});
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -858,6 +863,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts, please try again later.' } });
   const logErrorLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many error logs, please try again later.' } });
   const cartSyncLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many cart sync requests, please try again later.' } });
+  const dataDeletionLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many data deletion requests, please try again later.' } });
 
 
   // Stripe webhook needs raw body. This route intentionally runs before express.json().
@@ -983,6 +989,59 @@ export async function startServer(options: { listen?: boolean } = {}) {
 
   // Regular JSON middleware for other routes
   app.use(express.json());
+
+  app.post('/api/privacy/data-deletion-request', dataDeletionLimiter, asyncHandler(async (req, res) => {
+    try {
+      const parsed = DataDeletionRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'invalid_data_deletion_request',
+          message: 'Invalid data deletion request payload.'
+        });
+      }
+
+      const { email, orderReference, requestTypes, details } = parsed.data;
+      const requestId = crypto.randomUUID();
+      const emailHash = crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+      const intakeEnabled = process.env.DATA_DELETION_REQUEST_INTAKE_ENABLED === 'true';
+      let stored = false;
+
+      if (intakeEnabled && supabase) {
+        try {
+          await recordOperationalEvent(
+            'data_deletion_request_received',
+            'info',
+            'Manual data deletion request received',
+            {
+              request_id: requestId,
+              email_hash: emailHash,
+              request_types: requestTypes,
+              order_reference_provided: Boolean(orderReference),
+              details_provided: Boolean(details),
+              source: 'public_data_deletion_intake'
+            }
+          );
+          stored = true;
+        } catch (storageErr) {
+          logger.warn({ err: storageErr, requestId }, 'Failed to record operational event for data deletion request');
+          stored = false;
+        }
+      }
+
+      return res.status(202).json({
+        status: 'accepted_for_manual_review',
+        requestId,
+        automatedDeletion: false,
+        stored,
+        nextStep: 'The request must be reviewed manually before any deletion or anonymization action.'
+      });
+    } catch (_err) {
+      return res.status(500).json({
+        error: 'data_deletion_request_failed',
+        message: 'An error occurred while processing the request.'
+      });
+    }
+  }));
 
   app.use('/api/pos', requirePosOperator({
     authenticate: (req) => verifyBearerAuth(req, effectiveJwtSecret),
@@ -2973,7 +3032,7 @@ app.post(
     res.type('application/xml');
     res.set('Cache-Control', 'public, max-age=900');
     const base = APP_URL.replace(/\/$/, '');
-    const staticPages = ['/', '/faq', '/track', '/contact', '/privacy', '/terms', '/returns'];
+    const staticPages = ['/', '/faq', '/track', '/contact', '/privacy', '/terms', '/returns', '/data-deletion'];
     let productRows: any[] = [];
 
     if (supabase) {

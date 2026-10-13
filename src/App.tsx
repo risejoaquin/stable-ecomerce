@@ -34,6 +34,7 @@ import {
   LazyCheckoutSuccessPage,
   LazyContactPage,
   LazyCouponsPage,
+  LazyDataDeletionPage,
   LazyFaqPage,
   LazyHomePage,
   LazyMyOrdersPage,
@@ -422,6 +423,7 @@ export default function App() {
           <Route path="/terms" element={<LazyTermsAndConditionsPage />} />
           <Route path="/returns" element={<LazyReturnPolicyPage />} />
           <Route path="/contact" element={<LazyContactPage />} />
+          <Route path="/data-deletion" element={<LazyDataDeletionPage />} />
           <Route path="/faq" element={<LazyFaqPage />} />
           <Route path="/sign-in/*" element={<SignIn />} />
           <Route path="/sign-up/*" element={<SignUp />} />
