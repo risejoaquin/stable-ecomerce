@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload PL20 Quality Step Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pl20-evidence-quality-steps-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/quality.json
@@ -144,10 +144,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload PL20 E2E Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pl20-evidence-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/e2e.json
@@ -223,14 +223,14 @@ jobs:
 
     steps:
       - name: Download Quality Step Evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: pl20-evidence-quality-steps-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/quality
 
       - name: Download E2E Evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: pl20-evidence-e2e-${{ github.run_id }}-${{ github.run_attempt }}
@@ -331,7 +331,7 @@ jobs:
           $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
 
       - name: Upload Final PL20 Quality Gate Evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/quality-gate.json
