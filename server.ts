@@ -1004,37 +1004,73 @@ export async function startServer(options: { listen?: boolean } = {}) {
       const requestId = crypto.randomUUID();
       const emailHash = crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
       const intakeEnabled = process.env.DATA_DELETION_REQUEST_INTAKE_ENABLED === 'true';
-      let stored = false;
 
-      if (intakeEnabled && supabase) {
-        try {
-          await recordOperationalEvent(
-            'data_deletion_request_received',
-            'info',
-            'Manual data deletion request received',
-            {
-              request_id: requestId,
-              email_hash: emailHash,
-              request_types: requestTypes,
-              order_reference_provided: Boolean(orderReference),
-              details_provided: Boolean(details),
-              source: 'public_data_deletion_intake'
-            }
-          );
-          stored = true;
-        } catch (storageErr) {
-          logger.warn({ err: storageErr, requestId }, 'Failed to record operational event for data deletion request');
-          stored = false;
-        }
+      if (!intakeEnabled) {
+        return res.status(503).json({
+          error: 'data_deletion_intake_unavailable',
+          message: 'The data deletion intake is temporarily unavailable. Please use the contact page.'
+        });
       }
 
-      return res.status(202).json({
-        status: 'accepted_for_manual_review',
-        requestId,
-        automatedDeletion: false,
-        stored,
-        nextStep: 'The request must be reviewed manually before any deletion or anonymization action.'
-      });
+      try {
+        const delivery = await sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `Data deletion request ${requestId}`,
+          html: `
+            <h2>Manual data deletion request</h2>
+            <p><strong>Request ID:</strong> ${safeText(requestId)}</p>
+            <p><strong>Customer email:</strong> ${safeText(email)}</p>
+            <p><strong>Order reference:</strong> ${safeText(orderReference || 'Not provided')}</p>
+            <p><strong>Requested categories:</strong> ${safeText(requestTypes.join(', '))}</p>
+            <p><strong>Additional details:</strong> ${safeText(details || 'Not provided')}</p>
+            <p>This request requires manual identity verification and review before any deletion or anonymization action.</p>
+          `,
+          purpose: 'generic',
+          entityType: 'privacy_request',
+          entityId: requestId,
+          metadata: {
+            request_id: requestId,
+            email_hash: emailHash,
+            request_types: requestTypes,
+            source: 'public_data_deletion_intake'
+          },
+          throwOnError: true
+        });
+
+        if (!delivery?.success) {
+          throw new Error('Manual intake delivery was not confirmed');
+        }
+
+        await recordOperationalEvent(
+          'data_deletion_request_received',
+          'info',
+          'Manual data deletion request delivered to controlled intake',
+          {
+            request_id: requestId,
+            email_hash: emailHash,
+            request_types: requestTypes,
+            order_reference_provided: Boolean(orderReference),
+            details_provided: Boolean(details),
+            delivery_status: delivery.status,
+            source: 'public_data_deletion_intake'
+          }
+        );
+
+        return res.status(202).json({
+          status: 'accepted_for_manual_review',
+          accepted: true,
+          requestId,
+          automatedDeletion: false,
+          deliveryStatus: delivery.status,
+          nextStep: 'The request was delivered to the controlled manual intake and must be reviewed before any deletion or anonymization action.'
+        });
+      } catch (intakeErr) {
+        logger.warn({ err: intakeErr, requestId }, 'Data deletion request intake failed');
+        return res.status(503).json({
+          error: 'data_deletion_intake_unavailable',
+          message: 'The data deletion intake is temporarily unavailable. Please use the contact page.'
+        });
+      }
     } catch (_err) {
       return res.status(500).json({
         error: 'data_deletion_request_failed',
