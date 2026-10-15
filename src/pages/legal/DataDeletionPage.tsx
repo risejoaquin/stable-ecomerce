@@ -75,13 +75,21 @@ export function DataDeletionPage() {
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Error al enviar la solicitud');
+      const data = await response.json().catch(() => ({}));
+
+      if (
+        !response.ok ||
+        response.status !== 202 ||
+        data?.status !== 'accepted_for_manual_review' ||
+        data?.accepted !== true ||
+        typeof data?.requestId !== 'string' ||
+        !data.requestId
+      ) {
+        throw new Error('La solicitud no fue registrada en el intake manual');
       }
 
-      const data = await response.json();
       setSubmissionResult({
-        requestId: data.requestId || 'RECIBIDO'
+        requestId: data.requestId
       });
       setEmail('');
       setOrderReference('');
