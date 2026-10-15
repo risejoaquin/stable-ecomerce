@@ -30,3 +30,9 @@
 - Blockers: GitHub update_file App.tsx rejected by OpenAI safety checks; no proof of GitHub 403 or PO-fixable permission; EC-01 smoke expected SHA vs deployed SHA mismatch remains; EC-02 isolation pending.
 - Next slice: recover T02 without duplicate work; integrate addCartLine in App.tsx, publish Vitest regression in isolated branch, run QA/CI for exact new SHA, prepare Draft PR; then EC-01 smoke provenance and EC-02 store isolation.
 - Escalation: no email sent; no actionable PO-specific fix established. No merges, deploy, production writes, secrets, client contact, costs or payments.
+
+### ECOMMERCE-20261015T02 — VERIFIED ADDENDUM (append-only)
+- Checkpoint persisted and independently verified: commit https://github.com/risejoaquin/stable-ecomerce/commit/b68b8331d5e577f6d859b1266194311e5d794fba ; state blob ca40b01cce278cf7cd18f3fe706c1e1773d50ec5; exactly one T02 primary entry.
+- Effective status: PARTIAL, not CHECKPOINT_NOT_PERSISTED. Prior checkpoint base SHA a12efc075abea4775dfd6abd1f8846eecb7c0646; checkpoint SHA b68b8331d5e577f6d859b1266194311e5d794fba; addendum parent SHA b68b8331d5e577f6d859b1266194311e5d794fba. Final SHA is the commit containing this addendum (must be verified separately).
+- Attempted Draft PR for EC-04 recovery branch after primary checkpoint: blocked by OpenAI integration safety checks; no PR number or URL assigned. No fallback comment attempted because no 401/403/timeout was confirmed.
+- src/App.tsx remains unchanged at blob 23670c3827c5325676b41fccdd8a987b1d9b2da0. The previously published helper remains unintegrated. Tests 13/13 isolated only; acceptance 0/11 newly certified; COMMERCIAL_GO=NO-GO.
