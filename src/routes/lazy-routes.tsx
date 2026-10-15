@@ -25,6 +25,7 @@ export const LazyPrivacyPolicyPage = lazyNamed(() => import('../pages/legal/Priv
 export const LazyTermsAndConditionsPage = lazyNamed(() => import('../pages/legal/TermsAndConditionsPage'), 'TermsAndConditionsPage');
 export const LazyReturnPolicyPage = lazyNamed(() => import('../pages/legal/ReturnPolicyPage'), 'ReturnPolicyPage');
 export const LazyContactPage = lazyNamed(() => import('../pages/legal/ContactPage'), 'ContactPage');
+export const LazyDataDeletionPage = lazyNamed(() => import('../pages/legal/DataDeletionPage'), 'DataDeletionPage');
 export const LazyNotFoundPage = lazyNamed(() => import('../pages/NotFoundPage'), 'NotFoundPage');
 
 export const LazyAdminDashboard = lazyNamed(() => import('../pages/admin/AdminDashboard'), 'AdminDashboard');

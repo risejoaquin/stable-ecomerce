@@ -15,6 +15,7 @@ export function EditorialFooter({ storeName = 'Selfcare Sinners' }: { storeName?
           <Link to="/returns">Devoluciones</Link>
           <Link to="/privacy">Privacidad</Link>
           <Link to="/terms">Términos</Link>
+          <Link to="/data-deletion">Eliminación de datos</Link>
         </nav>
       </div>
     </footer>
