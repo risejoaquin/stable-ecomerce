@@ -51,3 +51,18 @@
 - Blockers: remote code write rejected by integration safety checks; App.tsx not integrated; T03-T05 checkpoints not on inherited state; EC-01 smoke SHA provenance mismatch; EC-02 cross-store isolation; no HTTP 403/401/timeout confirmed.
 - Next slice: reconcile T03-T06; publish collision-safe helper + App.tsx integration + Vitest regressions on authorized branch if write available; run CI on functional SHA, then EC-02 and EC-01. Do not touch main, frozen Client01 contracts, prod, deployments, payments, secrets, prospects or expenses.
 - Escalation: no email; no confirmed actionable PO permissions intervention. Notifications disabled for this execution.
+
+## ECOMMERCE-20261015T16
+- run_id: ECOMMERCE-20261015T16; UTC: 2026-10-15T23:46:29Z (America/Hermosillo 16:46).
+- Phase/Gate: Commerce Starter boutique; EC-04 cart identity; EC-02 order/store boundary; COMMERCIAL_GO=NO-GO. PL20 CLOSED; PL21 NOT_STARTED, not activated.
+- Status: PARTIAL only if this append-only commit is verified; otherwise CHECKPOINT_NOT_PERSISTED.
+- Branch: fix/ec-04-cart-identity-20261015t15. Initial and final functional SHA 3a692c0e9c08d809762e430c6ae022a6609c4db5. Checkpoint commit SHA/URL require post-write verification.
+- Human/concurrent commits: main@37ba8bb6f8eec76bc88a20e429ecbed956462902 unchanged against T15; no new main commits detected. PR #19 open Draft, #34 merged, #35 open, #36 open; no merges authorized.
+- PR/files: https://github.com/risejoaquin/stable-ecomerce/pull/19 ; /pull/34 ; /pull/35 ; /pull/36 . No new PR; no functional files published. Attempt to update src/lib/cart-line.ts rejected by integration safety checks (not HTTP 403). src/App.tsx still unintegrated.
+- Tests actually executed: Linux Node.js v22.16.0, TypeScript CLI 5.8.3, isolated recovered T15 candidate SHA256 deb31da7c800e7875827e47b1f2ccd7980cf4c48fb373f1157298e1ca2228d96. Commands: tsc --target es2022 --module commonjs --skipLibCheck --strict --outDir dist src/lib/cart-line.ts -> PASS exit 0; node --test tests/*.test.cjs -> 23/23 PASS exit 0. No npm ci, in-repo Vitest, full build, Playwright, DB or E2E.
+- CI by SHA: 3a692c0e has zero PR-triggered workflow runs and zero combined statuses (queried this run); main@37ba8bb6 Quality Gate SUCCESS run 38706380120 and Production Smoke FAILURE run 38706531740 from previous verification; neither certifies this candidate.
+- New read-only P0 finding: server.ts blob 78ce6a26fb7b064fd51023c68fae1dc76394f2ee lines 1537-1644: POST /api/orders accepts storeId, then loads products using .eq('id', actualProductId).single() without .eq('store_id', storeId). This is a potential cross-store product ownership validation gap if one database holds multiple stores; no live exploit or production leakage tested. Separate dedicated DBs mitigate cross-installation exposure. Review and regression test before commercial GO; do not change frozen Client01 contracts without approval.
+- Evidence: isolated tests 23/23=100%; newly certified EC-ACC 0/11=0%; overall commercial readiness N/D.
+- Blockers: GitHub functional update blocked by integration safety checks; EC-04 App integration/CI absent; EC-02 store ownership gate needs test; EC-01 smoke expected vs deployed SHA mismatch; dedicated-install E2E, UAT, backup/restore and human GO pending.
+- Next slice: reconcile T16 without duplicate checkpoint; obtain authorized functional write; integrate EC-04 and Vitest on exact SHA; add negative test for order product store ownership; verify CI and dedicated install boundaries; diagnose smoke provenance without deploying.
+- Escalation: no 403/401/timeout or confirmed PO-fixable permission; no email sent. No production changes, merges, secrets, prospect contact, costs or payments.
