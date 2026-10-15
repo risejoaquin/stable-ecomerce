@@ -2,9 +2,12 @@
 # CODEOWNERS requests review; it does NOT confer merge/deploy authorization.
 # GitHub: last matching rule wins; one eligible owner can satisfy CODEOWNERS.
 # Human governance: Joaquín alone authorizes production and merges under GOV-ENG rules.
+# Resilience: Julian is an alternate CODEOWNER wherever Rogelio is required.
+# This prevents single-reviewer availability deadlocks and does NOT transfer
+# merge, deploy, production, database mutation, or release authority.
 
 # Fallback: an independent reviewer for Joaquín's PRs.
-*                              @risejoaquin @bonjourrog
+*                              @risejoaquin @bonjourrog @Julian716
 
 # Frontend: Julian is technical owner, Joaquin is alternate reviewer.
 /src/components/               @Julian716 @risejoaquin
@@ -23,12 +26,12 @@
 
 # Backend: Rogelio is technical owner, Joaquin is alternate reviewer.
 /server.ts                     @bonjourrog @risejoaquin @Julian716
-/email-templates.ts            @bonjourrog @risejoaquin
-/src/server/                   @bonjourrog @risejoaquin
-/src/api/                      @bonjourrog @risejoaquin
-/supabase/                     @bonjourrog @risejoaquin
-/scripts/db/                   @bonjourrog @risejoaquin
-/src/server/pos/               @bonjourrog @risejoaquin
+/email-templates.ts            @bonjourrog @risejoaquin @Julian716
+/src/server/                   @bonjourrog @risejoaquin @Julian716
+/src/api/                      @bonjourrog @risejoaquin @Julian716
+/supabase/                     @bonjourrog @risejoaquin @Julian716
+/scripts/db/                   @bonjourrog @risejoaquin @Julian716
+/src/server/pos/               @bonjourrog @risejoaquin @Julian716
 
 # Shared contracts and utilities: automatic CODEOWNERS review is NOT dual approval.
 # GOV-ENG-007 requires both Rogelio AND Julian for frozen/shared contracts.
@@ -40,28 +43,28 @@
 # Testing by domain; more specific rules must be last.
 /tests/                        @bonjourrog @Julian716 @risejoaquin
 /tests/frontend/               @Julian716 @risejoaquin
-/tests/unit/inventory/         @bonjourrog @risejoaquin
-/tests/security/               @risejoaquin @bonjourrog
+/tests/unit/inventory/         @bonjourrog @risejoaquin @Julian716
+/tests/security/               @risejoaquin @bonjourrog @Julian716
 /e2e/                          @Julian716 @risejoaquin
-/scripts/qa/                   @risejoaquin @bonjourrog
-/scripts/qa/security/          @risejoaquin @bonjourrog
-/scripts/qa/database/          @bonjourrog @risejoaquin
+/scripts/qa/                   @risejoaquin @bonjourrog @Julian716
+/scripts/qa/security/          @risejoaquin @bonjourrog @Julian716
+/scripts/qa/database/          @bonjourrog @risejoaquin @Julian716
 
 # Critical areas: technical review shared; Joaquin's release authority NOT delegated.
-/.github/                      @risejoaquin @bonjourrog
+/.github/                      @risejoaquin @bonjourrog @Julian716
 /.github/CODEOWNERS            @risejoaquin @bonjourrog @Julian716
-/.github/workflows/            @risejoaquin @bonjourrog
-/config/                       @risejoaquin @bonjourrog
-/package.json                 @risejoaquin @bonjourrog
-/package-lock.json            @risejoaquin @bonjourrog
-/SECURITY.md                  @risejoaquin @bonjourrog
-/CONTRIBUTING.md              @risejoaquin @bonjourrog
-/ARCHITECTURE.md              @risejoaquin @bonjourrog
-/CHANGELOG.md                 @risejoaquin @bonjourrog
+/.github/workflows/            @risejoaquin @bonjourrog @Julian716
+/config/                       @risejoaquin @bonjourrog @Julian716
+/package.json                 @risejoaquin @bonjourrog @Julian716
+/package-lock.json            @risejoaquin @bonjourrog @Julian716
+/SECURITY.md                  @risejoaquin @bonjourrog @Julian716
+/CONTRIBUTING.md              @risejoaquin @bonjourrog @Julian716
+/ARCHITECTURE.md              @risejoaquin @bonjourrog @Julian716
+/CHANGELOG.md                 @risejoaquin @bonjourrog @Julian716
 
 # General docs, with domain-specific overrides LAST.
-/docs/                         @risejoaquin @bonjourrog
-/docs/database/                @bonjourrog @risejoaquin
+/docs/                         @risejoaquin @bonjourrog @Julian716
+/docs/database/                @bonjourrog @risejoaquin @Julian716
 /docs/design/                  @Julian716 @risejoaquin
-/docs/engineering/             @risejoaquin @bonjourrog
+/docs/engineering/             @risejoaquin @bonjourrog @Julian716
 /docs/engineering/client-01/   @risejoaquin @bonjourrog @Julian716
