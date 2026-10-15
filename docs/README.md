@@ -104,3 +104,18 @@ Guidelines and operating protocols for autonomous and paired engineering agents:
   - Commands Reference: [`AGENT_CONTEXT/governance/06_COMMANDS_REFERENCE.md`](../AGENT_CONTEXT/governance/06_COMMANDS_REFERENCE.md)
   - Agent Handoff Protocol: [`AGENT_CONTEXT/governance/08_AGENT_HANDOFF_PROTOCOL.md`](../AGENT_CONTEXT/governance/08_AGENT_HANDOFF_PROTOCOL.md)
 - **Handoff Records**: [`AGENT_CONTEXT/handoffs/`](../AGENT_CONTEXT/handoffs/)
+
+---
+
+## 9. TEAM CONTINUITY & OPERATIONAL RUNBOOKS
+
+Living operational guidelines, environment onboarding, daily workflow, and decision tracking:
+
+- **Assistant Entry Point & Index**: [`ASSISTANT_START_HERE.md`](../ASSISTANT_START_HERE.md) (Canonical entry point and authority hierarchy).
+- **Local Environment Setup**: [`docs/team/LOCAL_ENVIRONMENT_SETUP.md`](team/LOCAL_ENVIRONMENT_SETUP.md) (Clean checkout, role dependencies, shell differences, credential isolation).
+- **Daily Engineering Workflow**: [`docs/team/LOCAL_ENGINEERING_WORKFLOW.md`](team/LOCAL_ENGINEERING_WORKFLOW.md) (ChatGPT Web, ZIP packaging, Antigravity CLI worktrees, 10s monitoring, and manual Railway release).
+- **Documentation Maintenance Policy**: [`docs/team/DOCUMENTATION_MAINTENANCE_POLICY.md`](team/DOCUMENTATION_MAINTENANCE_POLICY.md) (GOV-DOC-001 same-PR documentation requirement and anti-fraud rules).
+- **Living Operational Context**: [`docs/team/LIVING_CONTEXT.md`](team/LIVING_CONTEXT.md) (Verified system state, active baseline, and confirmed audit evidence).
+- **Architecture & Operational Decision Log**: [`docs/team/DECISION_LOG.md`](team/DECISION_LOG.md) (Append-only decision records with explicit rationale and status).
+- **Known Documentation Drift**: [`docs/team/KNOWN_DOCUMENTATION_DRIFT.md`](team/KNOWN_DOCUMENTATION_DRIFT.md) (Active technical divergences tracked under formal change control).
+- **Assistant Handoff Template**: [`docs/team/ASSISTANT_HANDOFF_TEMPLATE.md`](team/ASSISTANT_HANDOFF_TEMPLATE.md) (Standardized context transfer protocol).

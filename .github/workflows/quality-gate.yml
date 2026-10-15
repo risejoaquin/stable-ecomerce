@@ -17,6 +17,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch origin main for comparison
+        run: git fetch origin main
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -54,6 +59,23 @@ jobs:
         shell: pwsh
         run: .\scripts\qa\security\validate-security-baseline.ps1 -Mode Report
 
+      - name: Documentation continuity gate
+        id: doc_continuity
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          $base = if ($env:EVENT_NAME -eq 'pull_request') {
+            if ($env:GITHUB_BASE_REF) { "origin/$env:GITHUB_BASE_REF" } else { 'origin/main' }
+          } else {
+            if ($env:BEFORE_SHA -and $env:BEFORE_SHA -ne '0000000000000000000000000000000000000000') { $env:BEFORE_SHA } else { 'HEAD~1' }
+          }
+          .\scripts\governance\TEST-DOC-IMPACT.ps1 -RepoPath . -BaseRef $base -Mode Committed -EventName $env:EVENT_NAME -Justification $env:PR_BODY
+
       - name: Generate PL20 Quality Step Evidence
         if: always()
         shell: pwsh
@@ -64,6 +86,7 @@ jobs:
           SECRET_SCAN_OUTCOME: ${{ steps.secret_scan.conclusion }}
           CORE_REGRESSION_OUTCOME: ${{ steps.core_regression.conclusion }}
           SECURITY_BASELINE_OUTCOME: ${{ steps.security_baseline.conclusion }}
+          DOC_CONTINUITY_OUTCOME: ${{ steps.doc_continuity.conclusion }}
           REPO: ${{ github.repository }}
           WORKFLOW: ${{ github.workflow }}
           RUN_ID: ${{ github.run_id }}
@@ -84,8 +107,9 @@ jobs:
           $secretStatus = Map-Status $env:SECRET_SCAN_OUTCOME
           $coreStatus = Map-Status $env:CORE_REGRESSION_OUTCOME
           $baselineStatus = Map-Status $env:SECURITY_BASELINE_OUTCOME
+          $docStatus = Map-Status $env:DOC_CONTINUITY_OUTCOME
 
-          $allPassed = ($buildStatus -eq 'PASS' -and $unitStatus -eq 'PASS' -and $secretStatus -eq 'PASS' -and $coreStatus -eq 'PASS' -and $baselineStatus -eq 'PASS')
+          $allPassed = ($buildStatus -eq 'PASS' -and $unitStatus -eq 'PASS' -and $secretStatus -eq 'PASS' -and $coreStatus -eq 'PASS' -and $baselineStatus -eq 'PASS' -and $docStatus -eq 'PASS')
           $jobStatus = if ($allPassed) { 'PASS' } else { 'FAIL' }
           $jobConclusion = if ($allPassed) { 'success' } else { 'failure' }
 
@@ -122,6 +146,11 @@ jobs:
                 status     = $baselineStatus
                 step_name  = 'Security baseline report'
                 conclusion = $env:SECURITY_BASELINE_OUTCOME
+              }
+              doc_continuity    = [ordered]@{
+                status     = $docStatus
+                step_name  = 'Documentation continuity gate'
+                conclusion = $env:DOC_CONTINUITY_OUTCOME
               }
             }
           }
@@ -266,34 +295,50 @@ jobs:
             $e2eData = Get-Content $e2eFile -Raw | ConvertFrom-Json
           }
 
-          # Release gate status determination:
-          # release_gate PASS only if:
-          # needs.quality.result == success AND needs.e2e.result == success
-          # If e2e fails: release_gate = FAIL
-          # If e2e skipped/not measured: release_gate = NOT_MEASURED or FAIL, never PASS
-          $releaseGateStatus = 'FAIL'
-          $releaseGateConclusion = 'failure'
-
-          if ($qResult -eq 'success' -and $eResult -eq 'success') {
-            $releaseGateStatus = 'PASS'
-            $releaseGateConclusion = 'success'
-          } elseif ($eResult -eq 'skipped' -or $qResult -eq 'skipped') {
-            $releaseGateStatus = 'NOT_MEASURED'
-            $releaseGateConclusion = 'skipped'
-          } else {
-            $releaseGateStatus = 'FAIL'
-            $releaseGateConclusion = 'failure'
-          }
-
           $buildDim = if ($qualityData -and $qualityData.dimensions.build) { $qualityData.dimensions.build } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Build'; conclusion = $qResult } }
           $unitDim = if ($qualityData -and $qualityData.dimensions.unit_tests) { $qualityData.dimensions.unit_tests } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Unit tests'; conclusion = $qResult } }
           $secretDim = if ($qualityData -and $qualityData.dimensions.secret_scan) { $qualityData.dimensions.secret_scan } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Secret scan'; conclusion = $qResult } }
           $coreDim = if ($qualityData -and $qualityData.dimensions.core_regression) { $qualityData.dimensions.core_regression } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Core regression contracts'; conclusion = $qResult } }
           $baselineDim = if ($qualityData -and $qualityData.dimensions.security_baseline) { $qualityData.dimensions.security_baseline } else { [ordered]@{ status = if ($qResult -eq 'success') { 'PASS' } else { 'FAIL' }; step_name = 'Security baseline report'; conclusion = $qResult } }
+
+          # Audit requirement: Ensure skipped or missing documentation verification is NEVER reported as PASS.
+          $docDim = if ($qualityData -and $qualityData.dimensions.doc_continuity) {
+            $qualityData.dimensions.doc_continuity
+          } else {
+            [ordered]@{
+              status     = 'FAIL'
+              step_name  = 'Documentation continuity gate'
+              conclusion = if ($qResult -eq 'skipped') { 'skipped' } else { 'missing' }
+            }
+          }
+          if ($docDim.status -eq 'PASS' -and (!$qualityData -or !$qualityData.dimensions.doc_continuity -or $docDim.conclusion -eq 'skipped')) {
+            $docDim.status = 'FAIL'
+          }
+
           $e2eDim = [ordered]@{
             status     = if ($e2eData -and $e2eData.status) { $e2eData.status } elseif ($eResult -eq 'success') { 'PASS' } elseif ($eResult -eq 'skipped') { 'NOT_MEASURED' } else { 'FAIL' }
             step_name  = 'Playwright E2E'
             conclusion = $eResult
+          }
+
+          # Release gate status determination:
+          # release_gate PASS only if:
+          # needs.quality.result == success AND needs.e2e.result == success AND docDim.status == PASS
+          # If e2e fails: release_gate = FAIL
+          # If e2e skipped/not measured: release_gate = NOT_MEASURED or FAIL, never PASS
+          # If doc continuity failed or missing: release_gate = FAIL, never PASS
+          $releaseGateStatus = 'FAIL'
+          $releaseGateConclusion = 'failure'
+
+          if ($qResult -eq 'success' -and $eResult -eq 'success' -and $docDim.status -eq 'PASS') {
+            $releaseGateStatus = 'PASS'
+            $releaseGateConclusion = 'success'
+          } elseif ($eResult -eq 'skipped' -or $qResult -eq 'skipped' -or $docDim.status -eq 'NOT_MEASURED') {
+            $releaseGateStatus = 'NOT_MEASURED'
+            $releaseGateConclusion = 'skipped'
+          } else {
+            $releaseGateStatus = 'FAIL'
+            $releaseGateConclusion = 'failure'
           }
 
           $manifest = [ordered]@{
@@ -324,6 +369,7 @@ jobs:
               secret_scan       = $secretDim
               core_regression   = $coreDim
               security_baseline = $baselineDim
+              doc_continuity    = $docDim
               e2e               = $e2eDim
             }
           }
@@ -331,8 +377,23 @@ jobs:
           $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path "pl20-evidence/quality-gate.json" -Encoding UTF8
 
       - name: Upload Final PL20 Quality Gate Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pl20-evidence-quality-gate-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/quality-gate.json
           retention-days: 30
+
+      - name: Enforce Final Aggregate Quality Gate Result
+        shell: pwsh
+        run: |
+          $gateFile = "pl20-evidence/quality-gate.json"
+          if (!(Test-Path $gateFile)) {
+            Write-Error "Aggregate evidence file missing."
+            exit 1
+          }
+          $data = Get-Content $gateFile -Raw | ConvertFrom-Json
+          if ($data.conclusion -ne 'success' -or $data.dimensions.release_gate.status -ne 'PASS') {
+            Write-Error "Quality gate aggregate validation failed: conclusion=$($data.conclusion), release_gate=$($data.dimensions.release_gate.status)"
+            exit 1
+          }
