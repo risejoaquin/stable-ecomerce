@@ -72,9 +72,10 @@ describe('DataDeletionPage', () => {
       json: async () => ({
         status: 'accepted_for_manual_review',
         requestId: 'test-req-uuid-1234',
+        accepted: true,
         automatedDeletion: false,
-        stored: false,
-        nextStep: 'The request must be reviewed manually before any deletion or anonymization action.'
+        deliveryStatus: 'mocked',
+        nextStep: 'The request was delivered to controlled manual intake.'
       })
     });
     global.fetch = fetchMock;
@@ -124,6 +125,37 @@ describe('DataDeletionPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Registrar otra solicitud/i }));
     expect(screen.queryByTestId('data-deletion-success')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Correo electronico registrado/i)).toBeInTheDocument();
+  });
+
+  it('does not display success when a 202 response is not explicitly accepted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => ({
+        status: 'accepted_for_manual_review',
+        accepted: false,
+        stored: false,
+        requestId: 'unconfirmed-request'
+      })
+    });
+    global.fetch = fetchMock;
+
+    render(
+      <MemoryRouter>
+        <DataDeletionPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText(/Correo electronico registrado/i), {
+      target: { value: 'user@example.com' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Enviar solicitud para revision manual/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-deletion-error')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('data-deletion-success')).not.toBeInTheDocument();
+    expect(screen.queryByText('unconfirmed-request')).not.toBeInTheDocument();
   });
 
   it('displays sanitized error message when intake endpoint fails without leaking stack traces', async () => {
