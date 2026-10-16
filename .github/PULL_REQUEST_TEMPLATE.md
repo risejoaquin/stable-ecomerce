@@ -48,3 +48,13 @@
 1. Confirm `/api/health` reports status `ok` and matches deployed commit SHA.
 2. Execute production validation smoke script:
    `.\scripts\qa\validate-production.ps1 -BaseUrl "https://selfcaresinners.com" -ExpectedCommit "<COMMIT_SHA>"`
+
+---
+
+## Governance / Release Safety
+- [ ] Jira key is present in the PR title or branch and matches the linked issue.
+- [ ] Required local checks actually executed are listed above; unchecked commands were not claimed.
+- [ ] No direct push to `main` was used.
+- [ ] Merge is NOT authorized merely because CI passes.
+- [ ] Production deploy is a separate manual action and requires explicit release authorization.
+- [ ] If this PR changes release/runbook dates, Jira and operational documentation were reconciled in the same governed change.

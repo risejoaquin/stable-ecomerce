@@ -3,27 +3,26 @@
 **Document ID**: `RB-FF-001`
 **Classification**: `DERIVED ENGINEERING DESIGN`
 **Authority**: Mandatory Operational Runbook for Feature Freeze
-**Execution Date**: **03 Oct 2026** (Mandatory & Frozen)
+**Execution Date**: **13 Oct 2026** (Current approved release calendar)
 **Parent Epic**: `CCP-44`
 
 ---
 
 ## 1. Executive Summary & Calendar Rule
 
-This runbook defines the exact operational procedure for executing **Feature Freeze** and cutting the **Release Candidate (RC)** for the Client 01 milestone on **03 Oct 2026**.
+This runbook defines the exact operational procedure for executing **Feature Freeze** and cutting the **Release Candidate (RC)** for the Client 01 milestone on **13 Oct 2026**.
 
-> **CRITICAL CALENDAR RULE (FROZEN)**:
-> - **03 Oct 2026**: Feature Freeze / Release Candidate (RC cut, code freeze, branch hardening).
-> - **04 Oct 2026**: Hardening + User Acceptance Testing (UAT, staging stress testing, regression sweep).
-> - **05 Oct 2026**: Production Release + Handoff (canary rollout, smoke tests, post-deploy monitoring).
-> *DO NOT use stale "03 Oct production handoff" language. 03 Oct is strictly for Feature Freeze and RC cut.*
-
+> **CURRENT APPROVED CALENDAR**:
+> - **13 Oct 2026**: Feature Freeze / Release Candidate (RC cut, code freeze, branch hardening).
+> - **14 Oct 2026**: Hardening, regression and security verification.
+> - **15 Oct 2026**: Formal UAT and signoff.
+> - **16 Oct 2026**: GO/NO-GO decision; manual authorized production deployment, smoke verification and handoff only if all gates PASS.
 ---
 
 ## 2. Decision Classifications
 
 1. **FROZEN REQUIREMENT**:
-   - Feature Freeze occurs strictly at 17:00 UTC on 03 Oct 2026.
+   - Feature Freeze occurs during the approved release window on 13 Oct 2026.
    - Post-freeze, no new feature pull requests may be merged into the release candidate branch.
    - Only critical bug fixes (Sev-1 / Sev-2) approved by the QA Lead may enter the branch during Hardening.
 
@@ -40,7 +39,7 @@ This runbook defines the exact operational procedure for executing **Feature Fre
 
 ---
 
-## 3. Pre-Freeze Readiness Checklist (T-4 Hours: 13:00 UTC, 03 Oct 2026)
+## 3. Pre-Freeze Readiness Checklist (T-4 Hours, 13 Oct 2026)
 
 Before cutting the Release Candidate branch, verify that all critical path implementation tickets are merged into `main`:
 
@@ -56,7 +55,7 @@ Before cutting the Release Candidate branch, verify that all critical path imple
 
 ---
 
-## 4. Branch Cut & Tagging Procedure (17:00 UTC, 03 Oct 2026)
+## 4. Branch Cut & Tagging Procedure (13 Oct 2026 release window)
 
 The Release Coordinator executes the following Git procedure in a clean environment:
 
@@ -95,7 +94,7 @@ Immediately following branch push, the Repository Administrator configures GitHu
    - `e2e` (Playwright Chromium suite).
    - `aggregate` (PL20 evidence manifest).
 4. **Lockdown Announcement**: Post notification in `#engineering-announcements`:
-   > **ANNOUNCEMENT**: Feature Freeze is now in effect for Client 01 v1.0 as of 03 Oct 2026, 17:00 UTC. Branch `rc/client01-v1.0` has been cut. All further feature PRs are deferred to post-release v1.1. Only Sev-1/Sev-2 hardening fixes are permitted with QA Lead approval.
+   > **ANNOUNCEMENT**: Feature Freeze is now in effect for Client 01 v1.0 as of 13 Oct 2026. Branch `rc/client01-v1.0` has been cut. All further feature PRs are deferred to post-release v1.1. Only Sev-1/Sev-2 hardening fixes are permitted with QA Lead approval.
 
 ---
 
@@ -123,4 +122,4 @@ Once the RC branch is cut and pushed, execute the full release verification suit
 
 Upon successful verification of `v1.0.0-rc.1`:
 1. Deploy `rc/client01-v1.0` to the **Staging Environment**.
-2. Notify the QA and UAT teams that Staging is primed for **04 Oct 2026 Hardening and User Acceptance Testing** in accordance with `HARDENING_RUNBOOK.md` and `UAT_RUNBOOK.md`.
+2. Notify the QA and UAT teams that Staging is primed for **14 Oct 2026 Hardening** and **15 Oct 2026 User Acceptance Testing** in accordance with `HARDENING_RUNBOOK.md` and `UAT_RUNBOOK.md`.
