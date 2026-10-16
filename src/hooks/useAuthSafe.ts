@@ -1,21 +1,14 @@
-export function useAuthSafe() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  let role = 'user';
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      role = payload.role || 'user';
-    } catch (e) {
-      // ignore
-    }
-  }
+import { readClientSession } from '../lib/client-session';
 
+export function useAuthSafe() {
+  const session = readClientSession();
   return {
     isLoaded: true,
-    isSignedIn: !!token,
-    userId: token ? 'user' : null,
-    sessionId: token ? 'session' : null,
-    role,
-    getToken: async () => token
+    isSignedIn: Boolean(session),
+    userId: session?.claims.userId || session?.claims.sub || null,
+    sessionId: session ? 'session' : null,
+    role: typeof session?.claims.role === 'string' ? session.claims.role : 'user',
+    // Resolve afresh so an expired token is not returned by a stale callback.
+    getToken: async () => readClientSession()?.token || null
   };
 }
