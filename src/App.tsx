@@ -21,6 +21,7 @@ import { useApiClient } from './api/useApiClient';
 import { CheckoutConfidenceStrip } from './components/conversion/CheckoutConfidenceStrip';
 import { ConversionMicrocopy } from './components/conversion/ConversionMicrocopy';
 import { trackMarketingEvent } from './lib/analytics';
+import { addCartLine } from './lib/cart-line';
 import { AdminCommandNav } from './components/admin/uix/AdminCommandNav';
 import { ProductDetailPage } from './pages/store/ProductDetailPage';
 import {
@@ -100,13 +101,7 @@ function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const addItem = (product: any) => {
-    setItems(prev => {
-      const existing = prev.find(i => i.id === product.id);
-      if (existing) {
-        return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1, image: i.image || product.image || product.images?.[0] } : i);
-      }
-      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image || product.images?.[0] }];
-    });
+    setItems(prev => addCartLine(prev, product));
     setIsCartOpen(true);
   };
 
