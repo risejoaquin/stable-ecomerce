@@ -443,14 +443,14 @@ describe('QA / RELEASE E API functional and quality contracts', () => {
     it('mounts dedicated loginLimiter on /api/login and exposes standard rate limit headers', async () => {
       const response = await request(app).post('/api/login').send({ email: 'test@example.com', password: 'test' });
       expect(response.headers).toHaveProperty('ratelimit-limit');
-      expect(Number(response.headers['ratelimit-limit'])).toBe(10);
+      expect(Number(response.headers['ratelimit-limit'])).toBe(5);
       expect(response.headers).toHaveProperty('ratelimit-remaining');
     });
 
     it('enforces SEC-005: exceeding login rate limit returns 429 with retry headers and does not leak account existence', async () => {
       let lastResponse;
-      // Burst requests from this IP until login rate limit (10) is exhausted
-      for (let i = 0; i < 12; i++) {
+      // Burst requests from this IP until login rate limit (5) is exhausted
+      for (let i = 0; i < 7; i++) {
         lastResponse = await request(app)
           .post('/api/login')
           .send({ email: 'burst.attempt@example.com', password: 'invalid-password' });

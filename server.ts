@@ -855,7 +855,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
   const contactLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, message: 'Too many contact messages, please try again later.' });
   const emailSensitiveLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many email requests, please try again later.' } });
   const adminEmailLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many admin email actions, please try again later.' } });
-  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts, please try again later.' } });
+  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts, please try again later.' } });
   const logErrorLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many error logs, please try again later.' } });
   const cartSyncLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many cart sync requests, please try again later.' } });
 
