@@ -1,26 +1,17 @@
+import { readClientSession } from '../lib/client-session';
+
 export function useUserSafe() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-
-  let role = 'guest';
-  let userId: string | null = null;
-  let email: string | null = null;
-  let fullName: string | null = null;
-
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1] || ''));
-      role = payload.role === 'admin' ? 'admin' : 'user';
-      userId = payload.userId || payload.sub || 'user';
-      email = payload.email || null;
-      fullName = payload.fullName || payload.full_name || null;
-    } catch (_) {
-      role = 'user';
-      userId = 'user';
-    }
-  }
+  const session = readClientSession();
+  const claims = session?.claims;
+  const role = !claims ? 'guest' : claims.role === 'admin' ? 'admin' : 'user';
+  const userId = claims?.userId || claims?.sub || null;
+  const email = typeof claims?.email === 'string' ? claims.email : null;
+  const fullName = typeof claims?.fullName === 'string'
+    ? claims.fullName
+    : typeof claims?.full_name === 'string' ? claims.full_name : null;
 
   return {
-    user: token
+    user: session
       ? {
           id: userId || 'user',
           role,
@@ -30,7 +21,7 @@ export function useUserSafe() {
         }
       : null,
     isLoaded: true,
-    isSignedIn: Boolean(token),
+    isSignedIn: Boolean(session),
     role
   };
 }

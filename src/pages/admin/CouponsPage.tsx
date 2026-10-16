@@ -64,7 +64,7 @@ export function CouponsPage() {
             <label className="text-sm font-medium text-gray-700">Tipo</label>
             <select value={formData.discount_type} onChange={e => setFormData({...formData, discount_type: e.target.value})} className="border p-2 rounded-lg bg-white">
               <option value="percentage">Porcentaje (%)</option>
-              <option value="fixed_amount">Monto fijo ($)</option>
+              <option value="fixed">Monto fijo ($)</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
