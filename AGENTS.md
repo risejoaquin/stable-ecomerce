@@ -1,601 +1,244 @@
 # AGENTS.md
-# Selfcare Sinners / Stable Ecommerce
+# SolidBit / Stable-Ecommerce
 
-## Purpose
+## 1. Purpose
 
-This repository is developed using a coordinated workflow between:
+This repository uses human-controlled agent-assisted engineering.
 
-- ChatGPT Web: primary reasoning, architecture, diagnosis, planning, code review, remediation design and PASS/FAIL decisions.
-- Codex local agent: local execution, file inspection, simple implementation, testing, Git operations, deployment commands and evidence collection.
-- User: final authority for product/business decisions and credentials/permissions when required.
+The authoritative roles are:
 
-Codex is primarily an execution agent.
+- Technical and Release Authority: Joaquin (`@risejoaquin`).
+- Backend / database domain owner: Rogelio (`@bonjourrog`).
+- Frontend / Web POS / E2E domain owner: Julian (`@Julian716`).
+- Primary local execution/orchestration tool: Antigravity CLI.
+- ChatGPT: analysis, planning, review, remediation design, evidence synthesis, and connector-assisted administration.
 
-Do not independently redesign the project, invent phases, change architecture, or expand scope unless explicitly instructed.
+Autonomous agents are execution units. They are not release authorities.
 
----
+## 2. Authority boundaries
 
-# Project
+Only the Technical and Release Authority may authorize:
 
-Name:
-Selfcare Sinners / Stable Ecommerce
+- merge to `main`;
+- production deploy;
+- destructive or production database mutations;
+- production credential changes;
+- GitHub ruleset or production-environment protection changes;
+- security-policy exceptions;
+- architecture or frozen-contract changes.
 
-Repository:
-risejoaquin/stable-ecomerce
+An agent must stop at these gates unless explicit authorization for that exact action exists.
 
-Branch:
-main
+CI success, local PASS, peer review, or an agent recommendation does not itself authorize a merge or deployment.
 
-Production:
-https://selfcaresinners.com
+## 3. Source-of-truth order
 
-Local Windows path:
+When information conflicts, prefer:
 
-C:\Users\Lucilfer\Documents\Stable-Ecommerce
+1. repository state and current Git history;
+2. approved/frozen engineering contracts and ADRs;
+3. current Jira acceptance criteria and dependencies;
+4. current CI evidence;
+5. approved operational runbooks;
+6. transient chat prompts.
 
-Current reference commit when this file was created:
+Do not treat stale prompt text or old evidence as authoritative.
 
-29657b687356d96db853b6bb5b6c67efa105c8c6
+## 4. Worktree isolation
 
-Commit message:
+All agent implementation or remediation work must occur in an isolated Git worktree.
 
-qa: establish automated quality gates
+Required invariants:
 
-GitHub is the source of truth.
+- never implement directly in the primary checkout;
+- never modify a sibling worktree;
+- never delete another agent's worktree;
+- never assume the primary checkout is clean;
+- create the worktree from the explicitly selected remote baseline;
+- record the base SHA before modifications;
+- use one branch per ticket/remediation;
+- stage exact files only.
 
----
+The primary checkout may contain legitimate uncommitted work. Do not clean, reset, stash, overwrite, or discard it unless the user explicitly authorizes that exact operation.
 
-# Primary operating rule
+## 5. WIP limit
 
-When ChatGPT Web gives an instruction:
+Maximum active implementation:
 
-1. Execute the requested action exactly.
-2. Do not expand the requested scope.
-3. Do not make unrelated refactors.
-4. Capture relevant stdout/stderr.
-5. Report what changed.
-6. Report test results.
-7. Stop on non-trivial failures and return evidence to ChatGPT Web.
+- 1 primary implementation ticket;
+- 1 secondary non-blocking/review ticket.
 
-If the problem is simple and mechanical, Codex may fix it directly.
+Parallel agents are allowed for read-only analysis, testing, evidence collection, or independent review when file ownership does not overlap.
 
-Examples of simple fixes:
+Do not run concurrent writers against the same files.
 
-- path correction;
-- typo;
-- missing import;
-- script invocation issue;
-- trivial syntax issue;
-- line-ending issue;
-- file permission/unblock issue;
-- clearly requested one-line or isolated edit.
+## 6. Git safety
 
-For architectural, security, payment, database, authentication, authorization, performance, migration, or multi-file behavioral issues:
+Prohibited unless explicitly authorized for a specific recovery case:
 
-STOP and report the evidence to ChatGPT Web unless an explicit implementation plan was already provided.
+- direct development on `main`;
+- `git push origin main`;
+- force push;
+- `git reset --hard`;
+- broad staging with `git add .` or `git add -A`;
+- rewriting shared history;
+- deleting remote branches belonging to another active task.
 
----
+Before modifying a worktree:
 
-# Division of responsibilities
-
-## ChatGPT Web owns
-
-- architecture decisions;
-- security remediation design;
-- payment-flow decisions;
-- database/security decisions;
-- performance diagnosis;
-- roadmap sequencing;
-- scope definition;
-- code design for significant changes;
-- determining PASS / FAIL;
-- determining when a phase is CLOSED;
-- deciding when to commit;
-- deciding when to push;
-- deciding when to deploy;
-- preparing larger patches or multi-file fixes.
-
-## Codex owns
-
-- inspecting local repository state;
-- reading files requested by ChatGPT Web;
-- executing PowerShell commands;
-- executing npm commands;
-- running Node scripts;
-- running Playwright;
-- running tests;
-- running QA scripts;
-- running builds;
-- applying explicit simple edits;
-- applying patches;
-- checking Git state;
-- staging exact files;
-- committing when explicitly instructed;
-- pushing when explicitly instructed;
-- running deployment commands when explicitly instructed;
-- collecting logs and evidence;
-- reporting failures accurately.
-
----
-
-# Communication protocol
-
-After executing a task, report:
-
-1. Commands executed.
-2. Exit code when available.
-3. PASS / FAIL for each step.
-4. Relevant stdout/stderr.
-5. Files modified.
-6. `git status --short` if files changed.
-7. `git diff --stat` if files changed.
-8. Exact error text if something failed.
-
-Do not summarize away important errors.
-
-Never hide warnings that may affect correctness.
-
-For very long logs:
-- include the failure section;
-- include final summaries;
-- include relevant stack traces;
-- include enough surrounding context to diagnose the issue.
-
----
-
-# Failure protocol
-
-If a non-trivial test or command fails:
-
-1. Stop the current phase.
-2. Do not continue to deployment.
-3. Do not commit failed work unless explicitly instructed.
-4. Do not invent a workaround.
-5. Report the full relevant error.
-6. Wait for ChatGPT Web to provide diagnosis or remediation.
-
-Do not declare PASS because most tests passed.
-
-PASS means all required gates for the requested task passed.
-
----
-
-# Git safety rules
-
-Never use:
-
-git add .
-git add -A
-git push --force
-git push -f
-git reset --hard
-
-unless ChatGPT Web explicitly instructs otherwise for a specific reason.
-
-Prefer exact staging:
-
-git add path/to/file1
-git add path/to/file2
-
-Before starting work:
-
-git status
-git fetch origin
-git pull --ff-only origin main
+- capture `git status --short --branch`;
+- capture `git rev-parse HEAD`;
+- capture `git rev-parse origin/main` when `main` is the selected baseline.
 
 Before commit:
 
-git status --short
-git diff --check
-git diff --stat
-git diff --cached --name-only
+- `git diff --check`;
+- `git diff --stat`;
+- `git diff --cached --name-only`;
+- confirm only authorized files are staged.
 
-Before push:
+## 7. Antigravity permission policy
 
-git fetch origin
-git rev-list --left-right --count HEAD...origin/main
+`--dangerously-skip-permissions` is an exception mechanism, not normal authority.
 
-Expected before a normal push after one local commit:
+It may be used only when all of the following are true:
 
-1    0
+- the task is running inside an isolated non-`main` worktree;
+- the task scope is explicit and bounded;
+- merge and deploy are not implicitly authorized;
+- secrets are not printed, copied into prompts, or committed;
+- stdout/stderr and final evidence are captured;
+- destructive operations are excluded or separately authorized;
+- the caller explicitly acknowledges bypass use.
 
-Push normally:
+A governed wrapper should be preferred over direct `agy` invocation.
 
-git push origin main
+If Antigravity gains a narrower permission mode that satisfies the task, prefer the narrower mode.
 
-After push:
+## 8. Production and external-system safety
 
-git status
-git rev-parse HEAD
-git rev-parse origin/main
+Never perform any of the following without explicit authorization:
 
-HEAD and origin/main should match.
+- Railway production deploy or environment mutation;
+- Supabase production DDL/DML outside an approved migration/recovery action;
+- destructive Jira project configuration changes;
+- GitHub ruleset/environment protection changes;
+- payment, authentication, or credential mutations;
+- Meta/third-party production credential rotation.
 
----
+Read-only inspection and evidence collection are allowed when credentials and user data are not exposed.
 
-# Temporary files
+## 9. Secrets and sensitive data
 
-Do not commit:
+Never print or commit:
 
-- generated QA artifacts;
-- temporary patch README files;
-- ad-hoc debug files;
-- local logs;
-- local secrets;
-- `.env`;
-- `.env.local`;
-- temporary Lighthouse output;
-- temporary Playwright output unless explicitly requested;
-- `node_modules`;
-- local context files unless explicitly requested.
-
-Respect `.gitignore`.
-
----
-
-# Dependency rules
-
-npm is the canonical package manager.
-
-Use:
-
-npm ci
-
-when:
-- setting up a fresh machine;
-- synchronizing node_modules to package-lock.json;
-- ChatGPT Web explicitly requests it.
-
-Do not run `npm install` unless dependencies are intentionally being changed.
-
-Do not run:
-
-npm audit fix
-npm audit fix --force
-
-without explicit instruction.
-
-Current known dependency baseline:
-
-- 2 moderate vulnerabilities
-- 1 high vulnerability
-
-These are pending controlled investigation.
-
----
-
-# QA commands
-
-Available QA scripts:
-
-.\scripts\qa\validate-fast.ps1
-
-.\scripts\qa\validate-release.ps1
-
-.\scripts\qa\validate-all.ps1
-
-.\scripts\qa\validate-production.ps1
-
-.\scripts\qa\security\scan-local-secrets.ps1
-
-.\scripts\qa\security\validate-security-baseline.ps1
-
-.\scripts\qa\quality\validate-dependencies.ps1
-
-.\scripts\qa\database\validate-database-security.ps1
-
----
-
-# FAST gate
-
-Expected FAST gate:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- FINAL RESULT PASS
-
-Run:
-
-.\scripts\qa\validate-fast.ps1
-
----
-
-# RELEASE gate
-
-Expected RELEASE gate:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- Secret scan PASS
-- Security baseline report PASS
-- Core regression PASS
-- FINAL RESULT PASS
-
-Run:
-
-.\scripts\qa\validate-release.ps1
-
-Security baseline `Report PASS` means the scanner executed correctly.
-
-It does NOT mean all security findings are resolved.
-
----
-
-# Current validated baseline
-
-The following has already been locally validated:
-
-- TypeScript PASS
-- Unit tests PASS
-- Build PASS
-- Secret Scan PASS
-- FAST PASS
-- RELEASE PASS
-- Core Regression PASS
-- QA Automation Foundation CLOSED/PASS
-
-Core regressions validated:
-
-- smoke-qa-release-e
-- smoke-mobile-ux-f
-- smoke-post-ux-c-hotfix-20
-- smoke-post-ux-c-hotfix-20-2
-
-Do not reopen these without actual regression evidence.
-
----
-
-# Security rules
-
-Never expose or print:
-
-- API secrets;
 - passwords;
+- API secrets;
 - private keys;
-- Stripe live secret keys;
-- webhook signing secrets;
-- JWT signing secrets;
 - database passwords;
-- full session tokens;
-- PAN;
-- CVV.
+- Stripe secrets;
+- webhook signing secrets;
+- full bearer/session tokens;
+- service-role keys;
+- PAN/CVV;
+- private customer data not required for the task.
 
-Never serialize `password_hash`.
+Use environment variables or the existing secret manager. Redact evidence where necessary.
 
-Do not weaken CSP by adding:
+## 10. Native command execution on Windows PowerShell 5.1
 
-unsafe-inline
+The primary Windows environment may use Windows PowerShell 5.1.
 
-or:
+Operational scripts must account for:
 
-unsafe-hashes
+- native tools writing normal informational output to stderr;
+- `$ErrorActionPreference = "Stop"` turning native stderr into `NativeCommandError`;
+- ambiguous interpolation such as `"$Var:"`; use `"${Var}:"`;
+- encoding/parser problems from non-ASCII PowerShell source.
 
-as a shortcut unless explicitly approved after analysis.
+For critical automation:
 
-Do not bypass authentication or authorization for testing unless explicitly instructed.
+- prefer ASCII-only PowerShell source where practical;
+- capture stdout and stderr separately;
+- judge native command success by the real process exit code;
+- avoid fragile exact-block replacements when line/regex matching is safer.
 
----
+## 11. QA and evidence
 
-# Known security findings
+A PASS requires evidence for the requested level.
 
-Current known security issues include:
+Keep these distinct:
 
-## P0
+- LOCAL PASS;
+- PR CI PASS;
+- PEER REVIEW PASS;
+- QA PASS;
+- STAGING PASS;
+- PROD PASS.
 
-SEC-001
-Resend webhook signature verification missing.
+One level never substitutes for another.
 
-## P1 / significant findings
+Every agent execution report should contain:
 
-SEC-002
-Legacy `/api/upload` authorization.
+- ticket/task;
+- base SHA;
+- worktree path;
+- branch;
+- files changed;
+- commands and exit codes;
+- tests/checks executed;
+- PR URL when applicable;
+- Jira evidence when applicable;
+- unresolved risks;
+- next authorized step.
 
-SEC-003
-Public `.select('*')` data overexposure.
+## 12. Failure protocol
 
-SEC-004
-verify-email response overexposure.
+On a non-trivial failure:
 
-SEC-005
-Login dedicated rate limiting.
+1. stop the failing phase;
+2. preserve logs/evidence;
+3. do not improvise a destructive workaround;
+4. do not merge or deploy;
+5. report the exact failure and affected state;
+6. resume only with a bounded remediation.
 
-SEC-006
-CSP `unsafe-inline`.
+Do not declare PASS because most checks passed.
 
-SEC-007
-Public `/api/log-error`.
+## 13. Pull requests
 
-SEC-008
-JWT lifecycle / revocation.
+Every change must be tied to Jira/governance evidence.
 
-SEC-009
-Reusable password-reset token.
+Pull requests must:
 
-SEC-010
-Weak password policy.
+- target the approved base;
+- contain only scoped files;
+- use the repository PR template;
+- pass required CI;
+- receive required CODEOWNERS review;
+- resolve review threads before merge.
 
-SEC-011
-Email verification semantics.
+Creating a PR is not merge authorization.
 
-SEC-012
-Email-change reauthentication.
+## 14. Deployment
 
-SEC-013
-Store creation authorization.
+Production deployment is a separate manually authorized release action.
 
-SEC-014
-Order tracking DTO overexposure.
+A merge to `main` must never be interpreted as automatic authorization to deploy.
 
-SEC-015
-Recover-cart token security.
+Release execution follows the approved release runbooks and GO/NO-GO gates.
 
-SEC-016
-Guest cart-sync abuse.
-
-SEC-017
-Telemetry metadata validation.
-
-SEC-018 / SEC-019
-Database RLS / SECURITY DEFINER / grants / policies pending live verification.
-
-Do not mark these resolved unless the corresponding remediation and validation have actually passed.
-
----
-
-# Database security
-
-When database security validation is requested, inspect:
-
-- RLS enabled state;
-- policies;
-- table grants;
-- function grants;
-- function owners;
-- SECURITY DEFINER;
-- search_path;
-- EXECUTE permissions.
-
-Critical functions include:
-
-- decrement_stock
-- consume_coupon_after_payment
-- finalize_paid_order
-- restock_refunded_item
-
-Never modify production database privileges without explicit instruction.
-
----
-
-# Payment safety
-
-Stripe payment integrity is security-sensitive.
-
-Do not modify payment flows, webhook ordering, idempotency, payment status transitions or checkout logic without an explicit plan.
-
-Never log:
-
-- PAN;
-- CVV;
-- Stripe secret keys;
-- webhook secrets.
-
-PCI DSS target:
-
-technical readiness for PCI DSS 4.0.1.
-
-Do not claim PCI certification.
-
----
-
-# Performance baseline
-
-POST-UX C Performance / LCP Closure remains OPEN / PAUSED.
-
-Latest robust PDP LCP median:
-
-approximately 2615.897 ms
-
-Target:
-
-<= 2500 ms
-
-Approximate remaining gap:
-
-115.897 ms
-
-Do not revert HOTFIX 20 without evidence.
-
-Preserve:
-
-- PDP below-fold deferral;
-- LCP image priority;
-- server bootstrap improvements;
-- stable vendor graph.
-
-Do not repeat previously rejected experiments without new evidence.
-
----
-
-# Project roadmap
-
-Main audit sequence:
-
-AUDIT-01 — Security and Payments
-
-AUDIT-02 — Technical Performance
-
-AUDIT-03 — Code Quality and Architecture
-
-AUDIT-04 — Legal and Privacy
-
-AUDIT-05 — UX, CRO and Accessibility
-
-Do not invent additional audit phases.
-
-ChatGPT Web decides sequencing and completion.
-
----
-
-# Current next objective
-
-Immediate sequence:
-
-1. verify GitHub Actions result;
-2. verify Railway deployment;
-3. validate production;
-4. begin AUDIT-01;
-5. prioritize SEC-001 Resend webhook signature verification.
-
-Codex should not begin security remediation independently unless ChatGPT Web provides the implementation instructions.
-
----
-
-# Scope discipline
-
-Do not perform opportunistic refactors.
-
-Do not update dependencies simply because newer versions exist.
-
-Do not rewrite working modules during an unrelated fix.
-
-Do not change formatting across entire files unless required.
+## 15. Scope discipline
 
 Prefer the smallest correct change.
 
-Every defect fix should ideally have a permanent regression test or validation.
+Do not:
 
----
+- perform opportunistic refactors;
+- update dependencies without a ticket;
+- invent database RPCs, tables, or policies before their approved contract;
+- rewrite unrelated files;
+- change architecture from an agent prompt;
+- convert provisional evidence into a production claim.
 
-# Evidence standard
-
-A phase can only be considered PASS when the required evidence exists.
-
-Code existing is not proof.
-
-A script existing is not proof.
-
-A build passing does not prove runtime behavior.
-
-A local test does not automatically prove production.
-
-Production changes require production validation when the roadmap requires it.
-
-Codex reports evidence.
-
-ChatGPT Web makes the final PASS/CLOSED decision.
-
-
-# ChatGPT Web handoff
-
-If the user says that the output will be sent to ChatGPT Web:
-
-- provide raw technical evidence;
-- avoid unnecessary explanations;
-- preserve exact error messages;
-- include file paths and line numbers;
-- include commands executed;
-- include final PASS/FAIL summary.
-
-ChatGPT Web will perform the diagnosis and provide the next instruction.
+When uncertain about authority or scope, stop and return evidence.
