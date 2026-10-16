@@ -79,7 +79,7 @@ describe('pre-cutover guard: scoped storefront & variant stock', () => {
   });
 
   it('wires store isolation and checkout aggregate preflight without claiming atomic stock', () => {
-    const code = readFileSync(new URL('../../server.ts', import.meta.url), 'utf8');
+    const code = readFileSync(new URL('../../server.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     expect(code).toContain('enforcePrimaryStoreScope(storeId, primaryStoreId)');
     expect(code).toContain(".eq('store_id', storeId)\n                .eq('status', 'active')");
     expect(code).toContain('reserveLegacyLine(reservations, product.id, selection, item.quantity)');
