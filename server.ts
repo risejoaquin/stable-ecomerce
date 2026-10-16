@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import multer from 'multer';
 import sharp from 'sharp';
 import { z } from 'zod';
+import { LegacyOrderValidationError, resolveLegacyCatalogLine, reserveLegacyLine, enforcePrimaryStoreScope } from './src/server/orders/legacy-order-guard.js';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
 import { EmailService } from './src/server/email/email-service.js';
 import { buildSoftPremiumEmailLayout } from './src/server/email/email-template-system.js';
@@ -1541,49 +1542,43 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
           try {
             const parsedBody = OrderInputSchema.parse(req.body);
             let { items, storeId, couponCode, customerEmail } = parsedBody as any;
-            if (!storeId) {
-              storeId = await getPrimaryStoreId();
-            }
-            if (!storeId) return res.status(500).json({ error: 'Primary store is not configured' });
+            const primaryStoreId = await getPrimaryStoreId();
+            if (!primaryStoreId) return res.status(503).json({ error: 'Primary store is not configured' });
+            storeId = enforcePrimaryStoreScope(storeId, primaryStoreId);
 
             let total = 0;
             const orderItems = [];
+            // Advisory preflight only: final stock authority remains the
+            // transactional sellable_units RPC mandated by DR-INV-001.
+            const reservations = new Map<string, { requested: number; available: number }>();
 
             for (const item of items) {
-              let actualProductId = item.productId;
-              const uuidMatch = actualProductId.match(/^([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-              if (uuidMatch) {
-                actualProductId = uuidMatch[1];
-              }
+              const match = String(item.productId).match(/^([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:::.*)?$/i);
+              if (!match) throw new LegacyOrderValidationError('Invalid product identifier', 400);
+              const { data: product, error: productError } = await supabase
+                .from('products')
+                .select('*')
+                .eq('id', match[1])
+                .eq('store_id', storeId)
+                .eq('status', 'active')
+                .maybeSingle();
+              if (productError) throw productError;
+              if (!product) throw new LegacyOrderValidationError('Product not found in active store', 404);
 
-              const { data: product } = await supabase.from('products').select('*').eq('id', actualProductId).single();
-              if (!product) throw new Error(`Product ${item.productId} not found`);
-              
-              const variants = Array.isArray(product.variants) ? product.variants : [];
-              const variantMatch = variants.find((v: any) =>
-                ((item as any).variantName && String(v.name).toLowerCase() === String((item as any).variantName).toLowerCase()) ||
-                ((item as any).name && String((item as any).name).toLowerCase().includes(String(v.name).toLowerCase())) ||
-                ((item as any).sku && v.sku && String(v.sku).toLowerCase() === String((item as any).sku).toLowerCase())
-              );
-              const selectedPrice = Number(variantMatch?.price || product.price);
-              const selectedSku = variantMatch?.sku || product.sku || null;
-              const stockToCheck = Number(variantMatch ? variantMatch.stock : product.stock);
-              
-              if (stockToCheck < item.quantity) throw new Error(`Not enough stock for ${(item as any).name || product.name}`);
-              
-              total += selectedPrice * item.quantity;
+              const selection = resolveLegacyCatalogLine(product, item);
+              reserveLegacyLine(reservations, product.id, selection, item.quantity);
+              total += selection.unitPrice * item.quantity;
               orderItems.push({
                 product_id: product.id,
                 quantity: item.quantity,
-                unit_price: selectedPrice,
-                name: (item as any).name || product.name,
+                unit_price: selection.unitPrice,
                 product_snapshot: {
                   id: product.id,
-                  name: (item as any).name || product.name,
+                  name: selection.displayName,
                   baseName: product.name,
-                  variantName: variantMatch?.name || (item as any).variantName || null,
-                  price: selectedPrice,
-                  sku: selectedSku,
+                  variantName: selection.variantName,
+                  price: selection.unitPrice,
+                  sku: selection.sku,
                   images: product.images || []
                 }
               });
@@ -1631,11 +1626,16 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
               product_snapshot: item.product_snapshot
             }));
             
-            // @ts-ignore
-            await supabase.from('order_items').insert(itemsToInsert as any[]);
+            // A failed line-item insert must NEVER yield a payable-looking order response.
+            // The pending order, if any, needs reconciliation; no Stripe session is started.
+            const { error: itemsInsertError } = await supabase.from('order_items').insert(itemsToInsert as any[]);
+            if (itemsInsertError) throw itemsInsertError;
 
             res.json({ id: order.id, total: finalTotal, subtotal: total, discountAmount });
           } catch (e: any) {
+            if (e instanceof LegacyOrderValidationError) {
+              return res.status(e.status).json({ error: e.message });
+            }
             if (e instanceof z.ZodError) {
               return res.status(400).json({ error: 'Validation Error', details: (e as any).errors });
             }
@@ -1680,16 +1680,32 @@ app.get('/api/readiness', asyncHandler(async (req, res) => {
 
         const itemsResult = await supabase
           .from('order_items')
-          .select('*, products(name, sku, stock)')
+          .select('*, products(id, name, sku, price, stock, variants, store_id, status)')
           .eq('order_id', orderId);
         if (itemsResult.error) throw itemsResult.error;
         orderItems = itemsResult.data || [];
         if (orderItems.length === 0) return res.status(400).json({ error: 'Order has no items' });
 
+        // Fail closed on stale/cross-store/unknown variants before creating a
+        // Stripe session. This is not a stock reservation or a substitute for
+        // atomic finalization via sellable_units (DR-INV-001).
+        const checkoutReservations = new Map<string, { requested: number; available: number }>();
         for (const item of orderItems) {
-          const stock = Number(item.products?.stock ?? 0);
-          if (stock < Number(item.quantity)) {
-            return res.status(409).json({ error: `Not enough stock for ${item.products?.name || item.product_id}` });
+          const product = item.products;
+          if (!product || product.store_id !== storeId || product.status !== 'active') {
+            return res.status(409).json({ error: 'Order contains an unavailable product' });
+          }
+          try {
+            const selection = resolveLegacyCatalogLine(product, {
+              variantName: item.product_snapshot?.variantName,
+              sku: item.product_snapshot?.sku
+            });
+            reserveLegacyLine(checkoutReservations, product.id, selection, item.quantity);
+          } catch (error) {
+            if (error instanceof LegacyOrderValidationError) {
+              return res.status(error.status).json({ error: error.message });
+            }
+            throw error;
           }
         }
       } else {
