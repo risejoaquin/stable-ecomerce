@@ -2,15 +2,17 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const url = new URL('../../scripts/qa/database/audit-readonly-schema.mjs', import.meta.url);
+const scriptPath = fileURLToPath(url);
 const source = readFileSync(url, 'utf8');
 
 describe('C-01/C-04 preflight safety contract', () => {
   it('rejects execution without explicit read-only target variable, without connecting', () => {
     const env = { ...process.env };
     delete env.CCP_AUDIT_READONLY_DATABASE_URL;
-    const result = spawnSync(process.execPath, [url.pathname], { env, encoding: 'utf8', timeout: 5000 });
+    const result = spawnSync(process.execPath, [scriptPath], { env, encoding: 'utf8', timeout: 5000 });
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('CCP_AUDIT_READONLY_DATABASE_URL');
     expect(result.stdout).not.toContain('postgres://');
