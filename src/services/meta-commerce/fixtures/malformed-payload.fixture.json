@@ -1,0 +1,17 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "ig_business_relic_001",
+      "messaging": [
+        {
+          "sender": {},
+          "recipient": null,
+          "message": {
+            "invalid_field": 12345
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "ig_business_relic_001",
+      "time": 1718000100000,
+      "changes": [
+        {
+          "field": "comments",
+          "value": {
+            "id": "comment_fixture_003",
+            "text": "Cuánto cuesta con envío a Monterrey?",
+            "from": {
+              "id": "igsid_customer_003",
+              "username": "aesthetic_buyer"
+            },
+            "post_id": "post_blackrelic_drop01",
+            "media": {
+              "id": "post_blackrelic_drop01",
+              "media_product_type": "FEED"
+            },
+            "created_time": 1718000100
+          }
+        }
+      ]
+    }
+  ]
+}

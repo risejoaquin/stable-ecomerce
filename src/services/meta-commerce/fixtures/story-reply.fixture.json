@@ -1,0 +1,30 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "ig_business_relic_001",
+      "time": 1718000050000,
+      "messaging": [
+        {
+          "sender": {
+            "id": "igsid_customer_002"
+          },
+          "recipient": {
+            "id": "ig_business_relic_001"
+          },
+          "timestamp": 1718000050000,
+          "message": {
+            "mid": "m_mid.story.reply.fixture.002",
+            "text": "Precio y talla M de este hoodie?",
+            "reply_to": {
+              "story": {
+                "id": "story_media_relic_999",
+                "url": "https://instagram.com/stories/blackrelic/17900000000000000"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

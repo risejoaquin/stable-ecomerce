@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { handleMetaWebhookHandshake, handleMetaWebhookIngress } from './src/services/meta-commerce/webhook-route.js';
+import { createMessagingRouter, type MessagingPipeline } from './src/server/ai/messaging-router.js';
 import { requirePosOperator, verifyBearerAuth } from './src/server/middleware/auth.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -16,6 +18,7 @@ import pinoHttp from 'pino-http';
 import * as fs from 'fs';
 import multer from 'multer';
 import sharp from 'sharp';
+import { Pool } from 'pg';
 import { z } from 'zod';
 import { getVerificationEmail, getOrderConfirmationEmail, getDiscountCouponEmail, getEmailLayout, getAbandonedCartEmail, getOrderStatusEmail } from './email-templates.js';
 import { EmailService } from './src/server/email/email-service.js';
@@ -26,6 +29,7 @@ import { enqueueEmail } from './src/server/email/email-queue.js';
 import { processEmailQueueBatch } from './src/server/email/email-worker.js';
 import { processResendWebhookEvent } from './src/server/email/email-webhooks.js';
 import { buildEmailTemplatePreview, listEmailTemplates } from './src/server/email/email-admin-center.js';
+import { createBlackRelicSalesRuntime } from './src/server/ai/black-relic-sales-runtime.js';
 
 // Setup Sentry
 Sentry.init({
@@ -807,9 +811,26 @@ const PUBLIC_REVIEW_SELECT = 'id,product_id,rating,comment,verified_purchase,hel
 const PUBLIC_CATEGORY_COLLECTION_SELECT = 'id,store_id,name,slug,description,image_url,sort_order,hero_title,hero_subtitle,cta_label,cta_url';
 const PUBLIC_TRUST_BADGE_SELECT = 'id,store_id,badge_key,label,description,icon,sort_order';
 
-export async function startServer(options: { listen?: boolean } = {}) {
+export async function startServer(options: { listen?: boolean; messagingPipeline?: MessagingPipeline } = {}) {
   const { listen = true } = options;
   const app = express();
+  let activeMessagingPipeline = options.messagingPipeline;
+  const salesMode = process.env.SALES_AUTOMATION_MODE ?? 'disabled';
+  let salesPool: Pool | undefined;
+  if (!activeMessagingPipeline && salesMode === 'local') {
+    const databaseUrl = process.env.SALES_AUTOMATION_DATABASE_URL || process.env.DATABASE_URL;
+    const storeId = process.env.SALES_AUTOMATION_STORE_ID;
+    const appSecret = process.env.META_APP_SECRET;
+    const verifyToken = process.env.META_VERIFY_TOKEN;
+    if (!databaseUrl || !storeId || !appSecret || !verifyToken) throw new Error('LOCAL_SALES_AUTOMATION_CONFIG_REQUIRED');
+    salesPool = new Pool({ connectionString: databaseUrl, max: 5, application_name: 'black-relic-sales-local' });
+    activeMessagingPipeline = createBlackRelicSalesRuntime({
+      pool: salesPool, storeId, appSecret, verifyToken, providerMode: 'mock',
+    }).pipeline;
+  }
+  if (salesMode === 'production' && !activeMessagingPipeline) {
+    throw new Error('PRODUCTION_SALES_AUTOMATION_REQUIRES_EXPLICIT_PIPELINE');
+  }
 
   app.use((req, res, next) => {
     const requestId = req.headers['x-request-id'] || crypto.randomUUID();
@@ -837,7 +858,7 @@ export async function startServer(options: { listen?: boolean } = {}) {
       useDefaults: true,
       directives: {
         "default-src": ["'self'"],
-        "script-src": ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+        "script-src": ["'self'", "https://js.stripe.com"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -982,6 +1003,15 @@ export async function startServer(options: { listen?: boolean } = {}) {
   }));
 
   // Regular JSON middleware for other routes
+  if (activeMessagingPipeline) {
+    app.use('/api/webhooks/meta', createMessagingRouter({
+      appSecret: process.env.META_APP_SECRET,
+      verifyToken: process.env.META_VERIFY_TOKEN,
+    }, activeMessagingPipeline));
+  } else {
+    app.get('/api/webhooks/meta', handleMetaWebhookHandshake);
+    app.post('/api/webhooks/meta', express.raw({ type: 'application/json', limit: '256kb' }), asyncHandler(handleMetaWebhookIngress));
+  }
   app.use(express.json());
 
   app.use('/api/pos', requirePosOperator({
@@ -12464,14 +12494,19 @@ app.post(
   });
 
   if (listen) {
-    app.listen(Number(PORT), "0.0.0.0", () => {
+    const server = app.listen(Number(PORT), "0.0.0.0", () => {
       logger.info(`Server running on port ${PORT}`);
     });
+    server.on('close', () => { void salesPool?.end(); });
   }
 
   return app;
 }
 
 if (process.env.NODE_ENV !== 'test') {
+// Tests and local composition callers must opt into startServer explicitly.
+// Automatic listening is reserved for a real non-test process.
+if (process.env.NODE_ENV !== 'test') {
   startServer();
+}
 }
