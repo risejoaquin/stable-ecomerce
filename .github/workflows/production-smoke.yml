@@ -41,7 +41,7 @@ jobs:
           "expected_commit=$expectedCommit" >> $env:GITHUB_OUTPUT
 
       - name: Checkout deployed commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.deployment.outputs.expected_commit }}
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Upload PL20 Production Smoke Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pl20-evidence-production-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: pl20-evidence/production-smoke.json
